@@ -1,0 +1,6 @@
+.next
+node_modules
+uploads
+scaffold-temp
+PLANNING.md
+pnpm-lock.yaml

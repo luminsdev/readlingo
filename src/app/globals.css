@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f5efe3;
+  --foreground: #20180f;
+  --card: rgba(255, 251, 244, 0.9);
+  --card-foreground: #20180f;
+  --border: rgba(96, 71, 48, 0.16);
+  --muted: #e5d7bf;
+  --muted-foreground: #63503d;
+  --accent: #c86a3c;
+  --accent-foreground: #fff8f0;
+  --ring: rgba(200, 106, 60, 0.28);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(200, 106, 60, 0.14),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(114, 153, 118, 0.12),
+      transparent 28%
+    ),
+    linear-gradient(180deg, #f9f4eb 0%, #f2eadc 100%);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), sans-serif;
+  min-height: 100vh;
+}
+
+a,
+button,
+input,
+textarea,
+select {
+  transition:
+    color 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+::selection {
+  background: rgba(200, 106, 60, 0.2);
+}
+
+.font-serif {
+  font-family: var(--font-serif), serif;
+}
+
+.paper-panel {
+  backdrop-filter: blur(18px);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 253, 248, 0.94),
+    rgba(255, 250, 242, 0.86)
+  );
+  box-shadow: 0 24px 60px rgba(63, 44, 27, 0.08);
+}

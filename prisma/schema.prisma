@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  books        Book[]
+  vocabularies Vocabulary[]
+}
+
+model Book {
+  id              String           @id @default(cuid())
+  title           String
+  author          String?
+  coverUrl        String?
+  filePath        String
+  language        String
+  createdAt       DateTime         @default(now())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readingProgress ReadingProgress?
+  vocabularies    Vocabulary[]
+
+  @@index([userId, createdAt])
+}
+
+model ReadingProgress {
+  id        String   @id @default(cuid())
+  bookId    String   @unique
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  cfi       String
+  updatedAt DateTime @updatedAt
+}
+
+model Vocabulary {
+  id              String    @id @default(cuid())
+  word            String
+  definition      String
+  exampleSentence String
+  contextSentence String
+  sourceLanguage  String
+  targetLanguage  String
+  createdAt       DateTime  @default(now())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId          String?
+  book            Book?     @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  srsData         SRSData?
+
+  @@index([userId, createdAt])
+  @@index([bookId])
+}
+
+model SRSData {
+  id             String     @id @default(cuid())
+  vocabularyId   String     @unique
+  vocabulary     Vocabulary @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+  interval       Int        @default(1)
+  easeFactor     Float      @default(2.5)
+  repetitions    Int        @default(0)
+  nextReviewAt   DateTime   @default(now())
+  lastReviewedAt DateTime?
+
+  @@index([nextReviewAt])
+}
