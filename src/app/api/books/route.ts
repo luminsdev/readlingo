@@ -5,6 +5,8 @@ import {
   assertEpubFile,
   createBookTitle,
   persistBookFile,
+  removeBookFile,
+  validateEpubArchive,
 } from "@/lib/book-storage";
 import { prisma } from "@/lib/prisma";
 
@@ -51,6 +53,19 @@ export async function POST(request: Request) {
     );
   }
 
+  let validatedFileBytes: Uint8Array;
+
+  try {
+    validatedFileBytes = await validateEpubArchive(file);
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Invalid EPUB upload.",
+      },
+      { status: 400 },
+    );
+  }
+
   const provisionalBook = await prisma.book.create({
     data: {
       title: createBookTitle(file.name),
@@ -62,11 +77,14 @@ export async function POST(request: Request) {
     },
   });
 
+  let filePath: string | null = null;
+
   try {
-    const filePath = await persistBookFile({
+    filePath = await persistBookFile({
       userId: session.user.id,
       bookId: provisionalBook.id,
       file,
+      fileBytes: validatedFileBytes,
     });
 
     const savedBook = await prisma.book.update({
@@ -76,6 +94,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ book: savedBook }, { status: 201 });
   } catch (error) {
+    if (filePath) {
+      await removeBookFile(filePath).catch(() => undefined);
+    }
+
     await prisma.book.delete({ where: { id: provisionalBook.id } });
 
     return NextResponse.json(

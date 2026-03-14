@@ -1,17 +1,11 @@
 import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { prisma } from "@/lib/prisma";
+import { ReaderWorkspace } from "@/components/reader/reader-workspace";
+import { getOwnedReaderBook } from "@/lib/books";
 
-export default async function ReaderScaffoldPage({
+export default async function ReaderPage({
   params,
 }: {
   params: Promise<{ bookId: string }>;
@@ -19,31 +13,29 @@ export default async function ReaderScaffoldPage({
   const session = await auth();
   const { bookId } = await params;
 
-  const book = await prisma.book.findFirst({
-    where: {
-      id: bookId,
-      userId: session!.user.id,
-    },
-  });
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  const book = await getOwnedReaderBook(session.user.id, bookId);
 
   if (!book) {
     notFound();
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <Badge>Phase 2 scaffold</Badge>
-        <CardTitle className="font-serif text-3xl">{book.title}</CardTitle>
-        <CardDescription>
-          This route is wired and protected. `epub.js`, pagination, and CFI
-          save/resume come in the next vertical slice.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="text-muted-foreground text-sm">
-        Your upload is already stored for this account and ready for the Phase 2
-        reader implementation.
-      </CardContent>
-    </Card>
+    <ReaderWorkspace
+      initialBook={{
+        id: book.id,
+        title: book.title,
+        author: book.author,
+        coverUrl: book.coverUrl,
+        language: book.language,
+        createdAt: book.createdAt.toISOString(),
+        progressCfi: book.readingProgress?.cfi ?? null,
+        progressUpdatedAt:
+          book.readingProgress?.updatedAt.toISOString() ?? null,
+      }}
+    />
   );
 }

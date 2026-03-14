@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { BookCopy, Clock3, FolderOpenDot } from "lucide-react";
 
 import { auth } from "@/auth";
@@ -19,8 +20,12 @@ import { prisma } from "@/lib/prisma";
 export default async function LibraryPage() {
   const session = await auth();
 
+  if (!session?.user) {
+    redirect("/login");
+  }
+
   const books = await prisma.book.findMany({
-    where: { userId: session!.user.id },
+    where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
   });
 
@@ -28,13 +33,13 @@ export default async function LibraryPage() {
     <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
       <Card className="h-fit">
         <CardHeader>
-          <Badge>Phase 1</Badge>
+          <Badge>Phase 2</Badge>
           <CardTitle className="font-serif text-3xl">
-            Your library foundation
+            Your reading library
           </CardTitle>
           <CardDescription>
-            Upload EPUB files now. Metadata extraction, reader rendering, and
-            progress sync land in the next vertical slice.
+            Upload EPUB files here, then open them in the live reader to enrich
+            metadata and resume from saved progress.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -71,13 +76,13 @@ export default async function LibraryPage() {
                 </div>
 
                 <div className="border-border text-muted-foreground rounded-3xl border border-dashed bg-white/60 p-4 text-sm">
-                  Reader navigation unlocks in Phase 2. The route scaffold is
-                  already prepared.
+                  Open the reader to parse metadata, page through the EPUB, and
+                  keep your place synced in the background.
                 </div>
               </CardContent>
               <CardFooter className="justify-between">
                 <Button asChild size="sm" variant="secondary">
-                  <Link href={`/reader/${book.id}`}>Reader scaffold</Link>
+                  <Link href={`/reader/${book.id}`}>Open reader</Link>
                 </Button>
                 <DeleteBookButton bookId={book.id} title={book.title} />
               </CardFooter>

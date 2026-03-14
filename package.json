@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "phase1:smoke": "node scripts/phase1_smoke_test.mjs",
+    "phase2:test": "node --test scripts/phase2_reader_regressions.test.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:generate": "prisma generate",
