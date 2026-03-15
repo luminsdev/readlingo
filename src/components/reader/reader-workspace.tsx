@@ -81,6 +81,7 @@ export function ReaderWorkspace({
 
   return (
     <ReaderSelectionHandler
+      bookId={initialBook.id}
       language={metadata.language}
       readerSurfaceRef={readerSurfaceRef}
     >

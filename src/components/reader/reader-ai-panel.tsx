@@ -2,7 +2,7 @@
 
 import {
   AlertCircle,
-  BookOpenText,
+  Check,
   ChevronRight,
   Copy,
   LoaderCircle,
@@ -20,6 +20,8 @@ type PopoverPosition = {
   top: number;
   left: number;
 };
+
+type VocabularySaveState = "idle" | "saving" | "saved" | "alreadySaved";
 
 function getBriefExplanation(explanation: string | undefined) {
   if (!explanation) {
@@ -39,12 +41,14 @@ export function ReaderAiPanel({
   explanation,
   isSidebarOpen,
   popoverPosition,
+  saveState,
   selectedText,
   tooltipSelectedText,
   onCopySelection,
   onExplainSelection,
   onOpenSidebar,
   onRetry,
+  onSaveToVocabulary,
   onDismissPopover,
 }: {
   state: AiPanelState;
@@ -52,16 +56,31 @@ export function ReaderAiPanel({
   explanation: ExplanationPayload | null;
   isSidebarOpen: boolean;
   popoverPosition: PopoverPosition | null;
+  saveState: VocabularySaveState;
   selectedText: string | null;
   tooltipSelectedText: string | null;
   onCopySelection: () => void;
   onExplainSelection: () => void;
   onOpenSidebar: () => void;
   onRetry: () => void;
+  onSaveToVocabulary: () => void;
   onDismissPopover: () => void;
 }) {
   const showPopover = popoverPosition && tooltipSelectedText;
   const briefExplanation = getBriefExplanation(explanation?.explanation);
+  const isSaving = saveState === "saving";
+  const isSaveDisabled = saveState !== "idle";
+  const saveLabel =
+    saveState === "saving"
+      ? "Saving to Archive"
+      : saveState === "saved"
+        ? "Saved to Archive"
+        : saveState === "alreadySaved"
+          ? "Already Saved"
+          : "Save to Archive";
+  const saveButtonTextClass = isSaveDisabled
+    ? "text-zinc-500 dark:text-zinc-400"
+    : "text-zinc-900 dark:text-zinc-100";
 
   useEffect(() => {
     if (!showPopover) return;
@@ -310,22 +329,30 @@ export function ReaderAiPanel({
                   <div className="pt-4">
                     <button
                       type="button"
-                      disabled
-                      className="group flex w-full items-center justify-between border border-zinc-200 px-4 py-3 opacity-50 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                      onClick={onSaveToVocabulary}
+                      disabled={isSaveDisabled}
+                      className="group flex w-full items-center justify-between border border-zinc-200 px-4 py-3 transition-colors hover:bg-zinc-50 disabled:cursor-default disabled:border-zinc-200/70 disabled:bg-zinc-50/80 disabled:text-zinc-500 dark:border-zinc-800 dark:hover:bg-zinc-900 dark:disabled:border-zinc-800/70 dark:disabled:bg-zinc-900/60 dark:disabled:text-zinc-400"
                     >
-                      <span className="flex items-center gap-2 text-xs font-medium text-zinc-900 dark:text-zinc-100">
-                        <Save className="size-3.5" />
-                        Save to Archive
+                      <span
+                        className={`flex items-center gap-2 text-xs font-medium ${saveButtonTextClass}`}
+                      >
+                        {isSaving ? (
+                          <LoaderCircle className="size-3.5 animate-spin" />
+                        ) : saveState === "saved" ||
+                          saveState === "alreadySaved" ? (
+                          <Check className="size-3.5" />
+                        ) : (
+                          <Save className="size-3.5" />
+                        )}
+                        {saveLabel}
                       </span>
-                      <span className="text-[10px] tracking-widest text-zinc-500 uppercase">
-                        Phase 4
-                      </span>
+                      <ChevronRight className="size-3.5 text-zinc-500 transition-transform group-hover:translate-x-0.5 group-disabled:translate-x-0 dark:text-zinc-400" />
                     </button>
-                    <p className="mt-3 flex items-start gap-2 text-[10px] text-zinc-400">
-                      <BookOpenText className="mt-0.5 size-3 shrink-0" />
-                      Archiving capabilities remain locked during current
-                      experimental phase.
-                    </p>
+                    {errorMessage ? (
+                      <p className="mt-3 text-[11px] leading-relaxed text-red-700 dark:text-red-300">
+                        {errorMessage}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               ) : null}

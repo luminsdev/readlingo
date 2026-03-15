@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server";
 
-import { generateExplanation, getAiErrorMessage } from "@/lib/ai";
+import { auth } from "@/auth";
+import {
+  generateExplanation,
+  getAiErrorMessage,
+  normalizeExplanationPayload,
+} from "@/lib/ai";
 import { explainSelectionSchema } from "@/lib/ai-validation";
 
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
+  const session = await auth();
+
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsedPayload = explainSelectionSchema.safeParse(body);
 
@@ -23,11 +34,14 @@ export async function POST(request: Request) {
   try {
     const result = await generateExplanation(parsedPayload.data);
 
-    return NextResponse.json(result, {
-      headers: {
-        "Cache-Control": "no-store",
+    return NextResponse.json(
+      normalizeExplanationPayload(result, parsedPayload.data.selectedText),
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
       },
-    });
+    );
   } catch (error) {
     return NextResponse.json(
       {

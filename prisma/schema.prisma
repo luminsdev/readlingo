@@ -53,9 +53,10 @@ model Vocabulary {
   userId          String
   bookId          String?
   srsData         SRSData?
-  book            Book?    @relation(fields: [bookId], references: [id])
+  book            Book?    @relation(fields: [bookId], references: [id], onDelete: SetNull)
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, bookId, word])
   @@index([userId, createdAt])
   @@index([bookId])
 }

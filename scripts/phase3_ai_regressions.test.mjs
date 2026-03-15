@@ -8,6 +8,12 @@ import {
   normalizeExplanationPayload,
 } from "../src/lib/ai.ts";
 import { explainSelectionSchema } from "../src/lib/ai-validation.ts";
+import {
+  saveVocabularySchema,
+  vocabularyIdSchema,
+  vocabularyQuerySchema,
+} from "../src/lib/vocabulary-validation.ts";
+import { buildVocabularySavePayload } from "../src/lib/vocabulary.ts";
 
 test("explainSelectionSchema requires reader context for AI explanations", () => {
   assert.equal(
@@ -117,4 +123,94 @@ test("isSingleWordSelection distinguishes words from phrases", () => {
   assert.equal(isSingleWordSelection("curious"), true);
   assert.equal(isSingleWordSelection("moon-lit"), true);
   assert.equal(isSingleWordSelection("curious fox"), false);
+});
+
+test("saveVocabularySchema validates vocabulary archive payloads", () => {
+  assert.equal(
+    saveVocabularySchema.safeParse({
+      word: "  curious  ",
+      definition: "  to mo  ",
+      exampleSentence: "The curious fox paused.",
+      contextSentence: "The curious fox watched the moonlit road.",
+      sourceLanguage: "  EN  ",
+      targetLanguage: "  VI  ",
+      bookId: "ckvocabularybook0000000000000",
+    }).success,
+    true,
+  );
+
+  assert.equal(
+    saveVocabularySchema.safeParse({
+      word: "",
+      definition: "to mo",
+      exampleSentence: "The curious fox paused.",
+      contextSentence: "The curious fox watched the moonlit road.",
+      sourceLanguage: "en",
+      targetLanguage: "vi",
+    }).success,
+    false,
+  );
+});
+
+test("vocabularyQuerySchema applies pagination defaults and rejects oversized pages", () => {
+  assert.deepEqual(vocabularyQuerySchema.parse({}), {
+    page: 1,
+    limit: 20,
+  });
+
+  assert.deepEqual(
+    vocabularyQuerySchema.parse({
+      word: "  curious  ",
+      bookId: "cm9testbook0000000000000000",
+      limit: "1",
+    }),
+    {
+      word: "curious",
+      bookId: "cm9testbook0000000000000000",
+      page: 1,
+      limit: 1,
+    },
+  );
+
+  assert.equal(
+    vocabularyQuerySchema.safeParse({
+      page: "2",
+      limit: "101",
+    }).success,
+    false,
+  );
+});
+
+test("vocabularyIdSchema only accepts valid vocabulary ids", () => {
+  assert.equal(
+    vocabularyIdSchema.safeParse("cm9testbook0000000000000000").success,
+    true,
+  );
+
+  assert.equal(vocabularyIdSchema.safeParse("not-a-cuid").success, false);
+});
+
+test("buildVocabularySavePayload maps AI explanation data into an archive request", () => {
+  assert.deepEqual(
+    buildVocabularySavePayload({
+      bookId: "cm9testbook0000000000000000",
+      explanation: {
+        translation: "to mo",
+        explanation: "mo ta dieu gi do rat muon tim hieu",
+        examples: ["The curious fox paused.", "Curious minds learn fast."],
+      },
+      selectedText: "curious",
+      sourceLanguage: "EN",
+      surroundingParagraph: "The curious fox watched the moonlit road.",
+    }),
+    {
+      word: "curious",
+      definition: "to mo",
+      exampleSentence: "The curious fox paused.",
+      contextSentence: "The curious fox watched the moonlit road.",
+      sourceLanguage: "en",
+      targetLanguage: "vi",
+      bookId: "cm9testbook0000000000000000",
+    },
+  );
 });

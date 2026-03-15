@@ -1,19 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import type Contents from "epubjs/types/contents";
-import type { ReactNode, RefObject } from "react";
 
 import { ReaderAiPanel } from "@/components/reader/reader-ai-panel";
 import type {
   PendingExplainRequest,
   ReaderSelectionHandlerRenderProps,
 } from "@/components/reader/reader-workspace-types";
-import {
-  getPopoverPosition,
-  readSelectionStreamText,
-} from "@/components/reader/reader-workspace-utils";
-import { getAiErrorMessage, normalizeExplanationPayload } from "@/lib/ai";
+import { getPopoverPosition } from "@/components/reader/reader-workspace-utils";
+import { getAiErrorMessage } from "@/lib/ai";
 import {
   aiExplanationSchema,
   type ExplainSelectionInput,
@@ -22,15 +25,18 @@ import {
   clearReaderSelection,
   getReaderSelectionPayload,
 } from "@/lib/reader-selection";
+import { buildVocabularySavePayload } from "@/lib/vocabulary";
 import type { ExplanationPayload } from "@/types";
 
 type ReaderSelectionHandlerProps = {
+  bookId: string;
   children: (props: ReaderSelectionHandlerRenderProps) => ReactNode;
   language: string;
   readerSurfaceRef: RefObject<HTMLDivElement | null>;
 };
 
 export function ReaderSelectionHandler({
+  bookId,
   children,
   language,
   readerSurfaceRef,
@@ -39,6 +45,13 @@ export function ReaderSelectionHandler({
   const pendingExplainRequestRef = useRef<PendingExplainRequest | null>(null);
   const retryExplainRequestRef = useRef<PendingExplainRequest | null>(null);
   const selectionContentsRef = useRef<Contents | null>(null);
+  const vocabularyLookupAbortControllerRef = useRef<AbortController | null>(
+    null,
+  );
+  const vocabularySaveAbortControllerRef = useRef<AbortController | null>(null);
+  const vocabularySaveStateRef = useRef<
+    "idle" | "saving" | "saved" | "alreadySaved"
+  >("idle");
   const isMountedRef = useRef(true);
 
   const [aiState, setAiState] = useState<
@@ -59,6 +72,17 @@ export function ReaderSelectionHandler({
   const [tooltipSelectedText, setTooltipSelectedText] = useState<string | null>(
     null,
   );
+  const [vocabularySaveState, setVocabularySaveState] = useState<
+    "idle" | "saving" | "saved" | "alreadySaved"
+  >("idle");
+
+  const setVocabularySaveStatus = useCallback(
+    (nextState: "idle" | "saving" | "saved" | "alreadySaved") => {
+      vocabularySaveStateRef.current = nextState;
+      setVocabularySaveState(nextState);
+    },
+    [],
+  );
 
   const clearPendingSelection = useCallback(() => {
     clearReaderSelection(selectionContentsRef.current);
@@ -71,6 +95,10 @@ export function ReaderSelectionHandler({
   const dismissPanels = useCallback(() => {
     explainAbortControllerRef.current?.abort();
     explainAbortControllerRef.current = null;
+    vocabularyLookupAbortControllerRef.current?.abort();
+    vocabularyLookupAbortControllerRef.current = null;
+    vocabularySaveAbortControllerRef.current?.abort();
+    vocabularySaveAbortControllerRef.current = null;
     retryExplainRequestRef.current = null;
     clearPendingSelection();
     setAiState("idle");
@@ -78,7 +106,8 @@ export function ReaderSelectionHandler({
     setAiExplanation(null);
     setIsAiSidebarOpen(false);
     setActiveSelectedText(null);
-  }, [clearPendingSelection]);
+    setVocabularySaveStatus("idle");
+  }, [clearPendingSelection, setVocabularySaveStatus]);
 
   const requestExplanation = useCallback(
     async (
@@ -87,6 +116,10 @@ export function ReaderSelectionHandler({
     ) => {
       retryExplainRequestRef.current = requestPayload;
       explainAbortControllerRef.current?.abort();
+      vocabularyLookupAbortControllerRef.current?.abort();
+      vocabularyLookupAbortControllerRef.current = null;
+      vocabularySaveAbortControllerRef.current?.abort();
+      vocabularySaveAbortControllerRef.current = null;
 
       const abortController = new AbortController();
       explainAbortControllerRef.current = abortController;
@@ -95,6 +128,7 @@ export function ReaderSelectionHandler({
       setAiState("loading");
       setAiErrorMessage(null);
       setAiExplanation(null);
+      setVocabularySaveStatus("idle");
 
       try {
         const response = await fetch("/api/ai/explain", {
@@ -119,15 +153,8 @@ export function ReaderSelectionHandler({
           );
         }
 
-        const responseText = (await readSelectionStreamText(response)).trim();
-
-        if (!responseText) {
-          throw new Error("AI explanation returned an empty response.");
-        }
-
-        const parsedOutput = aiExplanationSchema.safeParse(
-          JSON.parse(responseText),
-        );
+        const responseBody = await response.json().catch(() => null);
+        const parsedOutput = aiExplanationSchema.safeParse(responseBody);
 
         if (!parsedOutput.success) {
           throw new Error(
@@ -140,12 +167,7 @@ export function ReaderSelectionHandler({
           return;
         }
 
-        setAiExplanation(
-          normalizeExplanationPayload(
-            parsedOutput.data,
-            requestPayload.selectedText,
-          ),
-        );
+        setAiExplanation(parsedOutput.data);
         setAiState("ready");
       } catch (error) {
         if (abortController.signal.aborted || !isMountedRef.current) {
@@ -161,7 +183,7 @@ export function ReaderSelectionHandler({
         }
       }
     },
-    [],
+    [setVocabularySaveStatus],
   );
 
   const retryAiExplanation = useCallback(
@@ -176,6 +198,93 @@ export function ReaderSelectionHandler({
     },
     [requestExplanation],
   );
+
+  const saveToVocabulary = useCallback(async () => {
+    const requestPayload = retryExplainRequestRef.current;
+    const currentSaveState = vocabularySaveStateRef.current;
+
+    if (
+      !requestPayload ||
+      !aiExplanation ||
+      currentSaveState === "saving" ||
+      currentSaveState === "saved" ||
+      currentSaveState === "alreadySaved"
+    ) {
+      return;
+    }
+
+    const selectedWord = requestPayload.selectedText.trim();
+
+    vocabularySaveAbortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    vocabularySaveAbortControllerRef.current = abortController;
+
+    setVocabularySaveStatus("saving");
+    setAiErrorMessage(null);
+
+    try {
+      const response = await fetch("/api/vocabulary", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          buildVocabularySavePayload({
+            bookId,
+            explanation: aiExplanation,
+            selectedText: requestPayload.selectedText,
+            sourceLanguage: requestPayload.sourceLanguage,
+            surroundingParagraph: requestPayload.surroundingParagraph,
+          }),
+        ),
+        signal: abortController.signal,
+      });
+
+      if (
+        abortController.signal.aborted ||
+        !isMountedRef.current ||
+        retryExplainRequestRef.current?.selectedText.trim() !== selectedWord
+      ) {
+        return;
+      }
+
+      if (response.status === 409) {
+        setVocabularySaveStatus("alreadySaved");
+        return;
+      }
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+
+        throw new Error(
+          payload?.error ?? "Unable to save this vocabulary item.",
+        );
+      }
+
+      setVocabularySaveStatus("saved");
+    } catch (error) {
+      if (
+        abortController.signal.aborted ||
+        !isMountedRef.current ||
+        retryExplainRequestRef.current?.selectedText.trim() !== selectedWord
+      ) {
+        return;
+      }
+
+      setVocabularySaveStatus("idle");
+      setAiErrorMessage(
+        error instanceof Error && error.message.trim()
+          ? error.message
+          : "Unable to save this vocabulary item.",
+      );
+    } finally {
+      if (vocabularySaveAbortControllerRef.current === abortController) {
+        vocabularySaveAbortControllerRef.current = null;
+      }
+    }
+  }, [aiExplanation, bookId, setVocabularySaveStatus]);
 
   const handleSelection = useCallback(
     (_cfiRange: string, contents: Contents) => {
@@ -231,6 +340,10 @@ export function ReaderSelectionHandler({
     return () => {
       explainAbortControllerRef.current?.abort();
       explainAbortControllerRef.current = null;
+      vocabularyLookupAbortControllerRef.current?.abort();
+      vocabularyLookupAbortControllerRef.current = null;
+      vocabularySaveAbortControllerRef.current?.abort();
+      vocabularySaveAbortControllerRef.current = null;
       isMountedRef.current = false;
     };
   }, []);
@@ -253,6 +366,83 @@ export function ReaderSelectionHandler({
     };
   }, [aiPopoverPosition, clearPendingSelection]);
 
+  useEffect(() => {
+    if (aiState !== "ready" || !aiExplanation) {
+      vocabularyLookupAbortControllerRef.current?.abort();
+      vocabularyLookupAbortControllerRef.current = null;
+      return;
+    }
+
+    const requestPayload = retryExplainRequestRef.current;
+    const word = requestPayload?.selectedText.trim();
+
+    if (!requestPayload || !word) {
+      return;
+    }
+
+    vocabularyLookupAbortControllerRef.current?.abort();
+
+    const abortController = new AbortController();
+    vocabularyLookupAbortControllerRef.current = abortController;
+    let isActive = true;
+
+    const searchParams = new URLSearchParams({
+      word,
+      bookId,
+      page: "1",
+      limit: "1",
+    });
+
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/vocabulary?${searchParams.toString()}`,
+          {
+            signal: abortController.signal,
+          },
+        );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json().catch(() => null)) as {
+          items?: Array<{ id: string }>;
+        } | null;
+
+        if (
+          !isActive ||
+          abortController.signal.aborted ||
+          retryExplainRequestRef.current?.selectedText.trim() !== word
+        ) {
+          return;
+        }
+
+        if (
+          (payload?.items?.length ?? 0) > 0 &&
+          vocabularySaveStateRef.current === "idle"
+        ) {
+          setVocabularySaveStatus("alreadySaved");
+        }
+      } catch {
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        return;
+      } finally {
+        if (vocabularyLookupAbortControllerRef.current === abortController) {
+          vocabularyLookupAbortControllerRef.current = null;
+        }
+      }
+    })();
+
+    return () => {
+      isActive = false;
+      abortController.abort();
+    };
+  }, [aiExplanation, aiState, bookId, setVocabularySaveStatus]);
+
   const panel = (
     <ReaderAiPanel
       errorMessage={aiErrorMessage}
@@ -264,8 +454,12 @@ export function ReaderSelectionHandler({
       onExplainSelection={explainPendingSelection}
       onOpenSidebar={() => setIsAiSidebarOpen(true)}
       onRetry={() => retryAiExplanation()}
+      onSaveToVocabulary={() => {
+        void saveToVocabulary();
+      }}
       onDismissPopover={clearPendingSelection}
       popoverPosition={aiPopoverPosition}
+      saveState={vocabularySaveState}
       selectedText={activeSelectedText}
       state={aiState}
       tooltipSelectedText={tooltipSelectedText}
