@@ -13,6 +13,7 @@ import {
   getReaderNavigationDirection,
   restoreReaderFocus,
 } from "../src/lib/reader.ts";
+import { createReaderPagehideFlushHandler } from "../src/lib/reader-progress.ts";
 
 function createNode(tagName, children = [], textContent = "") {
   const node = {
@@ -97,6 +98,33 @@ test("readingProgressSchema rejects malformed EPUB CFIs", () => {
     readingProgressSchema.safeParse({ cfi: "chapter-1" }).success,
     false,
   );
+});
+
+test("createReaderPagehideFlushHandler uses the latest CFI and skips persisted positions", async () => {
+  let activeCfi = "epubcfi(/6/2!/4/2/8,/1:0,/1:12)";
+  let lastPersistedCfi = activeCfi;
+  const calls = [];
+
+  const flushProgress = createReaderPagehideFlushHandler({
+    getActiveCfi: () => activeCfi,
+    getLastPersistedCfi: () => lastPersistedCfi,
+    saveProgress: async (cfi, keepalive = false) => {
+      calls.push({ cfi, keepalive });
+    },
+  });
+
+  flushProgress();
+  assert.equal(calls.length, 0);
+
+  activeCfi = "epubcfi(/6/2!/4/2/10,/1:0,/1:12)";
+  flushProgress();
+  assert.deepEqual(calls, [
+    { cfi: "epubcfi(/6/2!/4/2/10,/1:0,/1:12)", keepalive: true },
+  ]);
+
+  lastPersistedCfi = activeCfi;
+  flushProgress();
+  assert.equal(calls.length, 1);
 });
 
 test("resolveStoredUploadFilePath confines files to the upload root", () => {
