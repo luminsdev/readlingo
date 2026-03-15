@@ -1,11 +1,12 @@
 export type AiProvider = "github" | "google" | "qwen";
 
+export type ExplainModelTier = "primary" | "fallback";
+
 export type ExplanationPayload = {
   translation: string;
   partOfSpeech?: string;
-  pronunciation?: string;
   explanation: string;
-  exampleSentences: string[];
+  examples: string[];
 };
 
 export type ReaderBookSnapshot = {
