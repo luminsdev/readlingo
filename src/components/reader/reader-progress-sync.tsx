@@ -2,14 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { createReaderPagehideFlushHandler } from "@/lib/reader-progress";
 
 import type { SaveState } from "@/components/reader/reader-workspace-types";
@@ -244,33 +236,42 @@ export function ReaderProgressSync({
   locationLabel,
   saveStatusLabel,
 }: ReaderProgressSyncProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <Badge>Resume state</Badge>
-        <CardTitle className="font-serif text-2xl">Progress sync</CardTitle>
-        <CardDescription>
-          EPUB CFI locations are saved in the background and restored on the
-          next open.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="text-muted-foreground border-border/70 rounded-[24px] border bg-white/70 p-4">
-          <p className="text-foreground font-medium">Current save state</p>
-          <p className="mt-1">{saveStatusLabel}</p>
-        </div>
+  const isSaving = saveStatusLabel === "Saving location...";
+  const isPaused = saveStatusLabel === "Progress sync paused";
 
-        <div className="text-muted-foreground border-border/70 rounded-[24px] border bg-white/70 p-4">
-          <p className="text-foreground font-medium">
-            Current reading position
-          </p>
-          <p className="mt-1 text-xs break-all">
-            {(isReady ? locationLabel : null) ??
-              (initialProgressCfi ? "Restoring your last page..." : null) ??
-              "This book will save its first reading location after you move."}
-          </p>
-        </div>
-      </CardContent>
-    </Card>
+  return (
+    <div className="space-y-6 px-1 pt-4">
+      <div className="space-y-2">
+        <p className="flex items-center gap-2 text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+          <span className="relative flex size-1.5">
+            {isSaving ? (
+              <>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-zinc-400 opacity-75"></span>
+                <span className="relative inline-flex size-1.5 rounded-full bg-zinc-500"></span>
+              </>
+            ) : isPaused ? (
+              <span className="relative inline-flex size-1.5 rounded-full bg-red-500/50"></span>
+            ) : (
+              <span className="relative inline-flex size-1.5 border border-zinc-300 dark:border-zinc-700"></span>
+            )}
+          </span>
+          Sync Status
+        </p>
+        <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          {saveStatusLabel}
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+          Position Locator
+        </p>
+        <p className="font-serif text-[11px] tracking-wide break-all text-zinc-500 italic dark:text-zinc-400">
+          {(isReady ? locationLabel : null) ??
+            (initialProgressCfi ? "Restoring your last page..." : null) ??
+            "Tracking will begin after movement."}
+        </p>
+      </div>
+    </div>
   );
 }
