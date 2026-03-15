@@ -8,17 +8,10 @@ import {
   LoaderCircle,
   Save,
   Sparkles,
+  X,
 } from "lucide-react";
+import { useEffect } from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import type { ExplanationPayload } from "@/types";
 
 type AiPanelState = "idle" | "loading" | "ready" | "error";
@@ -52,6 +45,7 @@ export function ReaderAiPanel({
   onExplainSelection,
   onOpenSidebar,
   onRetry,
+  onDismissPopover,
 }: {
   state: AiPanelState;
   errorMessage: string | null;
@@ -64,9 +58,24 @@ export function ReaderAiPanel({
   onExplainSelection: () => void;
   onOpenSidebar: () => void;
   onRetry: () => void;
+  onDismissPopover: () => void;
 }) {
   const showPopover = popoverPosition && tooltipSelectedText;
   const briefExplanation = getBriefExplanation(explanation?.explanation);
+
+  useEffect(() => {
+    if (!showPopover) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onDismissPopover();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showPopover, onDismissPopover]);
+
   const showIdlePanel = !isSidebarOpen && state === "idle";
   const showLoadingPanel = !isSidebarOpen && state === "loading";
   const showErrorPanel = !isSidebarOpen && state === "error";
@@ -80,222 +89,250 @@ export function ReaderAiPanel({
     <>
       {showPopover ? (
         <div
-          className="paper-panel border-border/80 fixed z-50 w-[min(320px,calc(100vw-2rem))] rounded-[26px] border p-4 shadow-[0_28px_60px_rgba(47,31,18,0.18)]"
+          className="animate-in fade-in slide-in-from-bottom-2 fixed z-50 flex w-[min(300px,calc(100vw-2rem))] flex-col bg-zinc-900 p-3 shadow-2xl dark:bg-zinc-100"
           style={{
             top: popoverPosition.top,
             left: popoverPosition.left,
+            transform:
+              popoverPosition.top > window.innerHeight - 200
+                ? "translateY(-100%) translateY(-24px)"
+                : "none", // Handle bottom collision directly via inline transform shift
           }}
         >
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <Badge>Selection</Badge>
-              <span className="text-muted-foreground text-xs">
-                Reader tools
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-foreground text-sm leading-5 font-medium">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 space-y-1.5 focus:ring-0 focus:outline-none">
+              <p className="font-serif text-[15px] leading-snug font-normal text-zinc-100 dark:text-zinc-900">
                 {tooltipSelectedText}
               </p>
-              <p className="text-muted-foreground text-xs leading-5">
-                Explain this selection or copy it without opening the AI panel.
-              </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={onExplainSelection} size="sm" type="button">
-                <Sparkles className="size-4" />
-                Explain
-              </Button>
-              <Button
-                onClick={onCopySelection}
-                size="sm"
-                type="button"
-                variant="secondary"
-              >
-                <Copy className="size-4" />
-                Copy
-              </Button>
-            </div>
+            <button
+              type="button"
+              onClick={onDismissPopover}
+              className="mt-0.5 shrink-0 text-zinc-400 transition-colors hover:text-white dark:text-zinc-500 dark:hover:text-zinc-900"
+              aria-label="Dismiss selection"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+
+          <div className="mt-4 flex gap-3 border-t border-zinc-800 pt-3 dark:border-zinc-200">
+            <button
+              onClick={onExplainSelection}
+              type="button"
+              className="group flex flex-1 items-center gap-1.5 text-[11px] font-medium tracking-widest text-zinc-100 uppercase transition-colors hover:text-white dark:text-zinc-900 dark:hover:text-black"
+            >
+              <Sparkles className="size-3.5 text-zinc-400 group-hover:text-zinc-100 dark:text-zinc-500 dark:group-hover:text-zinc-900" />
+              Explain
+            </button>
+            <div className="w-[1px] bg-zinc-800 dark:bg-zinc-200" />
+            <button
+              onClick={onCopySelection}
+              type="button"
+              className="group flex flex-1 items-center gap-1.5 text-[11px] font-medium tracking-widest text-zinc-400 uppercase transition-colors hover:text-zinc-100 dark:text-zinc-600 dark:hover:text-zinc-900"
+            >
+              <Copy className="size-3.5 text-zinc-500 group-hover:text-zinc-400 dark:text-zinc-400 dark:group-hover:text-zinc-600" />
+              Copy
+            </button>
           </div>
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <Badge>Phase 3 AI layer</Badge>
-          <CardTitle className="font-serif text-2xl">
-            AI explanation panel
-          </CardTitle>
-          <CardDescription>
-            Highlight a word or sentence, then choose Explain to open a full
-            in-context Vietnamese explanation.
-          </CardDescription>
-        </CardHeader>
+      <div className="flex shrink-0 flex-col gap-6">
+        <header className="space-y-2 border-b border-zinc-200/60 pb-4 dark:border-zinc-800/60">
+          <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+            Phase 3 Intelligence
+          </p>
+          <h2 className="font-serif text-2xl font-light tracking-wide text-zinc-900 dark:text-zinc-100">
+            Analysis Panel
+          </h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Highlight a word or sentence inside the book to open the reading
+            tools. Choose Explain when you need the AI to analyze your
+            selection.
+          </p>
+        </header>
 
-        <CardContent className="space-y-4 text-sm">
+        <div className="space-y-6">
           {showIdlePanel ? (
-            <div className="text-muted-foreground border-border/80 flex items-start gap-3 rounded-[24px] border border-dashed bg-white/60 p-4">
-              <Sparkles className="mt-0.5 size-4 shrink-0" />
-              Highlight text inside the EPUB to open the floating selection
-              actions. Choose Explain only when you want the AI sidebar.
+            <div className="flex items-start gap-4 border border-zinc-200/50 bg-zinc-50/50 p-5 dark:border-zinc-800/50 dark:bg-zinc-900/40">
+              <Sparkles className="mt-0.5 size-4 shrink-0 text-zinc-400" />
+              <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+                Highlight text inside the book to open the reading tools. Choose
+                Explain when you need the AI to analyze your selection.
+              </p>
             </div>
           ) : null}
 
           {showLoadingPanel ? (
-            <div className="text-muted-foreground border-border/70 flex items-start gap-3 rounded-[24px] border bg-white/70 p-4">
-              <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin" />
-              <div className="space-y-1">
-                <p className="text-foreground font-medium">Working on it...</p>
-                <p>
-                  AI is preparing a richer explanation for
-                  {selectedText ? ` "${selectedText}".` : " your selection."}
+            <div className="flex items-start gap-4 border border-zinc-200/50 bg-zinc-50/50 p-5 dark:border-zinc-800/50 dark:bg-zinc-900/40">
+              <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin text-zinc-900 dark:text-zinc-100" />
+              <div className="space-y-1.5">
+                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                  Analyzing context
+                </p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Preparing a literary explanation for
+                  {selectedText ? ` "${selectedText}"` : " your selection"}...
                 </p>
               </div>
             </div>
           ) : null}
 
           {showErrorPanel ? (
-            <div className="space-y-3 rounded-[24px] border border-[#d9b7a8] bg-[#fff4ef] p-4 text-sm">
-              <p className="flex items-center gap-2 font-medium text-[#8a3522]">
+            <div className="space-y-4 border border-red-200/50 bg-red-50/50 p-5 dark:border-red-900/30 dark:bg-red-950/20">
+              <p className="flex items-center gap-2 text-sm font-medium text-red-900 dark:text-red-400">
                 <AlertCircle className="size-4" />
-                The AI request did not finish.
+                Analysis interrupted
               </p>
-              <p className="text-[#7a5748]">{errorMessage}</p>
-              <Button
+              <p className="text-xs text-red-800 dark:text-red-300">
+                {errorMessage}
+              </p>
+              <button
                 onClick={onRetry}
-                size="sm"
                 type="button"
-                variant="secondary"
+                className="mt-2 inline-block text-[11px] font-medium tracking-wide text-red-900 underline decoration-red-900/30 underline-offset-4 hover:decoration-red-900 dark:text-red-400 dark:decoration-red-400/30 dark:hover:decoration-red-400"
               >
-                Retry explanation
-              </Button>
+                RETRY ANALYSIS
+              </button>
             </div>
           ) : null}
 
           {showCompactReadyPanel ? (
-            <div className="border-border/70 space-y-4 rounded-[28px] border bg-white/72 p-5">
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-xs tracking-[0.2em] uppercase">
-                  Translation
+            <div className="group relative space-y-4 border border-zinc-200 p-6 transition-colors hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700">
+              <div className="space-y-2">
+                <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                  Translation Fragment
                 </p>
-                <p className="text-foreground font-serif text-2xl">
+                <p className="font-serif text-2xl text-zinc-900 dark:text-zinc-100">
                   {explanation.translation}
                 </p>
               </div>
 
-              <p className="text-muted-foreground">{briefExplanation}</p>
+              <p className="text-sm leading-relaxed text-zinc-600 italic dark:text-zinc-400">
+                {briefExplanation}
+              </p>
 
-              <Button onClick={onOpenSidebar} size="sm" type="button">
-                See more
-                <ChevronRight className="size-4" />
-              </Button>
+              <button
+                onClick={onOpenSidebar}
+                type="button"
+                className="inline-flex items-center gap-1.5 text-xs font-medium tracking-wide text-zinc-900 transition-transform group-hover:translate-x-1 dark:text-zinc-100"
+              >
+                Expand <ChevronRight className="size-3.5" />
+              </button>
             </div>
           ) : null}
 
           {isSidebarOpen ? (
-            <div className="border-border/70 space-y-5 rounded-[28px] border bg-white/76 p-5 shadow-[0_18px_42px_rgba(47,31,18,0.08)]">
+            <div className="space-y-8 pb-10">
               {showSidebarLoading ? (
-                <div className="text-muted-foreground flex items-start gap-3">
-                  <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin" />
-                  <div className="space-y-1">
-                    <p className="text-foreground font-medium">
-                      Expanding the explanation...
-                    </p>
-                    <p>The full sidebar content is still streaming.</p>
-                  </div>
+                <div className="flex animate-pulse gap-4 text-zinc-500">
+                  <LoaderCircle className="mt-1 size-4 shrink-0 animate-spin" />
+                  <p className="text-sm">
+                    Synthesizing comprehensive analysis...
+                  </p>
                 </div>
               ) : null}
 
               {showSidebarError ? (
-                <div className="space-y-3 text-sm">
-                  <p className="flex items-center gap-2 font-medium text-[#8a3522]">
+                <div className="space-y-4 border border-red-200/50 bg-red-50/50 p-5 dark:border-red-900/30 dark:bg-red-950/20">
+                  <p className="flex items-center gap-2 text-sm font-medium text-red-900 dark:text-red-400">
                     <AlertCircle className="size-4" />
-                    AI explanation unavailable
+                    Analysis unavailable
                   </p>
-                  <p className="text-muted-foreground">{errorMessage}</p>
-                  <Button
+                  <p className="text-xs text-red-800 dark:text-red-300">
+                    {errorMessage}
+                  </p>
+                  <button
                     onClick={onRetry}
-                    size="sm"
                     type="button"
-                    variant="secondary"
+                    className="mt-2 inline-block text-[11px] font-medium tracking-wide text-red-900 underline decoration-red-900/30 underline-offset-4 hover:decoration-red-900 dark:text-red-400 dark:decoration-red-400/30 dark:hover:decoration-red-400"
                   >
-                    Retry explanation
-                  </Button>
+                    RETRY
+                  </button>
                 </div>
               ) : null}
 
               {showSidebarReady ? (
-                <>
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="space-y-2">
-                        <p className="text-muted-foreground text-xs tracking-[0.2em] uppercase">
-                          Selected text
-                        </p>
-                        <p className="text-foreground text-sm font-medium">
-                          {selectedText}
-                        </p>
-                      </div>
-
+                <div className="animate-in fade-in slide-in-from-bottom-2 space-y-10 duration-500">
+                  <div className="space-y-6">
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                        Source Text
+                      </p>
+                      <p className="font-serif text-lg leading-snug text-zinc-900 dark:text-zinc-100">
+                        {selectedText}
+                      </p>
                       {explanation.partOfSpeech ? (
-                        <Badge>{explanation.partOfSpeech}</Badge>
+                        <span className="inline-block border border-zinc-200 px-2 py-0.5 text-[10px] tracking-widest text-zinc-500 uppercase dark:border-zinc-800">
+                          {explanation.partOfSpeech}
+                        </span>
                       ) : null}
                     </div>
 
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground text-xs tracking-[0.2em] uppercase">
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
                         Translation
                       </p>
-                      <p className="text-foreground font-serif text-2xl leading-tight">
+                      <p className="font-serif text-3xl leading-tight font-light tracking-tight text-zinc-900 dark:text-zinc-100">
                         {explanation.translation}
                       </p>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <p className="text-muted-foreground text-xs tracking-[0.2em] uppercase">
-                      Explanation
+                  <div className="space-y-3 border-t border-zinc-100 pt-8 dark:border-zinc-900">
+                    <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                      Editorial Note
                     </p>
-                    <p className="text-foreground leading-6">
+                    <p className="text-sm leading-loose text-zinc-700 dark:text-zinc-300">
                       {explanation.explanation}
                     </p>
                   </div>
 
-                  <div className="space-y-3">
-                    <p className="text-muted-foreground text-xs tracking-[0.2em] uppercase">
-                      Example sentences
+                  <div className="space-y-4">
+                    <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                      Contextual Usage
                     </p>
-
-                    <div className="space-y-2">
-                      {explanation.examples.map((example) => (
+                    <div className="space-y-4">
+                      {explanation.examples.map((example, idx) => (
                         <div
-                          className="border-border/70 rounded-[22px] border bg-[#fff8f0] p-4"
-                          key={example}
+                          key={idx}
+                          className="border-l border-zinc-300 pl-4 transition-colors hover:border-zinc-900 dark:border-zinc-700 dark:hover:border-zinc-400"
                         >
-                          <p className="text-foreground leading-6">{example}</p>
+                          <p className="font-serif text-sm leading-relaxed text-zinc-800 italic dark:text-zinc-200">
+                            {example}
+                          </p>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <Button disabled type="button" variant="secondary">
-                      <Save className="size-4" />
-                      Save to Vocabulary
-                    </Button>
-                    <p className="text-muted-foreground flex items-start gap-2 text-xs">
-                      <BookOpenText className="mt-0.5 size-3.5 shrink-0" />
-                      Vocabulary saving stays disabled until Phase 4.
+                  <div className="pt-4">
+                    <button
+                      type="button"
+                      disabled
+                      className="group flex w-full items-center justify-between border border-zinc-200 px-4 py-3 opacity-50 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                    >
+                      <span className="flex items-center gap-2 text-xs font-medium text-zinc-900 dark:text-zinc-100">
+                        <Save className="size-3.5" />
+                        Save to Archive
+                      </span>
+                      <span className="text-[10px] tracking-widest text-zinc-500 uppercase">
+                        Phase 4
+                      </span>
+                    </button>
+                    <p className="mt-3 flex items-start gap-2 text-[10px] text-zinc-400">
+                      <BookOpenText className="mt-0.5 size-3 shrink-0" />
+                      Archiving capabilities remain locked during current
+                      experimental phase.
                     </p>
                   </div>
-                </>
+                </div>
               ) : null}
             </div>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </>
   );
 }

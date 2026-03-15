@@ -264,6 +264,7 @@ export function ReaderSelectionHandler({
       onExplainSelection={explainPendingSelection}
       onOpenSidebar={() => setIsAiSidebarOpen(true)}
       onRetry={() => retryAiExplanation()}
+      onDismissPopover={clearPendingSelection}
       popoverPosition={aiPopoverPosition}
       selectedText={activeSelectedText}
       state={aiState}

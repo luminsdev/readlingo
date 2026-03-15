@@ -97,6 +97,25 @@ export function getPopoverPosition(
     ),
   );
 
+  const spaceBelow = window.innerHeight - rect.bottom;
+  // Estimate tooltip maximum height (usually ~100-150px)
+  const ESTIMATED_TOOLTIP_HEIGHT = 160;
+
+  if (
+    spaceBelow < ESTIMATED_TOOLTIP_HEIGHT &&
+    rect.top > ESTIMATED_TOOLTIP_HEIGHT
+  ) {
+    // Flip above
+    return {
+      top: Math.max(
+        AI_VIEWPORT_MARGIN,
+        rect.top - ESTIMATED_TOOLTIP_HEIGHT - AI_POPOVER_OFFSET,
+      ),
+      left,
+    };
+  }
+
+  // Draw below
   return {
     top: Math.max(AI_VIEWPORT_MARGIN, rect.bottom + AI_POPOVER_OFFSET),
     left,
