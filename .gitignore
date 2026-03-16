@@ -96,3 +96,5 @@ next-env.d.ts
 uploads/
 scaffold-temp/
 *.log
+PLANNING.md
+TASKS.md
