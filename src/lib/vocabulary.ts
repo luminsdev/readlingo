@@ -21,7 +21,8 @@ export function buildVocabularySavePayload({
     word: selectedText.trim(),
     definition: explanation.translation.trim(),
     exampleSentence:
-      explanation.examples[0]?.trim() ?? explanation.translation.trim(),
+      explanation.examples[0]?.sentence.trim() ??
+      explanation.translation.trim(),
     contextSentence: surroundingParagraph.trim(),
     sourceLanguage: sourceLanguage.trim().toLowerCase(),
     targetLanguage: "vi",

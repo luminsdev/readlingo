@@ -2,12 +2,31 @@ export type AiProvider = "github" | "google" | "qwen";
 
 export type ExplainModelTier = "primary" | "fallback";
 
-export type ExplanationPayload = {
+type SharedExplanationPayload = {
   translation: string;
-  partOfSpeech?: string;
   explanation: string;
-  examples: string[];
+  grammaticalNote?: string;
+  alternativeMeaning?: string;
+  examples: Array<{
+    sentence: string;
+    translation: string;
+  }>;
 };
+
+export type WordExplanationPayload = SharedExplanationPayload & {
+  selectionType: "word";
+  pronunciation?: string;
+  partOfSpeech?: string;
+  difficultyHint?: "beginner" | "intermediate" | "advanced";
+};
+
+export type PhraseExplanationPayload = SharedExplanationPayload & {
+  selectionType: "phrase";
+};
+
+export type ExplanationPayload =
+  | WordExplanationPayload
+  | PhraseExplanationPayload;
 
 export type ReaderBookSnapshot = {
   id: string;

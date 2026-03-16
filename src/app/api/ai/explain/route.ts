@@ -33,15 +33,16 @@ export async function POST(request: Request) {
 
   try {
     const result = await generateExplanation(parsedPayload.data);
-
-    return NextResponse.json(
-      normalizeExplanationPayload(result, parsedPayload.data.selectedText),
-      {
-        headers: {
-          "Cache-Control": "no-store",
-        },
-      },
+    const explanationPayload = normalizeExplanationPayload(
+      result,
+      parsedPayload.data.selectedText,
     );
+
+    return NextResponse.json(explanationPayload, {
+      headers: {
+        "Cache-Control": "no-store",
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       {

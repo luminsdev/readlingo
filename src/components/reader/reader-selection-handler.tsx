@@ -16,9 +16,9 @@ import type {
   ReaderSelectionHandlerRenderProps,
 } from "@/components/reader/reader-workspace-types";
 import { getPopoverPosition } from "@/components/reader/reader-workspace-utils";
-import { getAiErrorMessage } from "@/lib/ai";
+import { getAiErrorMessage, isSingleWordSelection } from "@/lib/ai";
 import {
-  aiExplanationSchema,
+  explanationPayloadSchema,
   type ExplainSelectionInput,
 } from "@/lib/ai-validation";
 import {
@@ -34,6 +34,21 @@ type ReaderSelectionHandlerProps = {
   language: string;
   readerSurfaceRef: RefObject<HTMLDivElement | null>;
 };
+
+function isSameExplainRequest(
+  left: PendingExplainRequest | null,
+  right: PendingExplainRequest | null,
+) {
+  if (!left || !right) {
+    return false;
+  }
+
+  return (
+    left.selectedText === right.selectedText &&
+    left.surroundingParagraph === right.surroundingParagraph &&
+    left.sourceLanguage === right.sourceLanguage
+  );
+}
 
 export function ReaderSelectionHandler({
   bookId,
@@ -154,7 +169,7 @@ export function ReaderSelectionHandler({
         }
 
         const responseBody = await response.json().catch(() => null);
-        const parsedOutput = aiExplanationSchema.safeParse(responseBody);
+        const parsedOutput = explanationPayloadSchema.safeParse(responseBody);
 
         if (!parsedOutput.success) {
           throw new Error(
@@ -206,6 +221,7 @@ export function ReaderSelectionHandler({
     if (
       !requestPayload ||
       !aiExplanation ||
+      aiExplanation.selectionType !== "word" ||
       currentSaveState === "saving" ||
       currentSaveState === "saved" ||
       currentSaveState === "alreadySaved"
@@ -299,6 +315,22 @@ export function ReaderSelectionHandler({
         surroundingParagraph: selectionPayload.surroundingParagraph,
         sourceLanguage: language,
       };
+      const shouldAutoRequest = isSingleWordSelection(
+        selectionPayload.selectedText,
+      );
+
+      explainAbortControllerRef.current?.abort();
+      explainAbortControllerRef.current = null;
+      vocabularyLookupAbortControllerRef.current?.abort();
+      vocabularyLookupAbortControllerRef.current = null;
+      vocabularySaveAbortControllerRef.current?.abort();
+      vocabularySaveAbortControllerRef.current = null;
+      retryExplainRequestRef.current = null;
+      setAiState("idle");
+      setAiErrorMessage(null);
+      setAiExplanation(null);
+      setActiveSelectedText(null);
+      setVocabularySaveStatus("idle");
 
       selectionContentsRef.current = contents;
       pendingExplainRequestRef.current = requestPayload;
@@ -306,20 +338,33 @@ export function ReaderSelectionHandler({
       setAiPopoverPosition(
         getPopoverPosition(selectionPayload.rect, readerSurfaceRef.current),
       );
+      setIsAiSidebarOpen(false);
+
+      if (shouldAutoRequest) {
+        void requestExplanation(requestPayload);
+      }
     },
-    [language, readerSurfaceRef],
+    [language, readerSurfaceRef, requestExplanation, setVocabularySaveStatus],
   );
 
   const explainPendingSelection = useCallback(() => {
-    const requestPayload = pendingExplainRequestRef.current;
+    const pendingRequest = pendingExplainRequestRef.current;
+    const retryRequest = retryExplainRequestRef.current;
 
-    if (!requestPayload) {
+    if (!pendingRequest && !retryRequest) {
       return;
     }
 
+    const requestPayload = pendingRequest ?? retryRequest;
+    const shouldStartRequest =
+      !!pendingRequest && !isSameExplainRequest(pendingRequest, retryRequest);
+
     clearPendingSelection();
     setIsAiSidebarOpen(true);
-    void requestExplanation(requestPayload);
+
+    if (requestPayload && shouldStartRequest) {
+      void requestExplanation(requestPayload);
+    }
   }, [clearPendingSelection, requestExplanation]);
 
   const copyPendingSelection = useCallback(async () => {
@@ -377,6 +422,12 @@ export function ReaderSelectionHandler({
     const word = requestPayload?.selectedText.trim();
 
     if (!requestPayload || !word) {
+      return;
+    }
+
+    if (aiExplanation.selectionType !== "word") {
+      vocabularyLookupAbortControllerRef.current?.abort();
+      vocabularyLookupAbortControllerRef.current = null;
       return;
     }
 

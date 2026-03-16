@@ -10,9 +10,10 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useEffect } from "react";
+import { Fragment, useEffect } from "react";
 
-import type { ExplanationPayload } from "@/types";
+import { getHighlightedExampleSegments } from "@/components/reader/reader-workspace-utils";
+import type { ExplanationPayload, WordExplanationPayload } from "@/types";
 
 type AiPanelState = "idle" | "loading" | "ready" | "error";
 
@@ -33,6 +34,46 @@ function getBriefExplanation(explanation: string | undefined) {
   }
 
   return `${explanation.slice(0, 137).trimEnd()}...`;
+}
+
+function getDifficultyBadgeClass(
+  difficultyHint: WordExplanationPayload["difficultyHint"],
+) {
+  if (difficultyHint === "beginner") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300";
+  }
+
+  if (difficultyHint === "intermediate") {
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300";
+  }
+
+  return "border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300";
+}
+
+function renderHighlightedExampleSentence(
+  sentence: string,
+  selectedText: string | null,
+) {
+  const segments = getHighlightedExampleSegments(sentence, selectedText);
+
+  if (!segments.some((segment) => segment.isHighlighted)) {
+    return sentence;
+  }
+
+  return segments.map((segment, index) => {
+    if (segment.isHighlighted) {
+      return (
+        <strong
+          key={`${segment.text}-${index}`}
+          className="font-semibold text-zinc-950 dark:text-zinc-50"
+        >
+          {segment.text}
+        </strong>
+      );
+    }
+
+    return <Fragment key={`${segment.text}-${index}`}>{segment.text}</Fragment>;
+  });
 }
 
 export function ReaderAiPanel({
@@ -68,6 +109,14 @@ export function ReaderAiPanel({
 }) {
   const showPopover = popoverPosition && tooltipSelectedText;
   const briefExplanation = getBriefExplanation(explanation?.explanation);
+  const hasMatchingSelection =
+    !!selectedText &&
+    !!tooltipSelectedText &&
+    selectedText === tooltipSelectedText;
+  const showPopoverLoading =
+    showPopover && state === "loading" && hasMatchingSelection;
+  const showPopoverTranslation =
+    showPopover && state === "ready" && !!explanation && hasMatchingSelection;
   const isSaving = saveState === "saving";
   const isSaveDisabled = saveState !== "idle";
   const saveLabel =
@@ -123,6 +172,17 @@ export function ReaderAiPanel({
               <p className="font-serif text-[15px] leading-snug font-normal text-zinc-100 dark:text-zinc-900">
                 {tooltipSelectedText}
               </p>
+              {showPopoverLoading ? (
+                <div className="flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-600">
+                  <LoaderCircle className="size-3 animate-spin" />
+                  <span>Translating...</span>
+                </div>
+              ) : null}
+              {showPopoverTranslation ? (
+                <p className="truncate text-xs text-zinc-300 dark:text-zinc-700">
+                  {explanation.translation}
+                </p>
+              ) : null}
             </div>
 
             <button
@@ -160,10 +220,10 @@ export function ReaderAiPanel({
       <div className="flex shrink-0 flex-col gap-6">
         <header className="space-y-2 border-b border-zinc-200/60 pb-4 dark:border-zinc-800/60">
           <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
-            Phase 3 Intelligence
+            ReadLingo
           </p>
           <h2 className="font-serif text-2xl font-light tracking-wide text-zinc-900 dark:text-zinc-100">
-            Analysis Panel
+            AI Assistant
           </h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Highlight a word or sentence inside the book to open the reading
@@ -282,10 +342,29 @@ export function ReaderAiPanel({
                       <p className="font-serif text-lg leading-snug text-zinc-900 dark:text-zinc-100">
                         {selectedText}
                       </p>
-                      {explanation.partOfSpeech ? (
-                        <span className="inline-block border border-zinc-200 px-2 py-0.5 text-[10px] tracking-widest text-zinc-500 uppercase dark:border-zinc-800">
-                          {explanation.partOfSpeech}
-                        </span>
+                      {explanation.selectionType === "word" &&
+                      explanation.pronunciation ? (
+                        <p className="text-sm text-zinc-500 italic dark:text-zinc-400">
+                          {explanation.pronunciation}
+                        </p>
+                      ) : null}
+                      {explanation.selectionType === "word" &&
+                      (explanation.partOfSpeech ||
+                        explanation.difficultyHint) ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {explanation.partOfSpeech ? (
+                            <span className="inline-block border border-zinc-200 px-2 py-0.5 text-[10px] tracking-widest text-zinc-500 uppercase dark:border-zinc-800">
+                              {explanation.partOfSpeech}
+                            </span>
+                          ) : null}
+                          {explanation.difficultyHint ? (
+                            <span
+                              className={`inline-block border px-2 py-0.5 text-[10px] tracking-widest uppercase ${getDifficultyBadgeClass(explanation.difficultyHint)}`}
+                            >
+                              {explanation.difficultyHint}
+                            </span>
+                          ) : null}
+                        </div>
                       ) : null}
                     </div>
 
@@ -306,7 +385,23 @@ export function ReaderAiPanel({
                     <p className="text-sm leading-loose text-zinc-700 dark:text-zinc-300">
                       {explanation.explanation}
                     </p>
+                    {explanation.alternativeMeaning ? (
+                      <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                        Also commonly means: {explanation.alternativeMeaning}
+                      </p>
+                    ) : null}
                   </div>
+
+                  {explanation.grammaticalNote ? (
+                    <div className="space-y-3 border-t border-zinc-100 pt-8 dark:border-zinc-900">
+                      <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                        Grammar & Structure
+                      </p>
+                      <p className="text-sm leading-loose text-zinc-700 dark:text-zinc-300">
+                        {explanation.grammaticalNote}
+                      </p>
+                    </div>
+                  ) : null}
 
                   <div className="space-y-4">
                     <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
@@ -319,7 +414,13 @@ export function ReaderAiPanel({
                           className="border-l border-zinc-300 pl-4 transition-colors hover:border-zinc-900 dark:border-zinc-700 dark:hover:border-zinc-400"
                         >
                           <p className="font-serif text-sm leading-relaxed text-zinc-800 italic dark:text-zinc-200">
-                            {example}
+                            {renderHighlightedExampleSentence(
+                              example.sentence,
+                              selectedText,
+                            )}
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-zinc-500 italic dark:text-zinc-400">
+                            {example.translation}
                           </p>
                         </div>
                       ))}
@@ -327,27 +428,33 @@ export function ReaderAiPanel({
                   </div>
 
                   <div className="pt-4">
-                    <button
-                      type="button"
-                      onClick={onSaveToVocabulary}
-                      disabled={isSaveDisabled}
-                      className="group flex w-full items-center justify-between border border-zinc-200 px-4 py-3 transition-colors hover:bg-zinc-50 disabled:cursor-default disabled:border-zinc-200/70 disabled:bg-zinc-50/80 disabled:text-zinc-500 dark:border-zinc-800 dark:hover:bg-zinc-900 dark:disabled:border-zinc-800/70 dark:disabled:bg-zinc-900/60 dark:disabled:text-zinc-400"
-                    >
-                      <span
-                        className={`flex items-center gap-2 text-xs font-medium ${saveButtonTextClass}`}
+                    {explanation.selectionType === "word" ? (
+                      <button
+                        type="button"
+                        onClick={onSaveToVocabulary}
+                        disabled={isSaveDisabled}
+                        className="group flex w-full items-center justify-between border border-zinc-200 px-4 py-3 transition-colors hover:bg-zinc-50 disabled:cursor-default disabled:border-zinc-200/70 disabled:bg-zinc-50/80 disabled:text-zinc-500 dark:border-zinc-800 dark:hover:bg-zinc-900 dark:disabled:border-zinc-800/70 dark:disabled:bg-zinc-900/60 dark:disabled:text-zinc-400"
                       >
-                        {isSaving ? (
-                          <LoaderCircle className="size-3.5 animate-spin" />
-                        ) : saveState === "saved" ||
-                          saveState === "alreadySaved" ? (
-                          <Check className="size-3.5" />
-                        ) : (
-                          <Save className="size-3.5" />
-                        )}
-                        {saveLabel}
-                      </span>
-                      <ChevronRight className="size-3.5 text-zinc-500 transition-transform group-hover:translate-x-0.5 group-disabled:translate-x-0 dark:text-zinc-400" />
-                    </button>
+                        <span
+                          className={`flex items-center gap-2 text-xs font-medium ${saveButtonTextClass}`}
+                        >
+                          {isSaving ? (
+                            <LoaderCircle className="size-3.5 animate-spin" />
+                          ) : saveState === "saved" ||
+                            saveState === "alreadySaved" ? (
+                            <Check className="size-3.5" />
+                          ) : (
+                            <Save className="size-3.5" />
+                          )}
+                          {saveLabel}
+                        </span>
+                        <ChevronRight className="size-3.5 text-zinc-500 transition-transform group-hover:translate-x-0.5 group-disabled:translate-x-0 dark:text-zinc-400" />
+                      </button>
+                    ) : (
+                      <p className="border border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                        Sentence analysis
+                      </p>
+                    )}
                     {errorMessage ? (
                       <p className="mt-3 text-[11px] leading-relaxed text-red-700 dark:text-red-300">
                         {errorMessage}

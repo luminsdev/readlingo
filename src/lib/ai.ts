@@ -35,8 +35,8 @@ Context: "{surroundingParagraph}"
 
 Provide:
 1. Translation
-2. (If single word) Part of speech
-3. Plain explanation
+2. Plain explanation for this context
+3. Grammar or structure notes when useful
 4. 1 natural example sentence`;
 
 const FALLBACK_EXAMPLE_SUFFIX = "appears in this reading context.";
@@ -135,6 +135,10 @@ export function isSingleWordSelection(value: string) {
   return value.trim().split(/\s+/).filter(Boolean).length === 1;
 }
 
+function getSelectionType(value: string): ExplanationPayload["selectionType"] {
+  return isSingleWordSelection(value) ? "word" : "phrase";
+}
+
 export function getExplainModelTarget(
   modelTier: ExplainModelTier = "primary",
   provider = getActiveAiProvider(),
@@ -155,45 +159,118 @@ export function buildExplainPrompt({
 >) {
   const isSingleWord = isSingleWordSelection(selectedText);
   const selectionGuidance = isSingleWord
-    ? "Selection type: single word. Include partOfSpeech when you are confident."
-    : "Selection type: phrase or sentence. Translate the full selection exactly as chosen, explain the overall meaning in this context, and do not narrow the answer to a single word or sub-phrase.";
+    ? [
+        "Selection type: single word.",
+        "Include partOfSpeech when you are confident.",
+        "Include pronunciation using IPA or the standard romanization for this language (pinyin for Chinese, romaji for Japanese, IPA for European languages).",
+        'Set difficultyHint to exactly one of: "beginner", "intermediate", or "advanced".',
+        "If this word has multiple common meanings, state which meaning applies here and mention 1 alternative meaning the learner might confuse it with.",
+        "Each example sentence MUST include a Vietnamese translation on the next line.",
+        "Use vocabulary at or below the difficulty level of the target word.",
+        "Do not introduce harder words in examples.",
+        "The example sentences should contain the target word (or its conjugated/inflected form).",
+      ].join(" ")
+    : [
+        "Selection type: phrase or sentence.",
+        "Translate the full selection exactly as chosen.",
+        "Full translation of the complete selection is required.",
+        "Explain the overall meaning in this context and do not narrow the answer to a single word or sub-phrase.",
+        "Grammatical breakdown: key structures, tenses, idioms.",
+        "Use grammaticalNote for grammar and structure details.",
+        "Add a Cultural/contextual note when the phrase has nuance beyond the literal meaning.",
+        "If this word/phrase has multiple common meanings, state which meaning applies here and mention 1 alternative meaning the learner might confuse it with.",
+        "Each example sentence MUST include a Vietnamese translation on the next line.",
+        "Use vocabulary at or below the difficulty level of the target word.",
+        "Do not introduce harder words in examples.",
+        "The example sentences should contain the target word (or its conjugated/inflected form).",
+      ].join(" ");
 
   return AI_PROMPT_TEMPLATE.replace("{sourceLanguage}", sourceLanguage)
     .replace("{selectedText}", selectedText)
     .replace("{surroundingParagraph}", surroundingParagraph)
     .concat(`\n\n${selectionGuidance}`)
     .concat(
-      '\n\nReturn only valid JSON with this shape: {"translation": string, "partOfSpeech"?: string, "explanation": string, "examples": string[]}. Provide 1-2 natural example sentences. Omit partOfSpeech unless the selected text is a single word.',
+      '\n\nReturn only valid JSON with this shape: {"translation": string, "pronunciation"?: string, "partOfSpeech"?: string, "difficultyHint"?: "beginner" | "intermediate" | "advanced", "explanation": string, "grammaticalNote"?: string, "alternativeMeaning"?: string, "examples": [{"sentence": string, "translation": string}]}. Provide 1-2 natural example sentences. Use explanation for the plain learner-friendly meaning in this context. Omit pronunciation, partOfSpeech, and difficultyHint unless the selected text is a single word.',
     );
+}
+
+function normalizeOptionalField(value: string | undefined) {
+  const trimmedValue = value?.trim();
+
+  return trimmedValue ? trimmedValue : undefined;
 }
 
 function getFallbackExample(selectedText: string) {
   return `${selectedText.trim()} ${FALLBACK_EXAMPLE_SUFFIX}`;
 }
 
+function normalizeExamples(payload: AiExplanationInput) {
+  const seenSentences = new Set<string>();
+
+  return payload.examples
+    .map((example) => ({
+      sentence: example.sentence.trim(),
+      translation: example.translation.trim(),
+    }))
+    .filter((example) => {
+      if (!example.sentence || !example.translation) {
+        return false;
+      }
+
+      if (seenSentences.has(example.sentence)) {
+        return false;
+      }
+
+      seenSentences.add(example.sentence);
+      return true;
+    })
+    .slice(0, 2);
+}
+
 export function normalizeExplanationPayload(
   payload: AiExplanationInput,
   selectedText: string,
 ): ExplanationPayload {
-  const normalizedExamples = Array.from(
-    new Set(
-      payload.examples
-        .map((example) => example.trim())
-        .filter(Boolean)
-        .slice(0, 2),
-    ),
-  );
+  const selectionType = getSelectionType(selectedText);
+  const normalizedExamples = normalizeExamples(payload);
+  const trimmedTranslation = payload.translation.trim();
 
   return {
-    translation: payload.translation.trim(),
-    ...(isSingleWordSelection(selectedText) && payload.partOfSpeech?.trim()
-      ? { partOfSpeech: payload.partOfSpeech.trim() }
+    selectionType,
+    translation: trimmedTranslation,
+    ...(selectionType === "word"
+      ? {
+          ...(normalizeOptionalField(payload.pronunciation)
+            ? { pronunciation: normalizeOptionalField(payload.pronunciation) }
+            : {}),
+          ...(normalizeOptionalField(payload.partOfSpeech)
+            ? { partOfSpeech: normalizeOptionalField(payload.partOfSpeech) }
+            : {}),
+          ...(payload.difficultyHint
+            ? { difficultyHint: payload.difficultyHint }
+            : {}),
+        }
       : {}),
     explanation: payload.explanation.trim(),
+    ...(normalizeOptionalField(payload.grammaticalNote)
+      ? { grammaticalNote: normalizeOptionalField(payload.grammaticalNote) }
+      : {}),
+    ...(normalizeOptionalField(payload.alternativeMeaning)
+      ? {
+          alternativeMeaning: normalizeOptionalField(
+            payload.alternativeMeaning,
+          ),
+        }
+      : {}),
     examples:
       normalizedExamples.length > 0
         ? normalizedExamples
-        : [getFallbackExample(selectedText)],
+        : [
+            {
+              sentence: getFallbackExample(selectedText),
+              translation: trimmedTranslation,
+            },
+          ],
   };
 }
 

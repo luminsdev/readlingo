@@ -6,8 +6,34 @@ import type { SelectionViewportRect } from "@/lib/reader-selection";
 const AI_POPOVER_WIDTH = 320;
 const AI_POPOVER_OFFSET = 14;
 const AI_VIEWPORT_MARGIN = 16;
+const WORDISH_SELECTION_PATTERN = /^[\p{L}\p{N}'-]+$/u;
+const IRREGULAR_WORD_ROOTS = new Map<string, string>([
+  ["am", "be"],
+  ["are", "be"],
+  ["been", "be"],
+  ["did", "do"],
+  ["does", "do"],
+  ["done", "do"],
+  ["gone", "go"],
+  ["got", "get"],
+  ["gotten", "get"],
+  ["had", "have"],
+  ["has", "have"],
+  ["is", "be"],
+  ["ran", "run"],
+  ["saw", "see"],
+  ["seen", "see"],
+  ["was", "be"],
+  ["went", "go"],
+  ["were", "be"],
+]);
 
 export const SAVE_DEBOUNCE_MS = 1200;
+
+export type HighlightedExampleSegment = {
+  text: string;
+  isHighlighted: boolean;
+};
 
 export function getReaderErrorMessage(error: unknown) {
   if (error instanceof Error && error.message.trim()) {
@@ -36,6 +62,154 @@ export function formatSavedTimestamp(timestamp: string | null) {
 
 function clampValue(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isSingleWordSelection(value: string) {
+  return value.trim().split(/\s+/).filter(Boolean).length === 1;
+}
+
+function getLiteralHighlightSegments(
+  sentence: string,
+  selectedText: string,
+): HighlightedExampleSegment[] {
+  const pattern = new RegExp(`(${escapeRegExp(selectedText)})`, "gi");
+  const parts = sentence.split(pattern);
+
+  if (parts.length === 1) {
+    return [{ text: sentence, isHighlighted: false }];
+  }
+
+  return parts
+    .filter((part) => part.length > 0)
+    .map((part) => ({
+      text: part,
+      isHighlighted:
+        part.toLocaleLowerCase() === selectedText.toLocaleLowerCase(),
+    }));
+}
+
+function getWordRoots(value: string) {
+  const normalizedValue = value.toLocaleLowerCase();
+  const roots = new Set<string>([normalizedValue]);
+  const irregularRoot = IRREGULAR_WORD_ROOTS.get(normalizedValue);
+
+  if (irregularRoot) {
+    roots.add(irregularRoot);
+  }
+
+  if (normalizedValue.endsWith("ies") && normalizedValue.length > 4) {
+    roots.add(`${normalizedValue.slice(0, -3)}y`);
+  }
+
+  if (normalizedValue.endsWith("ied") && normalizedValue.length > 4) {
+    roots.add(`${normalizedValue.slice(0, -3)}y`);
+  }
+
+  if (normalizedValue.endsWith("ing") && normalizedValue.length > 5) {
+    const stem = normalizedValue.slice(0, -3);
+
+    roots.add(stem);
+
+    if (
+      stem.length > 2 &&
+      stem.at(-1) === stem.at(-2) &&
+      /[bcdfghjklmnpqrstvwxyz]/.test(stem.at(-1) ?? "")
+    ) {
+      roots.add(stem.slice(0, -1));
+    }
+
+    if (!stem.endsWith("e")) {
+      roots.add(`${stem}e`);
+    }
+  }
+
+  if (normalizedValue.endsWith("ed") && normalizedValue.length > 4) {
+    const stem = normalizedValue.slice(0, -2);
+
+    roots.add(stem);
+
+    if (
+      stem.length > 2 &&
+      stem.at(-1) === stem.at(-2) &&
+      /[bcdfghjklmnpqrstvwxyz]/.test(stem.at(-1) ?? "")
+    ) {
+      roots.add(stem.slice(0, -1));
+    }
+
+    if (!stem.endsWith("e")) {
+      roots.add(`${stem}e`);
+    }
+  }
+
+  if (
+    normalizedValue.endsWith("es") &&
+    normalizedValue.length > 4 &&
+    !normalizedValue.endsWith("ses")
+  ) {
+    roots.add(normalizedValue.slice(0, -2));
+  }
+
+  if (
+    normalizedValue.endsWith("s") &&
+    normalizedValue.length > 3 &&
+    !normalizedValue.endsWith("ss") &&
+    !normalizedValue.endsWith("us")
+  ) {
+    roots.add(normalizedValue.slice(0, -1));
+  }
+
+  return roots;
+}
+
+function sharesWordRoot(candidate: string, selectedText: string) {
+  const selectedRoots = getWordRoots(selectedText);
+  const candidateRoots = getWordRoots(candidate);
+
+  for (const root of candidateRoots) {
+    if (selectedRoots.has(root)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+export function getHighlightedExampleSegments(
+  sentence: string,
+  selectedText: string | null,
+): HighlightedExampleSegment[] {
+  const trimmedSelectedText = selectedText?.trim();
+
+  if (!trimmedSelectedText) {
+    return [{ text: sentence, isHighlighted: false }];
+  }
+
+  if (
+    !isSingleWordSelection(trimmedSelectedText) ||
+    !WORDISH_SELECTION_PATTERN.test(trimmedSelectedText) ||
+    typeof Intl === "undefined" ||
+    typeof Intl.Segmenter !== "function"
+  ) {
+    return getLiteralHighlightSegments(sentence, trimmedSelectedText);
+  }
+
+  const segmenter = new Intl.Segmenter(undefined, {
+    granularity: "word",
+  });
+  const segments = Array.from(segmenter.segment(sentence), (segment) => ({
+    text: segment.segment,
+    isHighlighted:
+      Boolean(segment.isWordLike) &&
+      sharesWordRoot(segment.segment, trimmedSelectedText),
+  }));
+
+  return segments.some((segment) => segment.isHighlighted)
+    ? segments
+    : getLiteralHighlightSegments(sentence, trimmedSelectedText);
 }
 
 export function readSelectionStreamText(response: Response) {
