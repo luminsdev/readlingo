@@ -338,18 +338,18 @@ export function ReaderAiPanel({
                 <div className="animate-in fade-in slide-in-from-bottom-2 space-y-10 duration-500">
                   <div className="space-y-6">
                     {contextSentence ? (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
                           In Context
                         </p>
-                        <div className="border border-zinc-200/70 bg-zinc-50/80 p-5 dark:border-zinc-800/70 dark:bg-zinc-900/50">
-                          <p className="font-serif text-[15px] leading-loose text-zinc-700 dark:text-zinc-300">
+                        <blockquote className="border-l-2 border-zinc-900 pl-5 dark:border-zinc-100">
+                          <p className="font-serif text-lg leading-relaxed text-zinc-800 dark:text-zinc-200">
                             {renderHighlightedExampleSentence(
                               contextSentence,
                               selectedText,
                             )}
                           </p>
-                        </div>
+                        </blockquote>
                       </div>
                     ) : null}
 
