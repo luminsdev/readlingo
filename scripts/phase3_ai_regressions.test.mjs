@@ -344,6 +344,50 @@ test("saveVocabularySchema validates vocabulary archive payloads", () => {
     }).success,
     false,
   );
+
+  assert.deepEqual(
+    saveVocabularySchema.parse({
+      word: "curious",
+      definition: "to mo",
+      exampleSentence: "The curious fox paused.",
+      contextSentence: "The curious fox watched the moonlit road.",
+      sourceLanguage: "EN",
+      targetLanguage: "VI",
+      pronunciation: "  /'kjur.i.es/  ",
+      partOfSpeech: "  adjective  ",
+      difficultyHint: "  intermediate  ",
+      explanation: "  Learner-friendly note.  ",
+      alternativeMeaning: "  inquisitive  ",
+      exampleTranslation: "  Con cao to mo dung lai.  ",
+    }),
+    {
+      word: "curious",
+      definition: "to mo",
+      exampleSentence: "The curious fox paused.",
+      contextSentence: "The curious fox watched the moonlit road.",
+      sourceLanguage: "en",
+      targetLanguage: "vi",
+      pronunciation: "/'kjur.i.es/",
+      partOfSpeech: "adjective",
+      difficultyHint: "intermediate",
+      explanation: "Learner-friendly note.",
+      alternativeMeaning: "inquisitive",
+      exampleTranslation: "Con cao to mo dung lai.",
+    },
+  );
+
+  assert.equal(
+    saveVocabularySchema.safeParse({
+      word: "curious",
+      definition: "to mo",
+      exampleSentence: "The curious fox paused.",
+      contextSentence: "The curious fox watched the moonlit road.",
+      sourceLanguage: "en",
+      targetLanguage: "vi",
+      difficultyHint: "expert",
+    }).success,
+    false,
+  );
 });
 
 test("vocabularyQuerySchema applies pagination defaults and rejects oversized pages", () => {
@@ -389,8 +433,13 @@ test("buildVocabularySavePayload maps AI explanation data into an archive reques
     buildVocabularySavePayload({
       bookId: "cm9testbook0000000000000000",
       explanation: {
+        selectionType: "word",
         translation: "to mo",
+        pronunciation: "/'kjur.i.es/",
+        partOfSpeech: "adjective",
+        difficultyHint: "intermediate",
         explanation: "mo ta dieu gi do rat muon tim hieu",
+        alternativeMeaning: "ham hoc hoi",
         examples: [
           {
             sentence: "The curious fox paused.",
@@ -413,6 +462,12 @@ test("buildVocabularySavePayload maps AI explanation data into an archive reques
       contextSentence: "The curious fox watched the moonlit road.",
       sourceLanguage: "en",
       targetLanguage: "vi",
+      pronunciation: "/'kjur.i.es/",
+      partOfSpeech: "adjective",
+      difficultyHint: "intermediate",
+      explanation: "mo ta dieu gi do rat muon tim hieu",
+      alternativeMeaning: "ham hoc hoi",
+      exampleTranslation: "Con cao to mo dung lai.",
       bookId: "cm9testbook0000000000000000",
     },
   );

@@ -496,6 +496,7 @@ export function ReaderSelectionHandler({
 
   const panel = (
     <ReaderAiPanel
+      contextSentence={retryExplainRequestRef.current?.surroundingParagraph}
       errorMessage={aiErrorMessage}
       explanation={aiExplanation}
       isSidebarOpen={isAiSidebarOpen}

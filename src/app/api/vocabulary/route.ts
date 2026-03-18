@@ -176,7 +176,19 @@ export async function POST(request: Request) {
 
         return tx.vocabulary.create({
           data: {
-            ...parsedPayload.data,
+            word: parsedPayload.data.word,
+            definition: parsedPayload.data.definition,
+            exampleSentence: parsedPayload.data.exampleSentence,
+            contextSentence: parsedPayload.data.contextSentence,
+            pronunciation: parsedPayload.data.pronunciation,
+            partOfSpeech: parsedPayload.data.partOfSpeech,
+            difficultyHint: parsedPayload.data.difficultyHint,
+            explanation: parsedPayload.data.explanation,
+            alternativeMeaning: parsedPayload.data.alternativeMeaning,
+            exampleTranslation: parsedPayload.data.exampleTranslation,
+            sourceLanguage: parsedPayload.data.sourceLanguage,
+            targetLanguage: parsedPayload.data.targetLanguage,
+            bookId: parsedPayload.data.bookId,
             userId: session.user.id,
           },
         });

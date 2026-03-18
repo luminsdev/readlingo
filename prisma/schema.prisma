@@ -42,19 +42,25 @@ model ReadingProgress {
 }
 
 model Vocabulary {
-  id              String   @id @default(cuid())
-  word            String
-  definition      String
-  exampleSentence String
-  contextSentence String
-  sourceLanguage  String
-  targetLanguage  String
-  createdAt       DateTime @default(now())
-  userId          String
-  bookId          String?
-  srsData         SRSData?
-  book            Book?    @relation(fields: [bookId], references: [id], onDelete: SetNull)
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(cuid())
+  word               String
+  definition         String
+  exampleSentence    String
+  contextSentence    String
+  pronunciation      String?
+  partOfSpeech       String?
+  difficultyHint     String?
+  explanation        String?
+  alternativeMeaning String?
+  exampleTranslation String?
+  sourceLanguage     String
+  targetLanguage     String
+  createdAt          DateTime @default(now())
+  userId             String
+  bookId             String?
+  srsData            SRSData?
+  book               Book?    @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, bookId, word])
   @@index([userId, createdAt])

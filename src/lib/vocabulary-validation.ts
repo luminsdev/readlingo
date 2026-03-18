@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+const difficultyHintSchema = z
+  .enum(["beginner", "intermediate", "advanced"])
+  .optional();
+
 const optionalBookIdSchema = z.preprocess((value) => {
   if (typeof value !== "string") {
     return value;
@@ -19,6 +23,18 @@ const optionalWordSchema = z.preprocess((value) => {
 
   return normalizedValue ? normalizedValue : undefined;
 }, z.string().max(300).optional());
+
+function optionalTrimmedStringSchema(maxLength: number) {
+  return z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const normalizedValue = value.trim();
+
+    return normalizedValue ? normalizedValue : undefined;
+  }, z.string().max(maxLength).optional());
+}
 
 export const vocabularyIdSchema = z.string().cuid("Vocabulary not found.");
 
@@ -42,6 +58,20 @@ export const saveVocabularySchema = z.object({
     .trim()
     .min(1, "Context sentence is required.")
     .max(4000),
+  pronunciation: optionalTrimmedStringSchema(200),
+  partOfSpeech: optionalTrimmedStringSchema(120),
+  difficultyHint: z.preprocess((value) => {
+    if (typeof value !== "string") {
+      return value;
+    }
+
+    const normalizedValue = value.trim();
+
+    return normalizedValue ? normalizedValue : undefined;
+  }, difficultyHintSchema),
+  explanation: optionalTrimmedStringSchema(4000),
+  alternativeMeaning: optionalTrimmedStringSchema(500),
+  exampleTranslation: optionalTrimmedStringSchema(1000),
   sourceLanguage: languageSchema,
   targetLanguage: languageSchema,
   bookId: optionalBookIdSchema,

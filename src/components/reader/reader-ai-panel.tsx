@@ -77,6 +77,7 @@ function renderHighlightedExampleSentence(
 }
 
 export function ReaderAiPanel({
+  contextSentence,
   state,
   errorMessage,
   explanation,
@@ -92,6 +93,7 @@ export function ReaderAiPanel({
   onSaveToVocabulary,
   onDismissPopover,
 }: {
+  contextSentence?: string | null;
   state: AiPanelState;
   errorMessage: string | null;
   explanation: ExplanationPayload | null;
@@ -335,6 +337,22 @@ export function ReaderAiPanel({
               {showSidebarReady ? (
                 <div className="animate-in fade-in slide-in-from-bottom-2 space-y-10 duration-500">
                   <div className="space-y-6">
+                    {contextSentence ? (
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                          In Context
+                        </p>
+                        <div className="border border-zinc-200/70 bg-zinc-50/80 p-5 dark:border-zinc-800/70 dark:bg-zinc-900/50">
+                          <p className="font-serif text-[15px] leading-loose text-zinc-700 dark:text-zinc-300">
+                            {renderHighlightedExampleSentence(
+                              contextSentence,
+                              selectedText,
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="space-y-2">
                       <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
                         Source Text
