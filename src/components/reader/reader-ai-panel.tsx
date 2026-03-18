@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Fragment, useEffect } from "react";
 
+import { shouldShowReaderAiContext } from "@/components/reader/reader-ai-panel-utils";
 import { getHighlightedExampleSegments } from "@/components/reader/reader-workspace-utils";
 import type { ExplanationPayload, WordExplanationPayload } from "@/types";
 
@@ -337,7 +338,10 @@ export function ReaderAiPanel({
               {showSidebarReady ? (
                 <div className="animate-in fade-in slide-in-from-bottom-2 space-y-10 duration-500">
                   <div className="space-y-6">
-                    {contextSentence ? (
+                    {shouldShowReaderAiContext(
+                      explanation.selectionType,
+                      contextSentence,
+                    ) ? (
                       <div className="space-y-4">
                         <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
                           In Context
@@ -345,7 +349,7 @@ export function ReaderAiPanel({
                         <blockquote className="border-l-2 border-zinc-900 pl-5 dark:border-zinc-100">
                           <p className="font-serif text-lg leading-relaxed text-zinc-800 dark:text-zinc-200">
                             {renderHighlightedExampleSentence(
-                              contextSentence,
+                              contextSentence ?? "",
                               selectedText,
                             )}
                           </p>

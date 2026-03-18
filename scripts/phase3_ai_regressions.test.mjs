@@ -17,7 +17,20 @@ import {
   vocabularyIdSchema,
   vocabularyQuerySchema,
 } from "../src/lib/vocabulary-validation.ts";
+import { shouldShowReaderAiContext } from "../src/components/reader/reader-ai-panel-utils.ts";
 import { buildVocabularySavePayload } from "../src/lib/vocabulary.ts";
+
+test("shouldShowReaderAiContext only enables In Context for word selections", () => {
+  assert.equal(
+    shouldShowReaderAiContext("word", "A curious fox watched."),
+    true,
+  );
+  assert.equal(
+    shouldShowReaderAiContext("phrase", "A curious fox watched."),
+    false,
+  );
+  assert.equal(shouldShowReaderAiContext("word", "   "), false);
+});
 
 test("explainSelectionSchema requires reader context for AI explanations", () => {
   assert.equal(
