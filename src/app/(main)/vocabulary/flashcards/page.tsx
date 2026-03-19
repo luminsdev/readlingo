@@ -1,29 +1,32 @@
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { redirect } from "next/navigation";
 
-export default function FlashcardsPage() {
+import { auth } from "@/auth";
+import { FlashcardSession } from "@/components/flashcards/flashcard-session";
+import { getDueCardCount, getDueCards } from "@/lib/flashcards";
+import { prisma } from "@/lib/prisma";
+
+export default async function FlashcardsPage() {
+  const session = await auth();
+
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  const [cards, dueCount, totalVocabularyCount] = await Promise.all([
+    getDueCards(session.user.id),
+    getDueCardCount(session.user.id),
+    prisma.vocabulary.count({
+      where: {
+        userId: session.user.id,
+      },
+    }),
+  ]);
+
   return (
-    <Card>
-      <CardHeader>
-        <Badge>Phase 4</Badge>
-        <CardTitle className="font-serif text-3xl">
-          Flashcard queue scaffold
-        </CardTitle>
-        <CardDescription>
-          This is where the SM-2 daily review session will live after vocabulary
-          saving is stable.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="text-muted-foreground text-sm">
-        Phase 4 will wire due-card queries, answer reveal, and Again / Hard /
-        Good / Easy rating updates.
-      </CardContent>
-    </Card>
+    <FlashcardSession
+      initialCards={cards}
+      initialDueCount={dueCount}
+      totalVocabularyCount={totalVocabularyCount}
+    />
   );
 }

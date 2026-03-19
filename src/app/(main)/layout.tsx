@@ -63,7 +63,7 @@ export default async function MainLayout({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Badge>Phase 2 live</Badge>
+            <Badge>Phase 4 live</Badge>
             <div className="text-muted-foreground text-sm">
               {session.user.email}
             </div>
