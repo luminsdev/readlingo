@@ -1,8 +1,8 @@
 "use client";
 
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
 import { signIn } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ export function LoginForm() {
         />
       </div>
 
-      {error ? <p className="text-sm text-[#8f3625]">{error}</p> : null}
+      {error ? <p className="text-danger text-sm">{error}</p> : null}
 
       <Button className="w-full" disabled={isPending} type="submit">
         {isPending ? "Signing in..." : "Sign in"}

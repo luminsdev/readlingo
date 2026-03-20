@@ -26,25 +26,25 @@ const ratingCopy: Record<
     label: "Again",
     hint: "Keep it close",
     className:
-      "border-[#d9b0a4] bg-[#fcf1ed] text-[#8b3d2b] hover:border-[#c98a78] hover:bg-[#f8e2db]",
+      "border-[#d9b0a4] bg-[#fcf1ed] text-[#8b3d2b] hover:border-[#c98a78] hover:bg-[#f8e2db] dark:border-[#7f4b3d] dark:bg-[#3a211b] dark:text-[#f1c3b5] dark:hover:border-[#b46d57] dark:hover:bg-[#472820]",
   },
   hard: {
     label: "Hard",
     hint: "Tomorrow, still careful",
     className:
-      "border-[#dcc8a2] bg-[#fbf5e8] text-[#7f5b1c] hover:border-[#cdaa6b] hover:bg-[#f5ecd6]",
+      "border-[#dcc8a2] bg-[#fbf5e8] text-[#7f5b1c] hover:border-[#cdaa6b] hover:bg-[#f5ecd6] dark:border-[#7a6342] dark:bg-[#34291d] dark:text-[#eed49b] dark:hover:border-[#b5904f] dark:hover:bg-[#3f3122]",
   },
   good: {
     label: "Good",
     hint: "Move the interval forward",
     className:
-      "border-[#cfc8b7] bg-white/85 text-zinc-700 hover:border-zinc-400 hover:bg-white",
+      "border-line-strong bg-surface-strong text-ink-soft hover:border-quote hover:bg-surface",
   },
   easy: {
     label: "Easy",
     hint: "Stretch it a little more",
     className:
-      "border-[#bfd7cb] bg-[#eef7f1] text-[#2f6750] hover:border-[#8cb59f] hover:bg-[#e1f0e6]",
+      "border-[#bfd7cb] bg-[#eef7f1] text-[#2f6750] hover:border-[#8cb59f] hover:bg-[#e1f0e6] dark:border-[#49675a] dark:bg-[#1f3128] dark:text-[#b8e0c9] dark:hover:border-[#70917f] dark:hover:bg-[#264033]",
   },
 };
 
@@ -75,32 +75,32 @@ function EmptyState({
 }) {
   return (
     <section className="space-y-8">
-      <header className="space-y-3 border-b border-zinc-200/60 pb-6 dark:border-zinc-800/60">
-        <p className="text-[10px] font-medium tracking-[0.24em] text-zinc-400 uppercase">
+      <header className="border-line space-y-3 border-b pb-6">
+        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
           Phase 4 Review
         </p>
         <div className="space-y-2">
-          <h1 className="font-serif text-4xl font-light tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-foreground font-serif text-4xl font-light tracking-tight">
             Flashcard loop
           </h1>
-          <p className="max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+          <p className="text-ink-muted max-w-2xl text-sm leading-relaxed">
             A quiet place to revisit saved vocabulary, rate recall honestly, and
             let the next review date move itself into place.
           </p>
         </div>
       </header>
 
-      <div className="overflow-hidden rounded-[32px] border border-zinc-200/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.95),rgba(245,241,235,0.92))] dark:border-zinc-800/70 dark:bg-[linear-gradient(135deg,rgba(25,25,24,0.96),rgba(39,39,42,0.88))]">
-        <div className="border-b border-zinc-200/70 px-6 py-5 dark:border-zinc-800/70">
-          <div className="flex items-center gap-3 text-zinc-500 dark:text-zinc-400">
-            <div className="flex size-11 items-center justify-center rounded-2xl border border-zinc-200/70 bg-white/80 dark:border-zinc-800/70 dark:bg-zinc-950/50">
+      <div className="paper-panel border-border overflow-hidden rounded-[32px] border">
+        <div className="border-line border-b px-6 py-5">
+          <div className="text-ink-muted flex items-center gap-3">
+            <div className="border-line bg-surface-strong flex size-11 items-center justify-center rounded-2xl border">
               {icon}
             </div>
             <div>
               <p className="text-[10px] font-medium tracking-[0.24em] uppercase">
                 {eyebrow}
               </p>
-              <h2 className="mt-1 font-serif text-3xl font-light text-zinc-900 dark:text-zinc-100">
+              <h2 className="text-foreground mt-1 font-serif text-3xl font-light">
                 {title}
               </h2>
             </div>
@@ -108,7 +108,7 @@ function EmptyState({
         </div>
 
         <div className="space-y-6 px-6 py-8 sm:px-8">
-          <p className="max-w-2xl text-sm leading-loose text-zinc-600 dark:text-zinc-300">
+          <p className="text-ink-soft max-w-2xl text-sm leading-loose">
             {description}
           </p>
 
@@ -232,15 +232,15 @@ export function FlashcardSession({
   if (!activeCard) {
     return (
       <section className="space-y-8">
-        <header className="space-y-3 border-b border-zinc-200/60 pb-6 dark:border-zinc-800/60">
-          <p className="text-[10px] font-medium tracking-[0.24em] text-zinc-400 uppercase">
+        <header className="border-line space-y-3 border-b pb-6">
+          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
             Phase 4 Review
           </p>
           <div className="space-y-2">
-            <h1 className="font-serif text-4xl font-light tracking-tight text-zinc-900 dark:text-zinc-100">
+            <h1 className="text-foreground font-serif text-4xl font-light tracking-tight">
               Session complete
             </h1>
-            <p className="max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+            <p className="text-ink-muted max-w-2xl text-sm leading-relaxed">
               You moved through this review batch one card at a time and updated
               every due item in the current queue.
             </p>
@@ -259,28 +259,28 @@ export function FlashcardSession({
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-[24px] border border-zinc-200/70 bg-white/80 px-5 py-4 dark:border-zinc-800/70 dark:bg-zinc-950/30"
+              className="border-line bg-surface-strong rounded-[24px] border px-5 py-4"
             >
-              <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+              <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                 {item.label}
               </p>
-              <p className="mt-3 font-serif text-3xl font-light text-zinc-900 dark:text-zinc-100">
+              <p className="text-foreground mt-3 font-serif text-3xl font-light">
                 {item.value}
               </p>
             </div>
           ))}
         </div>
 
-        <div className="rounded-[32px] border border-zinc-200/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.95),rgba(245,241,235,0.92))] px-6 py-8 sm:px-8 dark:border-zinc-800/70 dark:bg-[linear-gradient(135deg,rgba(25,25,24,0.96),rgba(39,39,42,0.88))]">
-          <p className="text-[10px] font-medium tracking-[0.24em] text-zinc-400 uppercase">
+        <div className="paper-panel border-border rounded-[32px] border px-6 py-8 sm:px-8">
+          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
             Completion note
           </p>
-          <h2 className="mt-3 font-serif text-3xl font-light text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-foreground mt-3 font-serif text-3xl font-light">
             {remainingDueCount
               ? `This batch is done. ${remainingDueCount} due card${remainingDueCount === 1 ? "" : "s"} remain.`
               : "The current queue is fully reviewed."}
           </h2>
-          <p className="mt-4 max-w-2xl text-sm leading-loose text-zinc-600 dark:text-zinc-300">
+          <p className="text-ink-soft mt-4 max-w-2xl text-sm leading-loose">
             {remainingDueCount
               ? `You loaded the first ${batchSize} cards in the queue. Refresh to pull in the next due batch and continue.`
               : "Let the schedule breathe, then return when the next words are due again."}
@@ -312,16 +312,16 @@ export function FlashcardSession({
 
   return (
     <section className="space-y-8">
-      <header className="space-y-6 border-b border-zinc-200/60 pb-6 dark:border-zinc-800/60">
+      <header className="border-line space-y-6 border-b pb-6">
         <div className="space-y-3">
-          <p className="text-[10px] font-medium tracking-[0.24em] text-zinc-400 uppercase">
+          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
             Phase 4 Review
           </p>
           <div className="space-y-2">
-            <h1 className="font-serif text-4xl font-light tracking-tight text-zinc-900 dark:text-zinc-100">
+            <h1 className="text-foreground font-serif text-4xl font-light tracking-tight">
               Flashcard session
             </h1>
-            <p className="max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+            <p className="text-ink-muted max-w-2xl text-sm leading-relaxed">
               Reveal only when you have truly tried to recall the meaning, then
               rate the answer with enough honesty for tomorrow&apos;s queue.
             </p>
@@ -337,12 +337,12 @@ export function FlashcardSession({
           ].map((item) => (
             <div
               key={item.label}
-              className="rounded-[24px] border border-zinc-200/70 bg-white/70 px-5 py-4 dark:border-zinc-800/70 dark:bg-zinc-950/30"
+              className="border-line bg-surface rounded-[24px] border px-5 py-4"
             >
-              <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+              <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                 {item.label}
               </p>
-              <p className="mt-3 font-serif text-3xl font-light text-zinc-900 dark:text-zinc-100">
+              <p className="text-foreground mt-3 font-serif text-3xl font-light">
                 {item.value}
               </p>
             </div>
@@ -351,36 +351,36 @@ export function FlashcardSession({
       </header>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,0.9fr)]">
-        <article className="overflow-hidden rounded-[32px] border border-zinc-200/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(244,239,232,0.92))] dark:border-zinc-800/70 dark:bg-[linear-gradient(145deg,rgba(24,24,27,0.98),rgba(39,39,42,0.92))]">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200/70 px-6 py-5 sm:px-8 dark:border-zinc-800/70">
+        <article className="paper-panel border-border overflow-hidden rounded-[32px] border">
+          <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-6 py-5 sm:px-8">
             <div className="flex flex-wrap items-center gap-3">
               <Badge>{activeCard.srsData ? "Due review" : "New card"}</Badge>
-              <p className="text-[11px] tracking-[0.2em] text-zinc-400 uppercase">
+              <p className="text-ink-kicker text-[11px] tracking-[0.2em] uppercase">
                 Card {reviewedCount + 1} of {batchSize}
               </p>
             </div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="text-ink-muted text-sm">
               {activeCard.book?.title ?? "Personal archive"}
             </p>
           </div>
 
           <div className="space-y-8 px-6 py-8 sm:px-8 sm:py-10">
             <div className="space-y-4">
-              <p className="text-[10px] font-medium tracking-[0.24em] text-zinc-400 uppercase">
+              <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
                 Front
               </p>
               <div className="space-y-4">
-                <h2 className="font-serif text-5xl font-light tracking-tight text-zinc-900 sm:text-6xl dark:text-zinc-100">
+                <h2 className="text-foreground font-serif text-5xl font-light tracking-tight sm:text-6xl">
                   {activeCard.word}
                 </h2>
-                <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500 dark:text-zinc-400">
+                <div className="text-ink-muted flex flex-wrap items-center gap-3 text-sm">
                   {activeCard.pronunciation ? (
-                    <span className="font-serif text-base text-zinc-600 italic dark:text-zinc-300">
+                    <span className="text-ink-soft font-serif text-base italic">
                       {activeCard.pronunciation}
                     </span>
                   ) : null}
                   {activeCard.partOfSpeech ? (
-                    <span className="rounded-full border border-zinc-200 bg-white/80 px-3 py-1 text-[10px] tracking-[0.22em] uppercase dark:border-zinc-800 dark:bg-zinc-950/40">
+                    <span className="border-line bg-surface-strong rounded-full border px-3 py-1 text-[10px] tracking-[0.22em] uppercase">
                       {activeCard.partOfSpeech}
                     </span>
                   ) : null}
@@ -389,37 +389,37 @@ export function FlashcardSession({
             </div>
 
             {revealed ? (
-              <div className="space-y-8 border-t border-zinc-200/70 pt-8 dark:border-zinc-800/70">
+              <div className="border-line space-y-8 border-t pt-8">
                 <div className="space-y-3">
-                  <p className="text-[10px] font-medium tracking-[0.24em] text-zinc-400 uppercase">
+                  <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
                     Back
                   </p>
-                  <p className="font-serif text-3xl leading-tight font-light text-zinc-900 dark:text-zinc-100">
+                  <p className="text-foreground font-serif text-3xl leading-tight font-light">
                     {activeCard.definition}
                   </p>
                 </div>
 
                 {activeCard.explanation ? (
                   <div className="space-y-2">
-                    <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                       Editorial note
                     </p>
-                    <p className="text-sm leading-loose text-zinc-700 dark:text-zinc-300">
+                    <p className="text-ink-soft text-sm leading-loose">
                       {activeCard.explanation}
                     </p>
                   </div>
                 ) : null}
 
                 <div className="space-y-3">
-                  <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+                  <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                     Example
                   </p>
-                  <div className="border-l border-[#c98a78] pl-4">
-                    <p className="font-serif text-lg leading-relaxed text-zinc-800 italic dark:text-zinc-200">
+                  <div className="border-quote border-l pl-4">
+                    <p className="text-ink-soft font-serif text-lg leading-relaxed italic">
                       {activeCard.exampleSentence}
                     </p>
                     {activeCard.exampleTranslation ? (
-                      <p className="mt-2 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                      <p className="text-ink-muted mt-2 text-sm leading-relaxed">
                         {activeCard.exampleTranslation}
                       </p>
                     ) : null}
@@ -427,18 +427,18 @@ export function FlashcardSession({
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+                  <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                     Reading context
                   </p>
-                  <div className="rounded-[24px] border border-zinc-200/70 bg-white/70 p-5 dark:border-zinc-800/70 dark:bg-zinc-950/30">
-                    <p className="font-serif text-[15px] leading-loose text-zinc-700 dark:text-zinc-300">
+                  <div className="border-line bg-surface rounded-[24px] border p-5">
+                    <p className="text-ink-soft font-serif text-[15px] leading-loose">
                       {activeCard.contextSentence}
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-3 border-t border-zinc-200/70 pt-6 dark:border-zinc-800/70">
-                  <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
+                <div className="border-line space-y-3 border-t pt-6">
+                  <div className="text-ink-muted flex items-center gap-2">
                     <Sparkles className="size-4" />
                     <p className="text-[10px] font-medium tracking-[0.22em] uppercase">
                       Rate recall
@@ -472,8 +472,8 @@ export function FlashcardSession({
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col gap-5 border-t border-zinc-200/70 pt-8 sm:flex-row sm:items-end sm:justify-between dark:border-zinc-800/70">
-                <p className="max-w-xl text-sm leading-loose text-zinc-500 dark:text-zinc-400">
+              <div className="border-line flex flex-col gap-5 border-t pt-8 sm:flex-row sm:items-end sm:justify-between">
+                <p className="text-ink-muted max-w-xl text-sm leading-loose">
                   Pause for recall first. When you are ready, reveal the answer,
                   read the context, and choose the next interval.
                 </p>
@@ -492,37 +492,37 @@ export function FlashcardSession({
             )}
 
             {errorMessage ? (
-              <p className="text-sm text-[#8f3625]">{errorMessage}</p>
+              <p className="text-danger text-sm">{errorMessage}</p>
             ) : null}
           </div>
         </article>
 
         <aside className="space-y-4">
-          <div className="rounded-[28px] border border-zinc-200/70 bg-white/70 p-5 dark:border-zinc-800/70 dark:bg-zinc-950/30">
-            <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+          <div className="border-line bg-surface rounded-[28px] border p-5">
+            <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
               Session note
             </p>
-            <p className="mt-3 font-serif text-2xl font-light text-zinc-900 dark:text-zinc-100">
+            <p className="text-foreground mt-3 font-serif text-2xl font-light">
               Honest ratings build a better queue.
             </p>
-            <p className="mt-4 text-sm leading-loose text-zinc-600 dark:text-zinc-300">
+            <p className="text-ink-soft mt-4 text-sm leading-loose">
               Vocabulary without prior SRS data enters the loop as due right
               away. Each review writes the next date lazily, only when the card
               has actually been seen.
             </p>
           </div>
 
-          <div className="rounded-[28px] border border-zinc-200/70 bg-white/70 p-5 dark:border-zinc-800/70 dark:bg-zinc-950/30">
-            <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+          <div className="border-line bg-surface rounded-[28px] border p-5">
+            <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
               Rating guide
             </p>
             <div className="mt-4 space-y-4">
               {SRS_RATING_VALUES.map((rating) => (
                 <div key={rating} className="space-y-1">
-                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  <p className="text-ink-soft text-sm font-semibold">
                     {ratingCopy[rating].label}
                   </p>
-                  <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+                  <p className="text-ink-muted text-sm leading-relaxed">
                     {ratingCopy[rating].hint}
                   </p>
                 </div>
@@ -530,26 +530,26 @@ export function FlashcardSession({
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-zinc-200/70 bg-white/70 p-5 dark:border-zinc-800/70 dark:bg-zinc-950/30">
-            <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+          <div className="border-line bg-surface rounded-[28px] border p-5">
+            <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
               Archive snapshot
             </p>
-            <div className="mt-4 space-y-3 text-sm text-zinc-600 dark:text-zinc-300">
+            <div className="text-ink-soft mt-4 space-y-3 text-sm">
               <div className="flex items-center justify-between gap-4">
                 <span>Total vocabulary</span>
-                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                <span className="text-foreground font-medium">
                   {totalVocabularyCount}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span>Due today</span>
-                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                <span className="text-foreground font-medium">
                   {initialDueCount}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span>Updated in session</span>
-                <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                <span className="text-foreground font-medium">
                   {reviewedCount}
                 </span>
               </div>

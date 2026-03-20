@@ -440,13 +440,13 @@ export const ReaderEpubView = forwardRef<
       <div className="absolute inset-0" ref={viewerRef} />
 
       {!isReady && !errorMessage ? (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white/90 text-center backdrop-blur-sm dark:bg-zinc-950/90">
-          <LoaderCircle className="size-5 animate-spin text-zinc-900 dark:text-zinc-100" />
+        <div className="bg-reader-overlay absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 text-center backdrop-blur-sm">
+          <LoaderCircle className="text-foreground size-5 animate-spin" />
           <div className="space-y-1.5 focus:ring-0 focus:outline-none">
-            <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+            <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
               Preparing EPUB
             </p>
-            <p className="font-serif text-[13px] text-zinc-600 italic dark:text-zinc-400">
+            <p className="text-ink-muted font-serif text-[13px] italic">
               Loading chapters and extracting structural metadata.
             </p>
           </div>
@@ -454,32 +454,32 @@ export const ReaderEpubView = forwardRef<
       ) : null}
 
       {errorMessage ? (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white p-6 dark:bg-zinc-950">
+        <div className="bg-background absolute inset-0 z-20 flex items-center justify-center p-6">
           <div className="max-w-lg space-y-6 text-center">
             <div className="space-y-2">
               <p className="text-[10px] font-medium tracking-[0.2em] text-red-500 uppercase dark:text-red-400">
                 Reader Error
               </p>
-              <h2 className="font-serif text-2xl font-light text-zinc-900 dark:text-zinc-100">
+              <h2 className="text-foreground font-serif text-2xl font-light">
                 Unable to open publication
               </h2>
             </div>
 
-            <p className="text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            <p className="text-ink-muted text-sm leading-relaxed">
               {errorMessage}
             </p>
 
             <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
               <Link
                 href="/library"
-                className="text-[11px] font-medium tracking-wide text-zinc-500 uppercase transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
+                className="text-ink-muted hover:text-foreground text-[11px] font-medium tracking-wide uppercase transition-colors"
               >
                 Back to library
               </Link>
               <button
                 onClick={() => window.location.reload()}
                 type="button"
-                className="border border-zinc-900 bg-zinc-900 px-6 py-2.5 text-[11px] font-medium tracking-widest text-white uppercase transition-colors hover:bg-zinc-800 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                className="border-foreground bg-foreground text-background hover:bg-ink-soft border px-6 py-2.5 text-[11px] font-medium tracking-widest uppercase transition-colors"
               >
                 Try again
               </button>

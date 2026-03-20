@@ -242,31 +242,29 @@ export function ReaderProgressSync({
   return (
     <div className="space-y-6 px-1 pt-4">
       <div className="space-y-2">
-        <p className="flex items-center gap-2 text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+        <p className="text-ink-kicker flex items-center gap-2 text-[10px] font-medium tracking-[0.2em] uppercase">
           <span className="relative flex size-1.5">
             {isSaving ? (
               <>
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-zinc-400 opacity-75"></span>
-                <span className="relative inline-flex size-1.5 rounded-full bg-zinc-500"></span>
+                <span className="bg-ink-kicker absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
+                <span className="bg-accent relative inline-flex size-1.5 rounded-full"></span>
               </>
             ) : isPaused ? (
               <span className="relative inline-flex size-1.5 rounded-full bg-red-500/50"></span>
             ) : (
-              <span className="relative inline-flex size-1.5 border border-zinc-300 dark:border-zinc-700"></span>
+              <span className="border-line-strong relative inline-flex size-1.5 border"></span>
             )}
           </span>
           Sync Status
         </p>
-        <p className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
-          {saveStatusLabel}
-        </p>
+        <p className="text-ink-muted text-xs font-medium">{saveStatusLabel}</p>
       </div>
 
       <div className="space-y-2">
-        <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
           Position Locator
         </p>
-        <p className="font-serif text-[11px] tracking-wide break-all text-zinc-500 italic dark:text-zinc-400">
+        <p className="text-ink-muted font-serif text-[11px] tracking-wide break-all italic">
           {(isReady ? locationLabel : null) ??
             (initialProgressCfi ? "Restoring your last page..." : null) ??
             "Tracking will begin after movement."}

@@ -112,7 +112,7 @@ export function ReaderWorkspace({
           </ReaderToolbar>
 
           <aside className="xl:sticky xl:top-24 xl:h-[calc(100vh-8rem)]">
-            <div className="flex flex-col gap-6 border border-zinc-200/40 bg-zinc-50/60 p-6 xl:h-full xl:min-h-0 xl:overflow-y-auto dark:border-zinc-800/40 dark:bg-zinc-900/20">
+            <div className="border-line bg-surface flex flex-col gap-6 border p-6 xl:h-full xl:min-h-0 xl:overflow-y-auto">
               {panel}
               <ReaderProgressSync
                 initialProgressCfi={initialBook.progressCfi}

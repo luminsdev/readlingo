@@ -95,7 +95,7 @@ function getDifficultyBadgeClass(difficultyHint: string | null) {
     return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300";
   }
 
-  return "border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300";
+  return "border-line-strong bg-surface-strong text-ink-soft";
 }
 
 function renderHighlightedText(text: string, selectedText: string) {
@@ -105,7 +105,7 @@ function renderHighlightedText(text: string, selectedText: string) {
         return (
           <strong
             key={`${segment.text}-${index}`}
-            className="font-semibold text-zinc-950 dark:text-zinc-50"
+            className="text-foreground font-semibold"
           >
             {segment.text}
           </strong>
@@ -139,15 +139,15 @@ export default async function VocabularyPage() {
 
   return (
     <div className="space-y-10">
-      <header className="space-y-3 border-b border-zinc-200/60 pb-6 dark:border-zinc-800/60">
-        <p className="text-[10px] font-medium tracking-[0.24em] text-zinc-400 uppercase">
+      <header className="border-line space-y-3 border-b pb-6">
+        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
           Phase 3 Archive
         </p>
         <div className="space-y-2">
-          <h1 className="font-serif text-4xl font-light tracking-tight text-zinc-900 dark:text-zinc-100">
+          <h1 className="text-foreground font-serif text-4xl font-light tracking-tight">
             Vocabulary archive
           </h1>
-          <p className="max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+          <p className="text-ink-muted max-w-2xl text-sm leading-relaxed">
             Revisit saved words, keep their reading context close at hand, and
             prepare the collection for the flashcard loop.
           </p>
@@ -159,19 +159,19 @@ export default async function VocabularyPage() {
           {vocabularyArchiveItems.map((item) => (
             <article
               key={item.id}
-              className="space-y-8 border border-zinc-200/70 bg-white/80 p-6 dark:border-zinc-800/70 dark:bg-zinc-950/30"
+              className="paper-panel border-border space-y-8 rounded-[32px] border p-6"
             >
-              <div className="space-y-4 border-b border-zinc-100 pb-6 dark:border-zinc-900">
+              <div className="border-line space-y-4 border-b pb-6">
                 <div className="space-y-3">
-                  <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+                  <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                     Saved term
                   </p>
                   <div className="flex flex-wrap items-end gap-3">
-                    <h2 className="font-serif text-3xl font-light text-zinc-900 dark:text-zinc-100">
+                    <h2 className="text-foreground font-serif text-3xl font-light">
                       {item.word}
                     </h2>
                     {item.pronunciation ? (
-                      <p className="pb-1 text-sm text-zinc-500 italic dark:text-zinc-400">
+                      <p className="text-ink-muted pb-1 text-sm italic">
                         {item.pronunciation}
                       </p>
                     ) : null}
@@ -179,7 +179,7 @@ export default async function VocabularyPage() {
                   {item.partOfSpeech || item.difficultyHint ? (
                     <div className="flex flex-wrap items-center gap-2">
                       {item.partOfSpeech ? (
-                        <span className="inline-block border border-zinc-200 px-2 py-0.5 text-[10px] tracking-widest text-zinc-500 uppercase dark:border-zinc-800">
+                        <span className="border-line text-ink-muted inline-block border px-2 py-0.5 text-[10px] tracking-widest uppercase">
                           {item.partOfSpeech}
                         </span>
                       ) : null}
@@ -197,10 +197,10 @@ export default async function VocabularyPage() {
 
               <div className="grid gap-8 xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
                 <div className="space-y-2">
-                  <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+                  <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                     Translation
                   </p>
-                  <p className="font-serif text-2xl leading-tight text-zinc-900 dark:text-zinc-100">
+                  <p className="text-foreground font-serif text-2xl leading-tight">
                     {item.definition}
                   </p>
                 </div>
@@ -208,25 +208,25 @@ export default async function VocabularyPage() {
                 <div className="space-y-5">
                   {item.explanation ? (
                     <div className="space-y-2">
-                      <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                         Editorial note
                       </p>
-                      <p className="text-sm leading-loose text-zinc-700 dark:text-zinc-300">
+                      <p className="text-ink-soft text-sm leading-loose">
                         {item.explanation}
                       </p>
                     </div>
                   ) : null}
 
                   <div className="space-y-2">
-                    <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                       Example
                     </p>
-                    <div className="space-y-1.5 border-l border-zinc-300 pl-4 dark:border-zinc-700">
-                      <p className="font-serif text-sm leading-relaxed text-zinc-800 italic dark:text-zinc-200">
+                    <div className="border-quote space-y-1.5 border-l pl-4">
+                      <p className="text-ink-soft font-serif text-sm leading-relaxed italic">
                         {renderHighlightedText(item.exampleSentence, item.word)}
                       </p>
                       {item.exampleTranslation ? (
-                        <p className="text-xs leading-relaxed text-zinc-500 italic dark:text-zinc-400">
+                        <p className="text-ink-muted text-xs leading-relaxed italic">
                           {item.exampleTranslation}
                         </p>
                       ) : null}
@@ -235,21 +235,21 @@ export default async function VocabularyPage() {
 
                   {item.alternativeMeaning ? (
                     <div className="space-y-2">
-                      <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                         Alternative meaning
                       </p>
-                      <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                      <p className="text-ink-muted text-xs leading-relaxed">
                         {item.alternativeMeaning}
                       </p>
                     </div>
                   ) : null}
 
                   <div className="space-y-3">
-                    <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                       In context
                     </p>
-                    <div className="border border-zinc-200/70 bg-zinc-50/80 p-5 dark:border-zinc-800/70 dark:bg-zinc-900/50">
-                      <p className="font-serif text-[15px] leading-loose text-zinc-700 dark:text-zinc-300">
+                    <div className="border-line bg-surface rounded-[24px] border p-5">
+                      <p className="text-ink-soft font-serif text-[15px] leading-loose">
                         {renderHighlightedText(item.contextSentence, item.word)}
                       </p>
                     </div>
@@ -257,15 +257,15 @@ export default async function VocabularyPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-end justify-between gap-4 border-t border-zinc-100 pt-4 dark:border-zinc-900">
+              <div className="border-line flex flex-wrap items-end justify-between gap-4 border-t pt-4">
                 <div className="space-y-1.5">
-                  <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+                  <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                     From
                   </p>
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  <p className="text-ink-soft text-sm">
                     {item.bookTitle ?? "Personal archive"}
                   </p>
-                  <p className="text-[11px] tracking-[0.2em] text-zinc-400 uppercase">
+                  <p className="text-ink-kicker text-[11px] tracking-[0.2em] uppercase">
                     {formatVocabularyDate(item.createdAt)}
                   </p>
                 </div>
@@ -280,14 +280,14 @@ export default async function VocabularyPage() {
           ))}
         </div>
       ) : (
-        <div className="border border-zinc-200/70 bg-zinc-50/70 p-8 dark:border-zinc-800/70 dark:bg-zinc-950/30">
-          <p className="text-[10px] font-medium tracking-[0.22em] text-zinc-400 uppercase">
+        <div className="paper-panel border-border rounded-[32px] border p-8">
+          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
             Empty archive
           </p>
-          <h2 className="mt-3 font-serif text-3xl font-light text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-foreground mt-3 font-serif text-3xl font-light">
             Your saved vocabulary will appear here.
           </h2>
-          <p className="mt-4 max-w-2xl text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+          <p className="text-ink-muted mt-4 max-w-2xl text-sm leading-relaxed">
             Highlight text in the reader, ask for an explanation, then save the
             result to build a personal archive from the books you read.
           </p>

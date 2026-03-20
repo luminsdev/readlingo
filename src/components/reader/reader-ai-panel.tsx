@@ -48,7 +48,7 @@ function getDifficultyBadgeClass(
     return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300";
   }
 
-  return "border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300";
+  return "border-line-strong bg-surface-strong text-ink-soft";
 }
 
 function renderHighlightedExampleSentence(
@@ -66,7 +66,7 @@ function renderHighlightedExampleSentence(
       return (
         <strong
           key={`${segment.text}-${index}`}
-          className="font-semibold text-zinc-950 dark:text-zinc-50"
+          className="text-foreground font-semibold"
         >
           {segment.text}
         </strong>
@@ -131,8 +131,8 @@ export function ReaderAiPanel({
           ? "Already Saved"
           : "Save to Archive";
   const saveButtonTextClass = isSaveDisabled
-    ? "text-zinc-500 dark:text-zinc-400"
-    : "text-zinc-900 dark:text-zinc-100";
+    ? "text-ink-muted"
+    : "text-foreground";
 
   useEffect(() => {
     if (!showPopover) return;
@@ -160,7 +160,7 @@ export function ReaderAiPanel({
     <>
       {showPopover ? (
         <div
-          className="animate-in fade-in slide-in-from-bottom-2 fixed z-50 flex w-[min(300px,calc(100vw-2rem))] flex-col bg-zinc-900 p-3 shadow-2xl dark:bg-zinc-100"
+          className="bg-popover text-popover-foreground border-line-strong animate-in fade-in slide-in-from-bottom-2 fixed z-50 flex w-[min(300px,calc(100vw-2rem))] flex-col border p-3 shadow-2xl"
           style={{
             top: popoverPosition.top,
             left: popoverPosition.left,
@@ -172,17 +172,17 @@ export function ReaderAiPanel({
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 space-y-1.5 focus:ring-0 focus:outline-none">
-              <p className="font-serif text-[15px] leading-snug font-normal text-zinc-100 dark:text-zinc-900">
+              <p className="font-serif text-[15px] leading-snug font-normal">
                 {tooltipSelectedText}
               </p>
               {showPopoverLoading ? (
-                <div className="flex items-center gap-2 text-[11px] text-zinc-400 dark:text-zinc-600">
+                <div className="text-popover-foreground/70 flex items-center gap-2 text-[11px]">
                   <LoaderCircle className="size-3 animate-spin" />
                   <span>Translating...</span>
                 </div>
               ) : null}
               {showPopoverTranslation ? (
-                <p className="truncate text-xs text-zinc-300 dark:text-zinc-700">
+                <p className="text-popover-foreground/80 truncate text-xs">
                   {explanation.translation}
                 </p>
               ) : null}
@@ -191,29 +191,29 @@ export function ReaderAiPanel({
             <button
               type="button"
               onClick={onDismissPopover}
-              className="mt-0.5 shrink-0 text-zinc-400 transition-colors hover:text-white dark:text-zinc-500 dark:hover:text-zinc-900"
+              className="text-popover-foreground/65 hover:text-popover-foreground mt-0.5 shrink-0 transition-colors"
               aria-label="Dismiss selection"
             >
               <X className="size-4" />
             </button>
           </div>
 
-          <div className="mt-4 flex gap-3 border-t border-zinc-800 pt-3 dark:border-zinc-200">
+          <div className="border-popover-foreground/15 mt-4 flex gap-3 border-t pt-3">
             <button
               onClick={onExplainSelection}
               type="button"
-              className="group flex flex-1 items-center gap-1.5 text-[11px] font-medium tracking-widest text-zinc-100 uppercase transition-colors hover:text-white dark:text-zinc-900 dark:hover:text-black"
+              className="text-popover-foreground group flex flex-1 items-center gap-1.5 text-[11px] font-medium tracking-widest uppercase transition-colors hover:opacity-100"
             >
-              <Sparkles className="size-3.5 text-zinc-400 group-hover:text-zinc-100 dark:text-zinc-500 dark:group-hover:text-zinc-900" />
+              <Sparkles className="text-popover-foreground/65 group-hover:text-popover-foreground size-3.5" />
               Explain
             </button>
-            <div className="w-[1px] bg-zinc-800 dark:bg-zinc-200" />
+            <div className="bg-popover-foreground/15 w-[1px]" />
             <button
               onClick={onCopySelection}
               type="button"
-              className="group flex flex-1 items-center gap-1.5 text-[11px] font-medium tracking-widest text-zinc-400 uppercase transition-colors hover:text-zinc-100 dark:text-zinc-600 dark:hover:text-zinc-900"
+              className="text-popover-foreground/65 hover:text-popover-foreground group flex flex-1 items-center gap-1.5 text-[11px] font-medium tracking-widest uppercase transition-colors"
             >
-              <Copy className="size-3.5 text-zinc-500 group-hover:text-zinc-400 dark:text-zinc-400 dark:group-hover:text-zinc-600" />
+              <Copy className="text-popover-foreground/55 group-hover:text-popover-foreground/80 size-3.5" />
               Copy
             </button>
           </div>
@@ -221,14 +221,14 @@ export function ReaderAiPanel({
       ) : null}
 
       <div className="flex shrink-0 flex-col gap-6">
-        <header className="space-y-2 border-b border-zinc-200/60 pb-4 dark:border-zinc-800/60">
-          <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+        <header className="border-line space-y-2 border-b pb-4">
+          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
             ReadLingo
           </p>
-          <h2 className="font-serif text-2xl font-light tracking-wide text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-foreground font-serif text-2xl font-light tracking-wide">
             AI Assistant
           </h2>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="text-ink-muted text-xs">
             Highlight a word or sentence inside the book to open the reading
             tools. Choose Explain when you need the AI to analyze your
             selection.
@@ -237,9 +237,9 @@ export function ReaderAiPanel({
 
         <div className="space-y-6">
           {showIdlePanel ? (
-            <div className="flex items-start gap-4 border border-zinc-200/50 bg-zinc-50/50 p-5 dark:border-zinc-800/50 dark:bg-zinc-900/40">
-              <Sparkles className="mt-0.5 size-4 shrink-0 text-zinc-400" />
-              <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
+            <div className="border-line bg-surface-soft flex items-start gap-4 border p-5">
+              <Sparkles className="text-ink-kicker mt-0.5 size-4 shrink-0" />
+              <p className="text-ink-muted text-xs leading-relaxed">
                 Highlight text inside the book to open the reading tools. Choose
                 Explain when you need the AI to analyze your selection.
               </p>
@@ -247,13 +247,13 @@ export function ReaderAiPanel({
           ) : null}
 
           {showLoadingPanel ? (
-            <div className="flex items-start gap-4 border border-zinc-200/50 bg-zinc-50/50 p-5 dark:border-zinc-800/50 dark:bg-zinc-900/40">
-              <LoaderCircle className="mt-0.5 size-4 shrink-0 animate-spin text-zinc-900 dark:text-zinc-100" />
+            <div className="border-line bg-surface-soft flex items-start gap-4 border p-5">
+              <LoaderCircle className="text-foreground mt-0.5 size-4 shrink-0 animate-spin" />
               <div className="space-y-1.5">
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                <p className="text-foreground text-sm font-medium">
                   Analyzing context
                 </p>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="text-ink-muted text-xs">
                   Preparing a literary explanation for
                   {selectedText ? ` "${selectedText}"` : " your selection"}...
                 </p>
@@ -281,24 +281,24 @@ export function ReaderAiPanel({
           ) : null}
 
           {showCompactReadyPanel ? (
-            <div className="group relative space-y-4 border border-zinc-200 p-6 transition-colors hover:border-zinc-300 dark:border-zinc-800 dark:hover:border-zinc-700">
+            <div className="border-line hover:border-line-strong group relative space-y-4 border p-6 transition-colors">
               <div className="space-y-2">
-                <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
                   Translation Fragment
                 </p>
-                <p className="font-serif text-2xl text-zinc-900 dark:text-zinc-100">
+                <p className="text-foreground font-serif text-2xl">
                   {explanation.translation}
                 </p>
               </div>
 
-              <p className="text-sm leading-relaxed text-zinc-600 italic dark:text-zinc-400">
+              <p className="text-ink-muted text-sm leading-relaxed italic">
                 {briefExplanation}
               </p>
 
               <button
                 onClick={onOpenSidebar}
                 type="button"
-                className="inline-flex items-center gap-1.5 text-xs font-medium tracking-wide text-zinc-900 transition-transform group-hover:translate-x-1 dark:text-zinc-100"
+                className="text-foreground inline-flex items-center gap-1.5 text-xs font-medium tracking-wide transition-transform group-hover:translate-x-1"
               >
                 Expand <ChevronRight className="size-3.5" />
               </button>
@@ -308,7 +308,7 @@ export function ReaderAiPanel({
           {isSidebarOpen ? (
             <div className="space-y-8 pb-10">
               {showSidebarLoading ? (
-                <div className="flex animate-pulse gap-4 text-zinc-500">
+                <div className="text-ink-muted flex animate-pulse gap-4">
                   <LoaderCircle className="mt-1 size-4 shrink-0 animate-spin" />
                   <p className="text-sm">
                     Synthesizing comprehensive analysis...
@@ -343,11 +343,11 @@ export function ReaderAiPanel({
                       contextSentence,
                     ) ? (
                       <div className="space-y-4">
-                        <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
                           In Context
                         </p>
-                        <blockquote className="border-l-2 border-zinc-900 pl-5 dark:border-zinc-100">
-                          <p className="font-serif text-lg leading-relaxed text-zinc-800 dark:text-zinc-200">
+                        <blockquote className="border-quote border-l-2 pl-5">
+                          <p className="text-ink-soft font-serif text-lg leading-relaxed">
                             {renderHighlightedExampleSentence(
                               contextSentence ?? "",
                               selectedText,
@@ -358,15 +358,15 @@ export function ReaderAiPanel({
                     ) : null}
 
                     <div className="space-y-2">
-                      <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
                         Source Text
                       </p>
-                      <p className="font-serif text-lg leading-snug text-zinc-900 dark:text-zinc-100">
+                      <p className="text-foreground font-serif text-lg leading-snug">
                         {selectedText}
                       </p>
                       {explanation.selectionType === "word" &&
                       explanation.pronunciation ? (
-                        <p className="text-sm text-zinc-500 italic dark:text-zinc-400">
+                        <p className="text-ink-muted text-sm italic">
                           {explanation.pronunciation}
                         </p>
                       ) : null}
@@ -375,7 +375,7 @@ export function ReaderAiPanel({
                         explanation.difficultyHint) ? (
                         <div className="flex flex-wrap items-center gap-2">
                           {explanation.partOfSpeech ? (
-                            <span className="inline-block border border-zinc-200 px-2 py-0.5 text-[10px] tracking-widest text-zinc-500 uppercase dark:border-zinc-800">
+                            <span className="border-line text-ink-muted inline-block border px-2 py-0.5 text-[10px] tracking-widest uppercase">
                               {explanation.partOfSpeech}
                             </span>
                           ) : null}
@@ -391,57 +391,57 @@ export function ReaderAiPanel({
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
                         Translation
                       </p>
-                      <p className="font-serif text-3xl leading-tight font-light tracking-tight text-zinc-900 dark:text-zinc-100">
+                      <p className="text-foreground font-serif text-3xl leading-tight font-light tracking-tight">
                         {explanation.translation}
                       </p>
                     </div>
                   </div>
 
-                  <div className="space-y-3 border-t border-zinc-100 pt-8 dark:border-zinc-900">
-                    <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                  <div className="border-line space-y-3 border-t pt-8">
+                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
                       Editorial Note
                     </p>
-                    <p className="text-sm leading-loose text-zinc-700 dark:text-zinc-300">
+                    <p className="text-ink-soft text-sm leading-loose">
                       {explanation.explanation}
                     </p>
                     {explanation.alternativeMeaning ? (
-                      <p className="text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+                      <p className="text-ink-muted text-xs leading-relaxed">
                         Also commonly means: {explanation.alternativeMeaning}
                       </p>
                     ) : null}
                   </div>
 
                   {explanation.grammaticalNote ? (
-                    <div className="space-y-3 border-t border-zinc-100 pt-8 dark:border-zinc-900">
-                      <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                    <div className="border-line space-y-3 border-t pt-8">
+                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
                         Grammar & Structure
                       </p>
-                      <p className="text-sm leading-loose text-zinc-700 dark:text-zinc-300">
+                      <p className="text-ink-soft text-sm leading-loose">
                         {explanation.grammaticalNote}
                       </p>
                     </div>
                   ) : null}
 
                   <div className="space-y-4">
-                    <p className="text-[10px] font-medium tracking-[0.2em] text-zinc-400 uppercase">
+                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
                       Contextual Usage
                     </p>
                     <div className="space-y-4">
                       {explanation.examples.map((example, idx) => (
                         <div
                           key={idx}
-                          className="border-l border-zinc-300 pl-4 transition-colors hover:border-zinc-900 dark:border-zinc-700 dark:hover:border-zinc-400"
+                          className="border-quote/60 hover:border-quote border-l pl-4 transition-colors"
                         >
-                          <p className="font-serif text-sm leading-relaxed text-zinc-800 italic dark:text-zinc-200">
+                          <p className="text-ink-soft font-serif text-sm leading-relaxed italic">
                             {renderHighlightedExampleSentence(
                               example.sentence,
                               selectedText,
                             )}
                           </p>
-                          <p className="mt-1 text-xs leading-relaxed text-zinc-500 italic dark:text-zinc-400">
+                          <p className="text-ink-muted mt-1 text-xs leading-relaxed italic">
                             {example.translation}
                           </p>
                         </div>
@@ -455,7 +455,7 @@ export function ReaderAiPanel({
                         type="button"
                         onClick={onSaveToVocabulary}
                         disabled={isSaveDisabled}
-                        className="group flex w-full items-center justify-between border border-zinc-200 px-4 py-3 transition-colors hover:bg-zinc-50 disabled:cursor-default disabled:border-zinc-200/70 disabled:bg-zinc-50/80 disabled:text-zinc-500 dark:border-zinc-800 dark:hover:bg-zinc-900 dark:disabled:border-zinc-800/70 dark:disabled:bg-zinc-900/60 dark:disabled:text-zinc-400"
+                        className="border-line hover:bg-surface-soft disabled:border-line group disabled:bg-surface-soft/70 disabled:text-ink-muted flex w-full items-center justify-between border px-4 py-3 transition-colors disabled:cursor-default"
                       >
                         <span
                           className={`flex items-center gap-2 text-xs font-medium ${saveButtonTextClass}`}
@@ -470,10 +470,10 @@ export function ReaderAiPanel({
                           )}
                           {saveLabel}
                         </span>
-                        <ChevronRight className="size-3.5 text-zinc-500 transition-transform group-hover:translate-x-0.5 group-disabled:translate-x-0 dark:text-zinc-400" />
+                        <ChevronRight className="text-ink-muted size-3.5 transition-transform group-hover:translate-x-0.5 group-disabled:translate-x-0" />
                       </button>
                     ) : (
-                      <p className="border border-zinc-200 px-4 py-3 text-xs text-zinc-500 dark:border-zinc-800 dark:text-zinc-400">
+                      <p className="border-line text-ink-muted border px-4 py-3 text-xs">
                         Sentence analysis
                       </p>
                     )}

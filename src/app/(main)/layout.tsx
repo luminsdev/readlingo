@@ -5,6 +5,7 @@ import { BookOpenText, LayoutGrid, Languages, RotateCcw } from "lucide-react";
 
 import { auth } from "@/auth";
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,7 @@ export default async function MainLayout({
         <header className="paper-panel border-border flex flex-col gap-4 rounded-[32px] border px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-3">
-              <div className="bg-accent text-accent-foreground flex size-12 items-center justify-center rounded-2xl shadow-[0_18px_45px_rgba(200,106,60,0.22)]">
+              <div className="bg-accent text-accent-foreground flex size-12 items-center justify-center rounded-2xl shadow-[0_18px_45px_var(--accent-shadow)]">
                 <BookOpenText className="size-5" />
               </div>
               <div>
@@ -50,7 +51,7 @@ export default async function MainLayout({
                   <Link
                     key={item.href}
                     className={cn(
-                      "text-muted-foreground hover:text-foreground inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium hover:bg-white/70",
+                      "text-muted-foreground hover:bg-surface hover:text-foreground inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium",
                     )}
                     href={item.href}
                   >
@@ -63,7 +64,8 @@ export default async function MainLayout({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Badge>Phase 4 live</Badge>
+            <ThemeToggle />
+            <Badge>Phase 5 live</Badge>
             <div className="text-muted-foreground text-sm">
               {session.user.email}
             </div>

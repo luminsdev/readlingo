@@ -75,7 +75,7 @@ export default async function LibraryPage() {
                   <Badge>{new Date(book.createdAt).toLocaleDateString()}</Badge>
                 </div>
 
-                <div className="border-border text-muted-foreground rounded-3xl border border-dashed bg-white/60 p-4 text-sm">
+                <div className="border-border text-muted-foreground bg-surface rounded-3xl border border-dashed p-4 text-sm">
                   Open the reader to parse metadata, page through the EPUB, and
                   keep your place synced in the background.
                 </div>

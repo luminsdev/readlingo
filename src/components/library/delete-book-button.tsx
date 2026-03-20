@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,7 +51,7 @@ export function DeleteBookButton({
         <Trash2 className="size-4" />
         {isPending ? "Removing..." : "Delete"}
       </Button>
-      {error ? <p className="text-xs text-[#8f3625]">{error}</p> : null}
+      {error ? <p className="text-danger text-xs">{error}</p> : null}
     </div>
   );
 }

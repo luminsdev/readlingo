@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,10 @@ import { Label } from "@/components/ui/label";
 export function UploadBookForm() {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{
+    text: string;
+    tone: "error" | "success";
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -35,14 +38,18 @@ export function UploadBookForm() {
           } | null;
 
           if (!response.ok) {
-            setMessage(payload?.error ?? "The book could not be uploaded.");
+            setMessage({
+              text: payload?.error ?? "The book could not be uploaded.",
+              tone: "error",
+            });
             return;
           }
 
           formRef.current?.reset();
-          setMessage(
-            "Book uploaded. Metadata enrichment comes in the next slice.",
-          );
+          setMessage({
+            text: "Book uploaded. Metadata enrichment comes in the next slice.",
+            tone: "success",
+          });
           router.refresh();
         });
       }}
@@ -59,7 +66,15 @@ export function UploadBookForm() {
       </div>
 
       {message ? (
-        <p className="text-muted-foreground text-sm">{message}</p>
+        <p
+          className={
+            message.tone === "error"
+              ? "text-danger text-sm"
+              : "text-foreground text-sm"
+          }
+        >
+          {message.text}
+        </p>
       ) : null}
 
       <Button disabled={isPending} type="submit">
