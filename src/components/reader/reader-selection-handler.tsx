@@ -1,5 +1,6 @@
 "use client";
 
+import { parsePartialJson } from "ai";
 import {
   useCallback,
   useEffect,
@@ -16,8 +17,18 @@ import type {
   ReaderSelectionHandlerRenderProps,
 } from "@/components/reader/reader-workspace-types";
 import { getPopoverPosition } from "@/components/reader/reader-workspace-utils";
-import { getAiErrorMessage, isSingleWordSelection } from "@/lib/ai";
 import {
+  getAiErrorMessage,
+  isSingleWordSelection,
+  normalizeExplanationPayload,
+} from "@/lib/ai";
+import {
+  buildStreamingExplanationPayload,
+  parseReadyStreamingExplanation,
+  type StreamingExplanationPayload,
+} from "@/lib/ai-streaming";
+import {
+  aiExplanationSchema,
   explanationPayloadSchema,
   type ExplainSelectionInput,
 } from "@/lib/ai-validation";
@@ -26,7 +37,6 @@ import {
   getReaderSelectionPayload,
 } from "@/lib/reader-selection";
 import { buildVocabularySavePayload } from "@/lib/vocabulary";
-import type { ExplanationPayload } from "@/types";
 
 type ReaderSelectionHandlerProps = {
   bookId: string;
@@ -50,6 +60,17 @@ function isSameExplainRequest(
   );
 }
 
+function isStreamObjectPayload(
+  value: unknown,
+): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+const STREAM_INTERRUPTED_MESSAGE =
+  "AI explanation stream was interrupted. Please try again.";
+const INVALID_STREAM_FORMAT_MESSAGE =
+  "AI explanation returned an unexpected format. Please try again.";
+
 export function ReaderSelectionHandler({
   bookId,
   children,
@@ -59,6 +80,7 @@ export function ReaderSelectionHandler({
   const explainAbortControllerRef = useRef<AbortController | null>(null);
   const pendingExplainRequestRef = useRef<PendingExplainRequest | null>(null);
   const retryExplainRequestRef = useRef<PendingExplainRequest | null>(null);
+  const explainRequestIdRef = useRef(0);
   const selectionContentsRef = useRef<Contents | null>(null);
   const vocabularyLookupAbortControllerRef = useRef<AbortController | null>(
     null,
@@ -73,9 +95,8 @@ export function ReaderSelectionHandler({
     "idle" | "loading" | "ready" | "error"
   >("idle");
   const [aiErrorMessage, setAiErrorMessage] = useState<string | null>(null);
-  const [aiExplanation, setAiExplanation] = useState<ExplanationPayload | null>(
-    null,
-  );
+  const [aiExplanation, setAiExplanation] =
+    useState<StreamingExplanationPayload | null>(null);
   const [aiPopoverPosition, setAiPopoverPosition] = useState<{
     top: number;
     left: number;
@@ -137,6 +158,9 @@ export function ReaderSelectionHandler({
       vocabularySaveAbortControllerRef.current = null;
 
       const abortController = new AbortController();
+      const requestId = explainRequestIdRef.current + 1;
+
+      explainRequestIdRef.current = requestId;
       explainAbortControllerRef.current = abortController;
 
       setActiveSelectedText(requestPayload.selectedText);
@@ -168,24 +192,101 @@ export function ReaderSelectionHandler({
           );
         }
 
-        const responseBody = await response.json().catch(() => null);
-        const parsedOutput = explanationPayloadSchema.safeParse(responseBody);
-
-        if (!parsedOutput.success) {
-          throw new Error(
-            parsedOutput.error.issues[0]?.message ??
-              "AI explanation returned an unexpected format.",
-          );
+        if (!response.body) {
+          throw new Error("AI explanation stream is unavailable right now.");
         }
 
-        if (abortController.signal.aborted || !isMountedRef.current) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let streamedText = "";
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+              break;
+            }
+
+            streamedText += decoder.decode(value, { stream: true });
+
+            const parsedPartialResponse = await parsePartialJson(streamedText);
+
+            if (
+              abortController.signal.aborted ||
+              !isMountedRef.current ||
+              explainRequestIdRef.current !== requestId
+            ) {
+              return;
+            }
+
+            if (!isStreamObjectPayload(parsedPartialResponse.value)) {
+              continue;
+            }
+
+            const partialExplanation = buildStreamingExplanationPayload(
+              parsedPartialResponse.value,
+              requestPayload.selectedText,
+            );
+
+            if (partialExplanation) {
+              setAiExplanation(partialExplanation);
+            }
+          }
+        } catch {
+          if (abortController.signal.aborted) {
+            return;
+          }
+
+          throw new Error(STREAM_INTERRUPTED_MESSAGE);
+        } finally {
+          reader.releaseLock();
+        }
+
+        streamedText += decoder.decode();
+
+        const parsedFinalResponse = await parsePartialJson(streamedText);
+
+        if (!isStreamObjectPayload(parsedFinalResponse.value)) {
+          throw new Error(INVALID_STREAM_FORMAT_MESSAGE);
+        }
+
+        const parsedAiExplanation = aiExplanationSchema.safeParse(
+          parsedFinalResponse.value,
+        );
+
+        if (!parsedAiExplanation.success) {
+          throw new Error(INVALID_STREAM_FORMAT_MESSAGE);
+        }
+
+        const normalizedExplanation = normalizeExplanationPayload(
+          parsedAiExplanation.data,
+          requestPayload.selectedText,
+        );
+        const parsedOutput = explanationPayloadSchema.safeParse(
+          normalizedExplanation,
+        );
+
+        if (!parsedOutput.success) {
+          throw new Error(INVALID_STREAM_FORMAT_MESSAGE);
+        }
+
+        if (
+          abortController.signal.aborted ||
+          !isMountedRef.current ||
+          explainRequestIdRef.current !== requestId
+        ) {
           return;
         }
 
         setAiExplanation(parsedOutput.data);
         setAiState("ready");
       } catch (error) {
-        if (abortController.signal.aborted || !isMountedRef.current) {
+        if (
+          abortController.signal.aborted ||
+          !isMountedRef.current ||
+          explainRequestIdRef.current !== requestId
+        ) {
           return;
         }
 
@@ -217,11 +318,15 @@ export function ReaderSelectionHandler({
   const saveToVocabulary = useCallback(async () => {
     const requestPayload = retryExplainRequestRef.current;
     const currentSaveState = vocabularySaveStateRef.current;
+    const readyExplanation = parseReadyStreamingExplanation(
+      aiExplanation,
+      aiState,
+    );
 
     if (
       !requestPayload ||
-      !aiExplanation ||
-      aiExplanation.selectionType !== "word" ||
+      !readyExplanation ||
+      readyExplanation.selectionType !== "word" ||
       currentSaveState === "saving" ||
       currentSaveState === "saved" ||
       currentSaveState === "alreadySaved"
@@ -247,7 +352,7 @@ export function ReaderSelectionHandler({
         body: JSON.stringify(
           buildVocabularySavePayload({
             bookId,
-            explanation: aiExplanation,
+            explanation: readyExplanation,
             selectedText: requestPayload.selectedText,
             sourceLanguage: requestPayload.sourceLanguage,
             surroundingParagraph: requestPayload.surroundingParagraph,
@@ -300,7 +405,7 @@ export function ReaderSelectionHandler({
         vocabularySaveAbortControllerRef.current = null;
       }
     }
-  }, [aiExplanation, bookId, setVocabularySaveStatus]);
+  }, [aiExplanation, aiState, bookId, setVocabularySaveStatus]);
 
   const handleSelection = useCallback(
     (_cfiRange: string, contents: Contents) => {
@@ -419,13 +524,17 @@ export function ReaderSelectionHandler({
     }
 
     const requestPayload = retryExplainRequestRef.current;
+    const readyExplanation = parseReadyStreamingExplanation(
+      aiExplanation,
+      aiState,
+    );
     const word = requestPayload?.selectedText.trim();
 
-    if (!requestPayload || !word) {
+    if (!requestPayload || !readyExplanation || !word) {
       return;
     }
 
-    if (aiExplanation.selectionType !== "word") {
+    if (readyExplanation.selectionType !== "word") {
       vocabularyLookupAbortControllerRef.current?.abort();
       vocabularyLookupAbortControllerRef.current = null;
       return;

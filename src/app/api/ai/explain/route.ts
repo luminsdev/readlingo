@@ -1,11 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
-import {
-  generateExplanation,
-  getAiErrorMessage,
-  normalizeExplanationPayload,
-} from "@/lib/ai";
+import { getAiErrorMessage, streamExplanation } from "@/lib/ai";
 import { explainSelectionSchema } from "@/lib/ai-validation";
 
 export const maxDuration = 30;
@@ -32,13 +28,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await generateExplanation(parsedPayload.data);
-    const explanationPayload = normalizeExplanationPayload(
-      result,
-      parsedPayload.data.selectedText,
-    );
+    const result = streamExplanation(parsedPayload.data);
 
-    return NextResponse.json(explanationPayload, {
+    return result.toTextStreamResponse({
       headers: {
         "Cache-Control": "no-store",
       },

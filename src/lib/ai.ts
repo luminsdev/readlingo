@@ -1,6 +1,6 @@
 import { google } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { generateObject, type LanguageModel } from "ai";
+import { streamObject, type LanguageModel } from "ai";
 
 import {
   aiExplanationSchema,
@@ -282,11 +282,11 @@ export function getAiErrorMessage(error: unknown) {
   return "AI explanation is unavailable right now. Please try again.";
 }
 
-export async function generateExplanation(input: ExplainSelectionInput) {
+export function streamExplanation(input: ExplainSelectionInput) {
   const modelTarget = getExplainModelTarget(input.modelTier);
   const providerRegistration = getProviderRegistration(modelTarget.provider);
 
-  const result = await generateObject({
+  return streamObject({
     model: providerRegistration.createModel(modelTarget.modelId),
     prompt: buildExplainPrompt(input),
     schema: aiExplanationSchema,
@@ -304,6 +304,4 @@ export async function generateExplanation(input: ExplainSelectionInput) {
     temperature: 0.2,
     timeout: 20_000,
   });
-
-  return result.object;
 }

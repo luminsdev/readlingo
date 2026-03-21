@@ -12,9 +12,13 @@ import {
 } from "lucide-react";
 import { Fragment, useEffect } from "react";
 
-import { shouldShowReaderAiContext } from "@/components/reader/reader-ai-panel-utils";
+import {
+  getReaderAiStreamingCursorTarget,
+  shouldShowReaderAiContext,
+} from "@/components/reader/reader-ai-panel-utils";
 import { getHighlightedExampleSegments } from "@/components/reader/reader-workspace-utils";
-import type { ExplanationPayload, WordExplanationPayload } from "@/types";
+import type { StreamingExplanationPayload } from "@/lib/ai-streaming";
+import type { WordExplanationPayload } from "@/types";
 
 type AiPanelState = "idle" | "loading" | "ready" | "error";
 
@@ -77,6 +81,15 @@ function renderHighlightedExampleSentence(
   });
 }
 
+function StreamingCursor() {
+  return (
+    <span
+      aria-hidden="true"
+      className="bg-foreground/70 ml-1 inline-block h-[1em] w-2 animate-pulse rounded-full align-[-0.12em]"
+    />
+  );
+}
+
 export function ReaderAiPanel({
   contextSentence,
   state,
@@ -97,7 +110,7 @@ export function ReaderAiPanel({
   contextSentence?: string | null;
   state: AiPanelState;
   errorMessage: string | null;
-  explanation: ExplanationPayload | null;
+  explanation: StreamingExplanationPayload | null;
   isSidebarOpen: boolean;
   popoverPosition: PopoverPosition | null;
   saveState: VocabularySaveState;
@@ -116,12 +129,16 @@ export function ReaderAiPanel({
     !!selectedText &&
     !!tooltipSelectedText &&
     selectedText === tooltipSelectedText;
+  const isStreamingExplanation = state === "loading";
   const showPopoverLoading =
-    showPopover && state === "loading" && hasMatchingSelection;
+    showPopover && isStreamingExplanation && hasMatchingSelection;
   const showPopoverTranslation =
-    showPopover && state === "ready" && !!explanation && hasMatchingSelection;
+    showPopover && !!explanation?.translation && hasMatchingSelection;
+  const streamingCursorTarget = isStreamingExplanation
+    ? getReaderAiStreamingCursorTarget(explanation)
+    : null;
   const isSaving = saveState === "saving";
-  const isSaveDisabled = saveState !== "idle";
+  const isSaveDisabled = saveState !== "idle" || state !== "ready";
   const saveLabel =
     saveState === "saving"
       ? "Saving to Archive"
@@ -148,13 +165,14 @@ export function ReaderAiPanel({
   }, [showPopover, onDismissPopover]);
 
   const showIdlePanel = !isSidebarOpen && state === "idle";
-  const showLoadingPanel = !isSidebarOpen && state === "loading";
+  const showLoadingPanel =
+    !isSidebarOpen && state === "loading" && !explanation;
   const showErrorPanel = !isSidebarOpen && state === "error";
-  const showCompactReadyPanel =
-    !isSidebarOpen && state === "ready" && !!explanation;
-  const showSidebarLoading = isSidebarOpen && state === "loading";
+  const showCompactExplanationPanel = !isSidebarOpen && !!explanation;
+  const showSidebarLoading =
+    isSidebarOpen && state === "loading" && !explanation;
   const showSidebarError = isSidebarOpen && state === "error";
-  const showSidebarReady = isSidebarOpen && state === "ready" && !!explanation;
+  const showSidebarExplanation = isSidebarOpen && !!explanation;
 
   return (
     <>
@@ -182,8 +200,11 @@ export function ReaderAiPanel({
                 </div>
               ) : null}
               {showPopoverTranslation ? (
-                <p className="text-popover-foreground/80 truncate text-xs">
+                <p className="text-popover-foreground/80 animate-in fade-in-0 truncate text-xs duration-300">
                   {explanation.translation}
+                  {streamingCursorTarget === "translation" ? (
+                    <StreamingCursor />
+                  ) : null}
                 </p>
               ) : null}
             </div>
@@ -280,20 +301,30 @@ export function ReaderAiPanel({
             </div>
           ) : null}
 
-          {showCompactReadyPanel ? (
+          {showCompactExplanationPanel ? (
             <div className="border-line hover:border-line-strong group relative space-y-4 border p-6 transition-colors">
-              <div className="space-y-2">
+              <div className="animate-in fade-in-0 space-y-2 duration-300">
                 <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
                   Translation Fragment
                 </p>
-                <p className="text-foreground font-serif text-2xl">
-                  {explanation.translation}
-                </p>
+                {explanation.translation ? (
+                  <p className="text-foreground font-serif text-2xl">
+                    {explanation.translation}
+                    {streamingCursorTarget === "translation" ? (
+                      <StreamingCursor />
+                    ) : null}
+                  </p>
+                ) : null}
               </div>
 
-              <p className="text-ink-muted text-sm leading-relaxed italic">
-                {briefExplanation}
-              </p>
+              {briefExplanation ? (
+                <p className="text-ink-muted animate-in fade-in-0 text-sm leading-relaxed italic duration-300">
+                  {briefExplanation}
+                  {streamingCursorTarget === "explanation" ? (
+                    <StreamingCursor />
+                  ) : null}
+                </p>
+              ) : null}
 
               <button
                 onClick={onOpenSidebar}
@@ -335,7 +366,7 @@ export function ReaderAiPanel({
                 </div>
               ) : null}
 
-              {showSidebarReady ? (
+              {showSidebarExplanation ? (
                 <div className="animate-in fade-in slide-in-from-bottom-2 space-y-10 duration-500">
                   <div className="space-y-6">
                     {shouldShowReaderAiContext(
@@ -390,67 +421,98 @@ export function ReaderAiPanel({
                       ) : null}
                     </div>
 
-                    <div className="space-y-2">
-                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
-                        Translation
-                      </p>
-                      <p className="text-foreground font-serif text-3xl leading-tight font-light tracking-tight">
-                        {explanation.translation}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="border-line space-y-3 border-t pt-8">
-                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
-                      Editorial Note
-                    </p>
-                    <p className="text-ink-soft text-sm leading-loose">
-                      {explanation.explanation}
-                    </p>
-                    {explanation.alternativeMeaning ? (
-                      <p className="text-ink-muted text-xs leading-relaxed">
-                        Also commonly means: {explanation.alternativeMeaning}
-                      </p>
+                    {explanation.translation ? (
+                      <div className="animate-in fade-in-0 space-y-2 duration-300">
+                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
+                          Translation
+                        </p>
+                        <p className="text-foreground font-serif text-3xl leading-tight font-light tracking-tight">
+                          {explanation.translation}
+                          {streamingCursorTarget === "translation" ? (
+                            <StreamingCursor />
+                          ) : null}
+                        </p>
+                      </div>
                     ) : null}
                   </div>
 
+                  {explanation.explanation ? (
+                    <div className="border-line animate-in fade-in-0 space-y-3 border-t pt-8 duration-300">
+                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
+                        Editorial Note
+                      </p>
+                      <p className="text-ink-soft text-sm leading-loose">
+                        {explanation.explanation}
+                        {streamingCursorTarget === "explanation" ? (
+                          <StreamingCursor />
+                        ) : null}
+                      </p>
+                      {explanation.alternativeMeaning ? (
+                        <p className="text-ink-muted animate-in fade-in-0 text-xs leading-relaxed duration-300">
+                          Also commonly means: {explanation.alternativeMeaning}
+                          {streamingCursorTarget === "alternative-meaning" ? (
+                            <StreamingCursor />
+                          ) : null}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   {explanation.grammaticalNote ? (
-                    <div className="border-line space-y-3 border-t pt-8">
+                    <div className="border-line animate-in fade-in-0 space-y-3 border-t pt-8 duration-300">
                       <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
                         Grammar & Structure
                       </p>
                       <p className="text-ink-soft text-sm leading-loose">
                         {explanation.grammaticalNote}
+                        {streamingCursorTarget === "grammatical-note" ? (
+                          <StreamingCursor />
+                        ) : null}
                       </p>
                     </div>
                   ) : null}
 
-                  <div className="space-y-4">
-                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
-                      Contextual Usage
-                    </p>
-                    <div className="space-y-4">
-                      {explanation.examples.map((example, idx) => (
-                        <div
-                          key={idx}
-                          className="border-quote/60 hover:border-quote border-l pl-4 transition-colors"
-                        >
-                          <p className="text-ink-soft font-serif text-sm leading-relaxed italic">
-                            {renderHighlightedExampleSentence(
-                              example.sentence,
-                              selectedText,
-                            )}
-                          </p>
-                          <p className="text-ink-muted mt-1 text-xs leading-relaxed italic">
-                            {example.translation}
-                          </p>
-                        </div>
-                      ))}
+                  {(explanation.examples?.length ?? 0) > 0 ? (
+                    <div className="animate-in fade-in-0 space-y-4 duration-300">
+                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
+                        Contextual Usage
+                      </p>
+                      <div className="space-y-4">
+                        {explanation.examples?.map((example, idx) => (
+                          <div
+                            key={idx}
+                            className="border-quote/60 hover:border-quote animate-in fade-in-0 border-l pl-4 transition-colors duration-300"
+                          >
+                            {example.sentence ? (
+                              <p className="text-ink-soft font-serif text-sm leading-relaxed italic">
+                                {renderHighlightedExampleSentence(
+                                  example.sentence,
+                                  selectedText,
+                                )}
+                                {streamingCursorTarget ===
+                                `example-sentence-${idx}` ? (
+                                  <StreamingCursor />
+                                ) : null}
+                              </p>
+                            ) : null}
+                            {example.translation ? (
+                              <p className="text-ink-muted mt-1 text-xs leading-relaxed italic">
+                                {example.translation}
+                                {streamingCursorTarget ===
+                                `example-translation-${idx}` ? (
+                                  <StreamingCursor />
+                                ) : null}
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : null}
 
                   <div className="pt-4">
-                    {explanation.selectionType === "word" ? (
+                    {state === "ready" &&
+                    explanation.selectionType === "word" ? (
                       <button
                         type="button"
                         onClick={onSaveToVocabulary}
@@ -472,9 +534,13 @@ export function ReaderAiPanel({
                         </span>
                         <ChevronRight className="text-ink-muted size-3.5 transition-transform group-hover:translate-x-0.5 group-disabled:translate-x-0" />
                       </button>
-                    ) : (
+                    ) : state === "ready" ? (
                       <p className="border-line text-ink-muted border px-4 py-3 text-xs">
                         Sentence analysis
+                      </p>
+                    ) : (
+                      <p className="border-line text-ink-muted border px-4 py-3 text-xs">
+                        Streaming analysis...
                       </p>
                     )}
                     {errorMessage ? (
