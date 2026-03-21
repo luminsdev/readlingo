@@ -11,6 +11,7 @@ import {
   validateEpubArchive,
 } from "../src/lib/book-storage.ts";
 import {
+  applyReaderThemeToContents,
   getReaderImagePageTarget,
   getReaderNavigationDirection,
   restoreReaderFocus,
@@ -29,6 +30,21 @@ function createNode(tagName, children = [], textContent = "") {
   }
 
   return node;
+}
+
+function createStyleTarget() {
+  const properties = new Map();
+
+  return {
+    style: {
+      setProperty(name, value, priority = "") {
+        properties.set(name, { priority, value });
+      },
+    },
+    getProperty(name) {
+      return properties.get(name);
+    },
+  };
 }
 
 test("getReaderNavigationDirection maps arrow keys to reader movement", () => {
@@ -88,6 +104,37 @@ test("getReaderImagePageTarget ignores chapters with mixed text content", () => 
   const body = createNode("BODY", [wrapper], "Chapter opener");
 
   assert.equal(getReaderImagePageTarget(body), null);
+});
+
+test("applyReaderThemeToContents forces a light reading surface for rendition documents", () => {
+  const root = createStyleTarget();
+  const body = createStyleTarget();
+
+  applyReaderThemeToContents([
+    {
+      document: {
+        body,
+        documentElement: root,
+      },
+    },
+  ]);
+
+  assert.deepEqual(root.getProperty("color-scheme"), {
+    priority: "important",
+    value: "light",
+  });
+  assert.deepEqual(root.getProperty("background-color"), {
+    priority: "important",
+    value: "#fffbf4",
+  });
+  assert.deepEqual(body.getProperty("background-color"), {
+    priority: "important",
+    value: "#fffbf4",
+  });
+  assert.deepEqual(body.getProperty("color"), {
+    priority: "important",
+    value: "#241b16",
+  });
 });
 
 test("readingProgressSchema rejects malformed EPUB CFIs", () => {

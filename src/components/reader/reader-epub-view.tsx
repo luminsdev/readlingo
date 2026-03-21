@@ -16,6 +16,7 @@ import type { PackagingMetadataObject } from "epubjs/types/packaging";
 import type Rendition from "epubjs/types/rendition";
 import type { Location as EpubLocation } from "epubjs/types/rendition";
 import { LoaderCircle } from "lucide-react";
+import { useTheme } from "next-themes";
 
 import type { ReaderViewState } from "@/components/reader/reader-workspace-types";
 import {
@@ -24,11 +25,13 @@ import {
   styleImageOnlyContent,
 } from "@/components/reader/reader-workspace-utils";
 import {
+  applyReaderThemeToContents,
   getReaderCfi,
   getReaderLocationLabel,
   getReaderNavigationDirection,
   hasReaderMetadataChanged,
   normalizeReaderMetadata,
+  READER_VIEWPORT_BACKGROUND,
   restoreReaderFocus,
   type ReaderMetadata,
   type ReaderNavigationDirection,
@@ -67,6 +70,7 @@ export const ReaderEpubView = forwardRef<
   },
   ref,
 ) {
+  const { resolvedTheme } = useTheme();
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const bookRef = useRef<Book | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
@@ -83,8 +87,20 @@ export const ReaderEpubView = forwardRef<
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const styleReaderContents = useCallback((contents: Contents) => {
+    applyReaderThemeToContents([{ document: contents.document }]);
     styleImageOnlyContent(contents);
   }, []);
+
+  useEffect(() => {
+    const renditionContents = renditionRef.current?.getContents();
+    const contents = Array.isArray(renditionContents)
+      ? renditionContents
+      : renditionContents
+        ? [renditionContents]
+        : [];
+
+    applyReaderThemeToContents(contents);
+  }, [isReady, resolvedTheme]);
 
   const refocusReader = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -432,12 +448,17 @@ export const ReaderEpubView = forwardRef<
 
   return (
     <div
-      className="relative min-h-[520px]"
+      className="relative min-h-[520px] overflow-hidden rounded-[24px] border border-[#eadfce]"
       onKeyDown={handleReaderAction}
       ref={readerSurfaceRef}
+      style={{ backgroundColor: READER_VIEWPORT_BACKGROUND }}
       tabIndex={0}
     >
-      <div className="absolute inset-0" ref={viewerRef} />
+      <div
+        className="absolute inset-0"
+        ref={viewerRef}
+        style={{ backgroundColor: READER_VIEWPORT_BACKGROUND }}
+      />
 
       {!isReady && !errorMessage ? (
         <div className="bg-reader-overlay absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 text-center backdrop-blur-sm">

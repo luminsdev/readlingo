@@ -18,10 +18,19 @@ type FocusableLike = {
   focus?: (options?: { preventScroll?: boolean }) => void;
 };
 
-type ReaderContentsLike = {
-  document?: {
-    body?: FocusableLike | null;
+type StyleWritableLike = {
+  style?: {
+    setProperty?: (property: string, value: string, priority?: string) => void;
   } | null;
+};
+
+type ReaderDocumentLike = {
+  body?: (FocusableLike & StyleWritableLike) | null;
+  documentElement?: StyleWritableLike | null;
+};
+
+type ReaderContentsLike = {
+  document?: ReaderDocumentLike | null;
   window?: {
     focus?: () => void;
   } | null;
@@ -35,6 +44,9 @@ type ReaderImagePageNodeLike = {
 
 const IMAGE_PAGE_MEDIA_TAGS = new Set(["IMG", "SVG"]);
 const MAX_IMAGE_PAGE_DEPTH = 12;
+
+export const READER_VIEWPORT_BACKGROUND = "#fffbf4";
+export const READER_VIEWPORT_FOREGROUND = "#241b16";
 
 export type ReaderMetadata = {
   title: string;
@@ -75,6 +87,14 @@ function focusIfPossible(target: FocusableLike | null | undefined) {
   target.focus({ preventScroll: true });
 
   return true;
+}
+
+function setImportantStyle(
+  target: StyleWritableLike | null | undefined,
+  property: string,
+  value: string,
+) {
+  target?.style?.setProperty?.(property, value, "important");
 }
 
 export function getReaderNavigationDirection(
@@ -145,6 +165,31 @@ export function getReaderImagePageTarget(
   }
 
   return null;
+}
+
+export function applyReaderThemeToContents(
+  contents: ReaderContentsLike[] | null | undefined,
+) {
+  for (const content of contents ?? []) {
+    const document = content.document;
+
+    if (!document) {
+      continue;
+    }
+
+    setImportantStyle(document.documentElement, "color-scheme", "light");
+    setImportantStyle(
+      document.documentElement,
+      "background-color",
+      READER_VIEWPORT_BACKGROUND,
+    );
+    setImportantStyle(
+      document.body,
+      "background-color",
+      READER_VIEWPORT_BACKGROUND,
+    );
+    setImportantStyle(document.body, "color", READER_VIEWPORT_FOREGROUND);
+  }
 }
 
 export function normalizeReaderMetadata(
