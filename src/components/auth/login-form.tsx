@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 
+import { GoogleAuthButton } from "@/components/auth/google-auth-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,6 +72,14 @@ export function LoginForm() {
       <Button className="w-full" disabled={isPending} type="submit">
         {isPending ? "Signing in..." : "Sign in"}
       </Button>
+
+      <div className="text-muted-foreground flex items-center gap-3 text-[0.7rem] font-semibold tracking-[0.24em] uppercase">
+        <span className="bg-border h-px flex-1" />
+        <span>or</span>
+        <span className="bg-border h-px flex-1" />
+      </div>
+
+      <GoogleAuthButton label="Continue with Google" />
 
       <p className="text-muted-foreground text-sm">
         New to ReadLingo?{" "}
