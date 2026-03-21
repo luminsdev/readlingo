@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { bookMetadataSchema } from "@/lib/book-validation";
 import { getOwnedReaderBook, updateOwnedBookMetadata } from "@/lib/books";
-import { removeBookFile } from "@/lib/book-storage";
+import { removeBookFileBestEffort } from "@/lib/book-storage";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -63,7 +63,14 @@ export async function DELETE(
   }
 
   await prisma.book.delete({ where: { id: book.id } });
-  await removeBookFile(book.filePath);
+  await removeBookFileBestEffort(book.filePath, {
+    onError(error) {
+      console.error(
+        `Failed to delete stored EPUB file for book ${book.id}`,
+        error,
+      );
+    },
+  });
 
   return new NextResponse(null, { status: 204 });
 }

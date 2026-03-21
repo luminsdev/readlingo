@@ -2,9 +2,14 @@ import { readFile } from "node:fs/promises";
 
 import type { Prisma } from "@prisma/client";
 
-import { resolveStoredUploadFilePath } from "@/lib/book-storage";
+import {
+  getStoredBookR2Key,
+  R2_FILE_PATH_PREFIX,
+  resolveStoredUploadFilePath,
+} from "@/lib/book-storage";
 import type { BookMetadataInput } from "@/lib/book-validation";
 import { prisma } from "@/lib/prisma";
+import { downloadFromR2 } from "@/lib/r2";
 
 const readerBookSelect = {
   id: true,
@@ -98,6 +103,10 @@ export async function upsertOwnedReadingProgress(
 }
 
 export async function readStoredBookFile(filePath: string) {
+  if (filePath.startsWith(R2_FILE_PATH_PREFIX)) {
+    return downloadFromR2(getStoredBookR2Key(filePath));
+  }
+
   return readFile(resolveStoredUploadFilePath(filePath));
 }
 

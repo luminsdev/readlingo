@@ -1,5 +1,7 @@
-import { mkdir, unlink, writeFile } from "node:fs/promises";
+import { unlink } from "node:fs/promises";
 import path from "node:path";
+
+import { deleteFromR2, uploadToR2 } from "./r2.ts";
 
 const MAX_EPUB_SIZE_BYTES = 25 * 1024 * 1024;
 const ZIP_LOCAL_FILE_HEADER_SIGNATURE = [0x50, 0x4b, 0x03, 0x04] as const;
@@ -9,9 +11,7 @@ const REQUIRED_EPUB_MARKERS = [
   "application/epub+zip",
 ] as const;
 
-function getUploadRoot() {
-  return path.resolve(process.cwd(), process.env.UPLOAD_DIR ?? "uploads");
-}
+const R2_FILE_PATH_PREFIX = "r2://";
 
 export function assertEpubFile(file: File) {
   const hasEpubExtension = /\.epub$/i.test(file.name);
@@ -62,44 +62,57 @@ export function createBookTitle(fileName: string) {
   return fileName.replace(/\.epub$/i, "").trim() || "Untitled book";
 }
 
+function createR2ObjectKey(userId: string, bookId: string) {
+  return `${userId}/${bookId}.epub`;
+}
+
+export function createStoredR2FilePath(key: string) {
+  return `${R2_FILE_PATH_PREFIX}${key}`;
+}
+
+export function getStoredBookR2Key(filePath: string) {
+  if (!filePath.startsWith(R2_FILE_PATH_PREFIX)) {
+    throw new Error("Stored EPUB path is not an R2 object path.");
+  }
+
+  const key = filePath.slice(R2_FILE_PATH_PREFIX.length);
+
+  if (!key || key.startsWith("/")) {
+    throw new Error("Stored EPUB R2 object key is invalid.");
+  }
+
+  return key;
+}
+
 export async function persistBookFile(options: {
   userId: string;
   bookId: string;
   file: File;
   fileBytes?: Uint8Array;
 }) {
-  const uploadRoot = getUploadRoot();
-  const relativeUploadRoot = path
-    .relative(process.cwd(), uploadRoot)
-    .split(path.sep)
-    .join(path.posix.sep);
-  const relativePath = path.posix.join(
-    relativeUploadRoot,
-    options.userId,
-    `${options.bookId}.epub`,
-  );
-  const absolutePath = path.join(
-    uploadRoot,
-    options.userId,
-    `${options.bookId}.epub`,
-  );
-
-  await mkdir(path.dirname(absolutePath), { recursive: true });
+  const key = createR2ObjectKey(options.userId, options.bookId);
 
   const bytes =
     options.fileBytes ?? new Uint8Array(await options.file.arrayBuffer());
-  await writeFile(absolutePath, Buffer.from(bytes));
+  await uploadToR2(key, bytes, "application/epub+zip");
 
-  return relativePath;
+  return createStoredR2FilePath(key);
 }
 
 export function resolveStoredUploadFilePath(filePath: string) {
+  if (filePath.startsWith(R2_FILE_PATH_PREFIX)) {
+    return filePath;
+  }
+
   if (!filePath || path.isAbsolute(filePath)) {
     throw new Error("Stored EPUB path is invalid.");
   }
 
   const absolutePath = path.resolve(process.cwd(), filePath);
-  const uploadRoot = getUploadRoot();
+  const uploadRoot = path.resolve(
+    process.cwd(),
+    process.env.UPLOAD_DIR ?? "uploads",
+  );
   const relativeToUploadRoot = path.relative(uploadRoot, absolutePath);
 
   if (
@@ -113,6 +126,11 @@ export function resolveStoredUploadFilePath(filePath: string) {
 }
 
 export async function removeBookFile(filePath: string) {
+  if (filePath.startsWith(R2_FILE_PATH_PREFIX)) {
+    await deleteFromR2(getStoredBookR2Key(filePath));
+    return;
+  }
+
   const absolutePath = resolveStoredUploadFilePath(filePath);
 
   try {
@@ -128,4 +146,20 @@ export async function removeBookFile(filePath: string) {
   }
 }
 
-export { MAX_EPUB_SIZE_BYTES, getUploadRoot };
+export async function removeBookFileBestEffort(
+  filePath: string,
+  options: {
+    onError?: (error: unknown) => void;
+    removeFile?: (filePath: string) => Promise<void>;
+  } = {},
+) {
+  const removeFile = options.removeFile ?? removeBookFile;
+
+  try {
+    await removeFile(filePath);
+  } catch (error) {
+    options.onError?.(error);
+  }
+}
+
+export { MAX_EPUB_SIZE_BYTES, R2_FILE_PATH_PREFIX };
