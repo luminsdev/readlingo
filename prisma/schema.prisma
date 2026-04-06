@@ -71,6 +71,7 @@ model Vocabulary {
   partOfSpeech       String?
   difficultyHint     String?
   explanation        String?
+  mnemonic           String?
   alternativeMeaning String?
   exampleTranslation String?
   sourceLanguage     String

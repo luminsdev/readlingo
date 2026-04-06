@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { auth } from "@/auth";
+import { generateMnemonic } from "@/lib/ai-mnemonic";
 import { prisma } from "@/lib/prisma";
 import {
   saveVocabularySchema,
@@ -14,6 +15,16 @@ const DUPLICATE_VOCABULARY_MESSAGE = "This word is already in your vocabulary.";
 type VocabularyListRecord = Awaited<
   ReturnType<typeof prisma.vocabulary.findMany>
 >[number];
+
+type QueueVocabularyMnemonicInput = {
+  vocabularyId: string;
+  userId: string;
+  word: string;
+  definition: string;
+  sourceLanguage: string;
+  exampleSentence: string;
+  contextSentence: string;
+};
 
 async function attachOwnedBookTitles(
   userId: string,
@@ -55,6 +66,48 @@ async function attachOwnedBookTitles(
     ...item,
     book: item.bookId ? (booksById.get(item.bookId) ?? null) : null,
   }));
+}
+
+function queueVocabularyMnemonicGeneration({
+  vocabularyId,
+  userId,
+  word,
+  definition,
+  sourceLanguage,
+  exampleSentence,
+  contextSentence,
+}: QueueVocabularyMnemonicInput) {
+  after(async () => {
+    try {
+      const mnemonic = await generateMnemonic({
+        word,
+        definition,
+        sourceLanguage,
+        exampleSentence,
+        contextSentence,
+      });
+
+      if (!mnemonic) {
+        return;
+      }
+
+      await prisma.vocabulary.updateMany({
+        where: {
+          id: vocabularyId,
+          userId,
+          mnemonic: null,
+        },
+        data: {
+          mnemonic,
+        },
+      });
+    } catch (error) {
+      console.error(
+        `Failed to generate mnemonic for vocabulary ${vocabularyId}`,
+        error,
+      );
+    }
+  });
 }
 
 export async function GET(request: Request) {
@@ -184,6 +237,7 @@ export async function POST(request: Request) {
             partOfSpeech: parsedPayload.data.partOfSpeech,
             difficultyHint: parsedPayload.data.difficultyHint,
             explanation: parsedPayload.data.explanation,
+            mnemonic: parsedPayload.data.mnemonic,
             alternativeMeaning: parsedPayload.data.alternativeMeaning,
             exampleTranslation: parsedPayload.data.exampleTranslation,
             sourceLanguage: parsedPayload.data.sourceLanguage,
@@ -200,6 +254,18 @@ export async function POST(request: Request) {
     const [vocabularyWithBook] = await attachOwnedBookTitles(session.user.id, [
       vocabulary,
     ]);
+
+    if (!parsedPayload.data.mnemonic) {
+      queueVocabularyMnemonicGeneration({
+        vocabularyId: vocabulary.id,
+        userId: session.user.id,
+        word: parsedPayload.data.word,
+        definition: parsedPayload.data.definition,
+        sourceLanguage: parsedPayload.data.sourceLanguage,
+        exampleSentence: parsedPayload.data.exampleSentence,
+        contextSentence: parsedPayload.data.contextSentence,
+      });
+    }
 
     return NextResponse.json(
       { vocabulary: vocabularyWithBook },

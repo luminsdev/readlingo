@@ -149,6 +149,13 @@ export function getExplainModelTarget(
   };
 }
 
+export function getAiLanguageModel(modelTier: ExplainModelTier = "primary") {
+  const modelTarget = getExplainModelTarget(modelTier);
+  const providerRegistration = getProviderRegistration(modelTarget.provider);
+
+  return providerRegistration.createModel(modelTarget.modelId);
+}
+
 export function buildExplainPrompt({
   selectedText,
   surroundingParagraph,

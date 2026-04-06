@@ -45,6 +45,18 @@ const languageSchema = z
   .max(32)
   .transform((value) => value.toLowerCase());
 
+export const mnemonicSchema = z.string().trim().min(1).max(1000);
+
+const optionalMnemonicSchema = z.preprocess((value) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const normalizedValue = value.trim();
+
+  return normalizedValue ? normalizedValue : undefined;
+}, mnemonicSchema.optional());
+
 export const saveVocabularySchema = z.object({
   word: z.string().trim().min(1, "Word is required.").max(300),
   definition: z.string().trim().min(1, "Definition is required.").max(4000),
@@ -70,6 +82,7 @@ export const saveVocabularySchema = z.object({
     return normalizedValue ? normalizedValue : undefined;
   }, difficultyHintSchema),
   explanation: optionalTrimmedStringSchema(4000),
+  mnemonic: optionalMnemonicSchema,
   alternativeMeaning: optionalTrimmedStringSchema(500),
   exampleTranslation: optionalTrimmedStringSchema(1000),
   sourceLanguage: languageSchema,

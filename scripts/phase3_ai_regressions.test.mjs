@@ -8,6 +8,10 @@ import {
   normalizeExplanationPayload,
 } from "../src/lib/ai.ts";
 import {
+  buildMnemonicPrompt,
+  normalizeMnemonicText,
+} from "../src/lib/ai-mnemonic.ts";
+import {
   aiExplanationSchema,
   explainSelectionSchema,
   explanationPayloadSchema,
@@ -118,6 +122,46 @@ test("buildExplainPrompt keeps phrase selections anchored to the full sentence",
     prompt,
     /do not narrow the answer to a single word or sub-phrase/,
   );
+});
+
+test("buildMnemonicPrompt asks for a concise Vietnamese memory hook", () => {
+  const prompt = buildMnemonicPrompt({
+    word: "ephemeral",
+    definition: "ngan ngu, chi ton tai trong thoi gian ngan",
+    sourceLanguage: "en",
+    exampleSentence: "The beauty of cherry blossoms is ephemeral.",
+    contextSentence:
+      "The beauty of cherry blossoms is ephemeral, which is why festivals celebrate the brief bloom.",
+  });
+
+  assert.match(prompt, /Respond in Vietnamese\./);
+  assert.match(prompt, /Word: "ephemeral"/);
+  assert.match(
+    prompt,
+    /Definition: "ngan ngu, chi ton tai trong thoi gian ngan"/,
+  );
+  assert.match(prompt, /Source language: en/);
+  assert.match(
+    prompt,
+    /Example sentence: "The beauty of cherry blossoms is ephemeral\."/,
+  );
+  assert.match(prompt, /Context sentence: "/);
+  assert.match(prompt, /1-3 sentences max/);
+  assert.match(
+    prompt,
+    /Vietnamese wordplay or cultural references when they genuinely help memory/,
+  );
+  assert.match(prompt, /Return only the mnemonic text/);
+});
+
+test("normalizeMnemonicText trims wrapper quotes and rejects invalid model output", () => {
+  assert.equal(
+    normalizeMnemonicText('  "Nghĩ đến WiFi ở khắp nơi, giống ubiquitous."  '),
+    "Nghĩ đến WiFi ở khắp nơi, giống ubiquitous.",
+  );
+
+  assert.equal(normalizeMnemonicText("   \n   "), null);
+  assert.equal(normalizeMnemonicText("x".repeat(1001)), null);
 });
 
 test("explanationPayloadSchema requires server-derived selectionType", () => {
@@ -370,6 +414,7 @@ test("saveVocabularySchema validates vocabulary archive payloads", () => {
       partOfSpeech: "  adjective  ",
       difficultyHint: "  intermediate  ",
       explanation: "  Learner-friendly note.  ",
+      mnemonic: "  Nghi den con cao to mo, gap gi cung muon ngo vao.  ",
       alternativeMeaning: "  inquisitive  ",
       exampleTranslation: "  Con cao to mo dung lai.  ",
     }),
@@ -384,6 +429,7 @@ test("saveVocabularySchema validates vocabulary archive payloads", () => {
       partOfSpeech: "adjective",
       difficultyHint: "intermediate",
       explanation: "Learner-friendly note.",
+      mnemonic: "Nghi den con cao to mo, gap gi cung muon ngo vao.",
       alternativeMeaning: "inquisitive",
       exampleTranslation: "Con cao to mo dung lai.",
     },

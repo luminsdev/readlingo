@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useState, useTransition } from "react";
 import {
   ArrowRight,
+  Brain,
   CheckCircle2,
   LibraryBig,
   RotateCcw,
@@ -136,6 +137,7 @@ export function FlashcardSession({
   const router = useRouter();
   const [cards, setCards] = useState(initialCards);
   const [revealed, setRevealed] = useState(false);
+  const [hintVisible, setHintVisible] = useState(false);
   const [reviewedCount, setReviewedCount] = useState(0);
   const [pendingRating, setPendingRating] = useState<SRSRating | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -150,6 +152,7 @@ export function FlashcardSession({
   const activeCard = cards[0] ?? null;
   const batchSize = initialCards.length;
   const remainingDueCount = Math.max(initialDueCount - reviewedCount, 0);
+  const hasMnemonicHint = Boolean(activeCard?.mnemonic?.trim());
 
   async function handleRate(rating: SRSRating) {
     if (!activeCard || pendingRating) {
@@ -187,6 +190,7 @@ export function FlashcardSession({
         ...currentCounts,
         [rating]: currentCounts[rating] + 1,
       }));
+      setHintVisible(false);
       setRevealed(false);
     } catch (error) {
       setErrorMessage(
@@ -472,22 +476,55 @@ export function FlashcardSession({
                 </div>
               </div>
             ) : (
-              <div className="border-line flex flex-col gap-5 border-t pt-8 sm:flex-row sm:items-end sm:justify-between">
-                <p className="text-ink-muted max-w-xl text-sm leading-loose">
-                  Pause for recall first. When you are ready, reveal the answer,
-                  read the context, and choose the next interval.
-                </p>
-                <Button
-                  className="sm:min-w-40"
-                  onClick={() => {
-                    setErrorMessage(null);
-                    setRevealed(true);
-                  }}
-                  type="button"
-                >
-                  Reveal
-                  <ArrowRight className="size-4" />
-                </Button>
+              <div className="border-line space-y-5 border-t pt-8">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                  <p className="text-ink-muted max-w-xl text-sm leading-loose">
+                    Pause for recall first. When you are ready, reveal the
+                    answer, read the context, and choose the next interval.
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {hasMnemonicHint ? (
+                      <Button
+                        onClick={() => {
+                          setHintVisible((currentValue) => !currentValue);
+                        }}
+                        type="button"
+                        variant="secondary"
+                      >
+                        {hintVisible ? "Hide hint" : "Show hint"}
+                      </Button>
+                    ) : null}
+                    <Button
+                      className="sm:min-w-40"
+                      onClick={() => {
+                        setErrorMessage(null);
+                        setRevealed(true);
+                      }}
+                      type="button"
+                    >
+                      Reveal
+                      <ArrowRight className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {hasMnemonicHint && hintVisible ? (
+                  <div className="border-line bg-surface rounded-[24px] border p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="border-line bg-surface-strong flex size-9 shrink-0 items-center justify-center rounded-full border">
+                        <Brain className="text-ink-muted size-4" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                          Memory hint
+                        </p>
+                        <p className="text-ink-muted text-xs leading-relaxed italic">
+                          {activeCard.mnemonic}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
 

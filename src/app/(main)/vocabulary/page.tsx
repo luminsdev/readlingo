@@ -1,5 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { Lightbulb } from "lucide-react";
 
 import { auth } from "@/auth";
 import { DeleteVocabularyButton } from "@/components/vocabulary/delete-vocabulary-button";
@@ -200,9 +201,17 @@ export default async function VocabularyPage() {
                   <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
                     Translation
                   </p>
-                  <p className="text-foreground font-serif text-2xl leading-tight">
-                    {item.definition}
-                  </p>
+                  <div className="space-y-3">
+                    <p className="text-foreground font-serif text-2xl leading-tight">
+                      {item.definition}
+                    </p>
+                    {item.mnemonic ? (
+                      <div className="text-ink-muted flex items-start gap-2 text-xs italic">
+                        <Lightbulb className="mt-0.5 size-3.5 shrink-0" />
+                        <p>{item.mnemonic}</p>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="space-y-5">
