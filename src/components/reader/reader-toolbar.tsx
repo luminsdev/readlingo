@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  List,
   LoaderCircle,
   RefreshCcw,
 } from "lucide-react";
@@ -26,10 +27,13 @@ type ReaderToolbarProps = {
   canGoPrevious: boolean;
   children: ReactNode;
   isReady: boolean;
+  isTocOpen: boolean;
   locationLabel: string;
+  onToggleToc: () => void;
   metadata: ReaderMetadata;
   onNext: () => void;
   onPrevious: () => void;
+  tocItemCount: number;
   saveState: SaveState;
   saveStatusLabel: string;
 };
@@ -39,13 +43,18 @@ export function ReaderToolbar({
   canGoPrevious,
   children,
   isReady,
+  isTocOpen,
   locationLabel,
   metadata,
   onNext,
   onPrevious,
+  onToggleToc,
   saveState,
   saveStatusLabel,
+  tocItemCount,
 }: ReaderToolbarProps) {
+  const canToggleToc = isReady && tocItemCount > 0;
+
   return (
     <Card>
       <CardHeader className="border-border/70 gap-5 border-b pb-5">
@@ -92,18 +101,37 @@ export function ReaderToolbar({
 
       <CardContent className="space-y-5 pt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button
-            disabled={!canGoPrevious || !isReady}
-            onClick={onPrevious}
-            type="button"
-            variant="secondary"
-          >
-            <ArrowLeft className="size-4" />
-            Previous
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              disabled={!canGoPrevious || !isReady}
+              onClick={onPrevious}
+              type="button"
+              variant="secondary"
+            >
+              <ArrowLeft className="size-4" />
+              Previous
+            </Button>
+
+            <Button
+              aria-haspopup="dialog"
+              aria-label={
+                isTocOpen ? "Close table of contents" : "Open table of contents"
+              }
+              aria-pressed={isTocOpen}
+              data-reader-toc-toggle="true"
+              disabled={!canToggleToc}
+              onClick={onToggleToc}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <List className="size-4" />
+              <span className="hidden sm:inline">Contents</span>
+            </Button>
+          </div>
 
           <div className="text-muted-foreground text-sm">
-            Use the arrow keys or navigation controls to turn pages.
+            Use arrow keys to turn pages. Press Escape to close overlays.
           </div>
 
           <Button

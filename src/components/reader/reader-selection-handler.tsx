@@ -630,6 +630,9 @@ export function ReaderSelectionHandler({
   return children({
     clearPendingSelection,
     dismissPanels,
+    dismissPopover: clearPendingSelection,
+    hasPopoverOpen: Boolean(aiPopoverPosition && tooltipSelectedText),
+    isAiSidebarOpen,
     onSelection: handleSelection,
     panel,
   });

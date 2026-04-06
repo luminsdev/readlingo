@@ -18,6 +18,8 @@ import type { Location as EpubLocation } from "epubjs/types/rendition";
 import { LoaderCircle } from "lucide-react";
 import { useTheme } from "next-themes";
 
+import { getReaderBookLoadKey } from "@/components/reader/reader-epub-view-utils";
+import { normalizeReaderTocItems } from "@/components/reader/reader-table-of-contents-utils";
 import type { ReaderViewState } from "@/components/reader/reader-workspace-types";
 import {
   getReaderErrorMessage,
@@ -39,6 +41,9 @@ import {
 import type { ReaderBookSnapshot } from "@/types";
 
 export type ReaderEpubViewHandle = {
+  displayChapter: (
+    href: string,
+  ) => Promise<"success" | "busy" | "error" | "unavailable">;
   navigate: (direction: ReaderNavigationDirection) => Promise<void>;
   refocus: () => void;
 };
@@ -47,10 +52,12 @@ type ReaderEpubViewProps = {
   initialBook: ReaderBookSnapshot;
   onClearPendingSelection: () => void;
   onDismissPanels: () => void;
+  onEscapeKey: () => boolean;
   onMetadataChange: (metadata: ReaderMetadata) => void;
   onRestoreFailure: () => void;
   onSelected: (_cfiRange: string, contents: Contents) => void;
   onStateChange: (state: Partial<ReaderViewState>) => void;
+  onTocLoaded: (items: ReturnType<typeof normalizeReaderTocItems>) => void;
   readerSurfaceRef: RefObject<HTMLDivElement | null>;
 };
 
@@ -62,22 +69,44 @@ export const ReaderEpubView = forwardRef<
     initialBook,
     onClearPendingSelection,
     onDismissPanels,
+    onEscapeKey,
     onMetadataChange,
     onRestoreFailure,
     onSelected,
     onStateChange,
+    onTocLoaded,
     readerSurfaceRef,
   },
   ref,
 ) {
   const { resolvedTheme } = useTheme();
+  const {
+    author: initialAuthor,
+    id: initialBookId,
+    language: initialLanguage,
+    progressCfi: initialProgressCfi,
+    title: initialTitle,
+  } = initialBook;
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const bookRef = useRef<Book | null>(null);
+  const callbacksRef = useRef({
+    onClearPendingSelection,
+    onDismissPanels,
+    onEscapeKey,
+    onMetadataChange,
+    onRestoreFailure,
+    onSelected,
+    onStateChange,
+    onTocLoaded,
+  });
   const renditionRef = useRef<Rendition | null>(null);
   const isNavigatingRef = useRef(false);
   const metadataSyncStartedRef = useRef(false);
   const relocatedListenerRef = useRef<
     ((location: EpubLocation) => void) | null
+  >(null);
+  const selectedListenerRef = useRef<
+    ((_cfiRange: string, contents: Contents) => void) | null
   >(null);
   const renditionKeydownListenerRef = useRef<
     ((event: KeyboardEvent) => void) | null
@@ -85,6 +114,24 @@ export const ReaderEpubView = forwardRef<
 
   const [isReady, setIsReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const bookLoadKey = getReaderBookLoadKey({
+    author: initialAuthor,
+    id: initialBookId,
+    language: initialLanguage,
+    progressCfi: initialProgressCfi,
+    title: initialTitle,
+  });
+
+  callbacksRef.current = {
+    onClearPendingSelection,
+    onDismissPanels,
+    onEscapeKey,
+    onMetadataChange,
+    onRestoreFailure,
+    onSelected,
+    onStateChange,
+    onTocLoaded,
+  };
 
   const styleReaderContents = useCallback((contents: Contents) => {
     applyReaderThemeToContents([{ document: contents.document }]);
@@ -140,13 +187,41 @@ export const ReaderEpubView = forwardRef<
     [refocusReader],
   );
 
+  const displayChapter = useCallback(
+    async (href: string) => {
+      const rendition = renditionRef.current;
+
+      if (!rendition) {
+        return "unavailable" as const;
+      }
+
+      if (isNavigatingRef.current) {
+        return "busy" as const;
+      }
+
+      isNavigatingRef.current = true;
+
+      try {
+        await rendition.display(href);
+        return "success" as const;
+      } catch {
+        return "error" as const;
+      } finally {
+        isNavigatingRef.current = false;
+        refocusReader();
+      }
+    },
+    [refocusReader],
+  );
+
   useImperativeHandle(
     ref,
     () => ({
+      displayChapter,
       navigate,
       refocus: refocusReader,
     }),
-    [navigate, refocusReader],
+    [displayChapter, navigate, refocusReader],
   );
 
   const handleNavigationKey = useCallback(
@@ -172,7 +247,7 @@ export const ReaderEpubView = forwardRef<
       metadataSyncStartedRef.current = true;
 
       try {
-        const response = await fetch(`/api/books/${initialBook.id}`, {
+        const response = await fetch(`/api/books/${initialBookId}`, {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
@@ -187,7 +262,7 @@ export const ReaderEpubView = forwardRef<
         metadataSyncStartedRef.current = false;
       }
     },
-    [initialBook.id],
+    [initialBookId],
   );
 
   useEffect(() => {
@@ -227,6 +302,9 @@ export const ReaderEpubView = forwardRef<
       let book: Book | null = null;
       let rendition: Rendition | null = null;
       let handleRelocated: ((location: EpubLocation) => void) | null = null;
+      let handleSelected:
+        | ((_cfiRange: string, contents: Contents) => void)
+        | null = null;
       let handleRenditionKeyDown: ((event: KeyboardEvent) => void) | null =
         null;
 
@@ -235,20 +313,22 @@ export const ReaderEpubView = forwardRef<
       }
 
       metadataSyncStartedRef.current = false;
-      onDismissPanels();
+      callbacksRef.current.onDismissPanels();
       setErrorMessage(null);
       setIsReady(false);
-      onStateChange({
-        activeCfi: initialBook.progressCfi,
+      callbacksRef.current.onStateChange({
+        activeCfi: initialProgressCfi,
         canGoNext: false,
         canGoPrevious: false,
+        chapterHref: null,
         errorMessage: null,
         isReady: false,
-        locationLabel: getReaderInitialLocationLabel(initialBook.progressCfi),
+        locationLabel: getReaderInitialLocationLabel(initialProgressCfi),
       });
+      callbacksRef.current.onTocLoaded([]);
 
       try {
-        const response = await fetch(`/api/books/${initialBook.id}/file`, {
+        const response = await fetch(`/api/books/${initialBookId}/file`, {
           cache: "no-store",
         });
 
@@ -264,6 +344,9 @@ export const ReaderEpubView = forwardRef<
         const fileBuffer = await response.arrayBuffer();
         book = ePub(fileBuffer);
         const loadedMetadataPromise = book.loaded.metadata.catch(() => null);
+        const loadedNavigationPromise = book.loaded.navigation.catch(
+          () => null,
+        );
 
         await book.opened;
         await book.ready;
@@ -286,34 +369,44 @@ export const ReaderEpubView = forwardRef<
             return;
           }
 
-          onClearPendingSelection();
-          onStateChange({
+          callbacksRef.current.onClearPendingSelection();
+          callbacksRef.current.onStateChange({
             activeCfi: getReaderCfi(location),
             canGoNext: !location.atEnd,
             canGoPrevious: !location.atStart,
+            chapterHref: location.start?.href?.trim() || null,
             locationLabel: getReaderLocationLabel(location),
           });
         };
         handleRenditionKeyDown = (event: KeyboardEvent) => {
+          if (event.key === "Escape" && callbacksRef.current.onEscapeKey()) {
+            event.preventDefault();
+            return;
+          }
+
           if (handleNavigationKey(event.key)) {
             event.preventDefault();
           }
+        };
+        handleSelected = (cfiRange: string, contents: Contents) => {
+          callbacksRef.current.onSelected(cfiRange, contents);
         };
 
         bookRef.current = book;
         renditionRef.current = rendition;
         relocatedListenerRef.current = handleRelocated;
+        selectedListenerRef.current = handleSelected;
         renditionKeydownListenerRef.current = handleRenditionKeyDown;
         rendition.hooks.content.register(styleReaderContents);
         rendition.on("relocated", handleRelocated);
-        rendition.on("selected", onSelected);
+        rendition.on("selected", handleSelected);
         rendition.on("keydown", handleRenditionKeyDown);
 
-        if (initialBook.progressCfi) {
+        if (initialProgressCfi) {
           try {
-            await rendition.display(initialBook.progressCfi);
+            await rendition.display(initialProgressCfi);
           } catch {
-            onRestoreFailure();
+            callbacksRef.current.onRestoreFailure();
             await rendition.display();
           }
         } else {
@@ -321,25 +414,26 @@ export const ReaderEpubView = forwardRef<
         }
 
         const parsedMetadata = await loadedMetadataPromise;
+        await loadedNavigationPromise;
 
         if (parsedMetadata && !cancelled) {
           const nextMetadata = normalizeReaderMetadata(
             parsedMetadata as PackagingMetadataObject,
             {
-              title: initialBook.title,
-              author: initialBook.author,
-              language: initialBook.language,
+              title: initialTitle,
+              author: initialAuthor,
+              language: initialLanguage,
             },
           );
 
-          onMetadataChange(nextMetadata);
+          callbacksRef.current.onMetadataChange(nextMetadata);
 
           if (
             hasReaderMetadataChanged(
               {
-                title: initialBook.title,
-                author: initialBook.author,
-                language: initialBook.language,
+                title: initialTitle,
+                author: initialAuthor,
+                language: initialLanguage,
               },
               nextMetadata,
             )
@@ -348,23 +442,48 @@ export const ReaderEpubView = forwardRef<
           }
         }
 
+        if (!cancelled) {
+          callbacksRef.current.onTocLoaded(
+            normalizeReaderTocItems(
+              (book.navigation as { toc?: unknown } | undefined)?.toc,
+              {
+                navigationPath:
+                  (
+                    book.packaging as
+                      | { navPath?: string; ncxPath?: string }
+                      | undefined
+                  )?.navPath ??
+                  (
+                    book.packaging as
+                      | { navPath?: string; ncxPath?: string }
+                      | undefined
+                  )?.ncxPath ??
+                  null,
+              },
+            ),
+          );
+        }
+
         if (cancelled) {
           return;
         }
 
         setIsReady(true);
-        onStateChange({ isReady: true });
+        callbacksRef.current.onStateChange({ isReady: true });
       } catch (error) {
-        onDismissPanels();
+        callbacksRef.current.onDismissPanels();
         rendition?.hooks.content.deregister(styleReaderContents);
         if (handleRelocated) {
           rendition?.off("relocated", handleRelocated);
         }
-        rendition?.off("selected", onSelected);
+        if (handleSelected) {
+          rendition?.off("selected", handleSelected);
+        }
         if (handleRenditionKeyDown) {
           rendition?.off("keydown", handleRenditionKeyDown);
         }
         relocatedListenerRef.current = null;
+        selectedListenerRef.current = null;
         renditionKeydownListenerRef.current = null;
         rendition?.destroy();
         if (renditionRef.current === rendition) {
@@ -385,7 +504,7 @@ export const ReaderEpubView = forwardRef<
 
           setErrorMessage(nextErrorMessage);
           setIsReady(false);
-          onStateChange({
+          callbacksRef.current.onStateChange({
             errorMessage: nextErrorMessage,
             isReady: false,
           });
@@ -397,12 +516,14 @@ export const ReaderEpubView = forwardRef<
 
     return () => {
       cancelled = true;
-      onDismissPanels();
+      callbacksRef.current.onDismissPanels();
       renditionRef.current?.hooks.content.deregister(styleReaderContents);
       if (relocatedListenerRef.current) {
         renditionRef.current?.off("relocated", relocatedListenerRef.current);
       }
-      renditionRef.current?.off("selected", onSelected);
+      if (selectedListenerRef.current) {
+        renditionRef.current?.off("selected", selectedListenerRef.current);
+      }
       if (renditionKeydownListenerRef.current) {
         renditionRef.current?.off(
           "keydown",
@@ -410,6 +531,7 @@ export const ReaderEpubView = forwardRef<
         );
       }
       relocatedListenerRef.current = null;
+      selectedListenerRef.current = null;
       renditionKeydownListenerRef.current = null;
       renditionRef.current?.destroy();
       renditionRef.current = null;
@@ -421,24 +543,24 @@ export const ReaderEpubView = forwardRef<
       }
     };
   }, [
-    initialBook.author,
-    initialBook.id,
-    initialBook.language,
-    initialBook.progressCfi,
-    initialBook.title,
+    bookLoadKey,
     handleNavigationKey,
-    onClearPendingSelection,
-    onDismissPanels,
-    onMetadataChange,
-    onRestoreFailure,
-    onSelected,
-    onStateChange,
+    initialAuthor,
+    initialBookId,
+    initialLanguage,
+    initialProgressCfi,
+    initialTitle,
     styleReaderContents,
     syncMetadata,
   ]);
 
   const handleReaderAction = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Escape" && callbacksRef.current.onEscapeKey()) {
+        event.preventDefault();
+        return;
+      }
+
       if (handleNavigationKey(event.key)) {
         event.preventDefault();
       }

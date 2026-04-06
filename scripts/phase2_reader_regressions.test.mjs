@@ -4,6 +4,12 @@ import path from "node:path";
 
 import { readingProgressSchema } from "../src/lib/book-validation.ts";
 import {
+  getReaderActiveTocHref,
+  getReaderEscapeAction,
+  normalizeReaderTocItems,
+} from "../src/components/reader/reader-table-of-contents-utils.ts";
+import { getReaderBookLoadKey } from "../src/components/reader/reader-epub-view-utils.ts";
+import {
   createStoredR2FilePath,
   getStoredBookR2Key,
   removeBookFileBestEffort,
@@ -51,6 +57,179 @@ test("getReaderNavigationDirection maps arrow keys to reader movement", () => {
   assert.equal(getReaderNavigationDirection("ArrowLeft"), "previous");
   assert.equal(getReaderNavigationDirection("ArrowRight"), "next");
   assert.equal(getReaderNavigationDirection("Enter"), null);
+});
+
+test("normalizeReaderTocItems keeps nested chapter structure and drops invalid entries", () => {
+  assert.deepEqual(
+    normalizeReaderTocItems([
+      {
+        href: "Text/chapter-1.xhtml#intro",
+        label: " Chapter 1 ",
+        subitems: [
+          {
+            href: "Text/chapter-1.xhtml#scene-1",
+            label: " Scene 1 ",
+            subitems: [],
+          },
+        ],
+      },
+      {
+        href: "   ",
+        label: "Missing href",
+        subitems: [],
+      },
+      {
+        href: "Text/chapter-2.xhtml",
+        label: "",
+        subitems: [],
+      },
+    ]),
+    [
+      {
+        href: "Text/chapter-1.xhtml#intro",
+        label: "Chapter 1",
+        subitems: [
+          {
+            href: "Text/chapter-1.xhtml#scene-1",
+            label: "Scene 1",
+            subitems: [],
+          },
+        ],
+      },
+    ],
+  );
+});
+
+test("normalizeReaderTocItems resolves nav-relative hrefs to spine-relative targets", () => {
+  assert.deepEqual(
+    normalizeReaderTocItems(
+      [
+        {
+          href: "../Text/chapter-1.xhtml#intro",
+          label: " Chapter 1 ",
+          subitems: [
+            {
+              href: "../Text/chapter-1.xhtml#scene-1",
+              label: " Scene 1 ",
+              subitems: [],
+            },
+          ],
+        },
+      ],
+      { navigationPath: "nav/toc.xhtml" },
+    ),
+    [
+      {
+        href: "Text/chapter-1.xhtml#intro",
+        label: "Chapter 1",
+        subitems: [
+          {
+            href: "Text/chapter-1.xhtml#scene-1",
+            label: "Scene 1",
+            subitems: [],
+          },
+        ],
+      },
+    ],
+  );
+});
+
+test("getReaderActiveTocHref matches the current chapter when TOC entries include anchors", () => {
+  const tocItems = [
+    {
+      href: "Text/cover.xhtml",
+      label: "Cover",
+      subitems: [],
+    },
+    {
+      href: "Text/chapter-1.xhtml#intro",
+      label: "Chapter 1",
+      subitems: [
+        {
+          href: "Text/chapter-1.xhtml#scene-1",
+          label: "Scene 1",
+          subitems: [],
+        },
+      ],
+    },
+  ];
+
+  assert.equal(
+    getReaderActiveTocHref(tocItems, "Text/chapter-1.xhtml"),
+    "Text/chapter-1.xhtml#intro",
+  );
+  assert.equal(
+    getReaderActiveTocHref(tocItems, "Text/chapter-1.xhtml#scene-1"),
+    "Text/chapter-1.xhtml#scene-1",
+  );
+  assert.equal(getReaderActiveTocHref(tocItems, "Text/appendix.xhtml"), null);
+});
+
+test("getReaderEscapeAction prioritizes popover, AI sidebar, then TOC", () => {
+  assert.equal(
+    getReaderEscapeAction({
+      hasPopoverOpen: true,
+      isAiSidebarOpen: true,
+      isTocOpen: true,
+    }),
+    "dismiss-popover",
+  );
+  assert.equal(
+    getReaderEscapeAction({
+      hasPopoverOpen: false,
+      isAiSidebarOpen: true,
+      isTocOpen: true,
+    }),
+    "dismiss-ai-sidebar",
+  );
+  assert.equal(
+    getReaderEscapeAction({
+      hasPopoverOpen: false,
+      isAiSidebarOpen: false,
+      isTocOpen: true,
+    }),
+    "dismiss-toc",
+  );
+  assert.equal(
+    getReaderEscapeAction({
+      hasPopoverOpen: false,
+      isAiSidebarOpen: false,
+      isTocOpen: false,
+    }),
+    null,
+  );
+});
+
+test("getReaderBookLoadKey stays stable for the same book snapshot values", () => {
+  const initialKey = getReaderBookLoadKey({
+    id: "book-123",
+    title: "The Reader",
+    author: "A. Writer",
+    language: "en",
+    progressCfi: "epubcfi(/6/2!/4/2/8,/1:0,/1:12)",
+  });
+
+  assert.equal(
+    initialKey,
+    getReaderBookLoadKey({
+      id: "book-123",
+      title: "The Reader",
+      author: "A. Writer",
+      language: "en",
+      progressCfi: "epubcfi(/6/2!/4/2/8,/1:0,/1:12)",
+    }),
+  );
+
+  assert.notEqual(
+    initialKey,
+    getReaderBookLoadKey({
+      id: "book-123",
+      title: "The Reader",
+      author: "A. Writer",
+      language: "en",
+      progressCfi: "epubcfi(/6/2!/4/2/9,/1:0,/1:12)",
+    }),
+  );
 });
 
 test("restoreReaderFocus focuses the reader surface and active rendition contents", () => {
