@@ -17,7 +17,16 @@ model User {
   createdAt     DateTime     @default(now())
   accounts      Account[]
   books         Book[]
+  preferences   UserPreferences?
   vocabularies  Vocabulary[]
+}
+
+model UserPreferences {
+  id             String @id @default(cuid())
+  userId         String @unique
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readerFontSize Int    @default(18)
+  readerTheme    String @default("light")
 }
 
 model Account {

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { readingProgressSchema } from "../src/lib/book-validation.ts";
@@ -53,10 +54,25 @@ function createStyleTarget() {
   };
 }
 
+async function readWorkspaceFile(relativePath) {
+  return readFile(path.resolve(process.cwd(), relativePath), "utf8");
+}
+
 test("getReaderNavigationDirection maps arrow keys to reader movement", () => {
   assert.equal(getReaderNavigationDirection("ArrowLeft"), "previous");
   assert.equal(getReaderNavigationDirection("ArrowRight"), "next");
   assert.equal(getReaderNavigationDirection("Enter"), null);
+});
+
+test("reader preference persistence stays fire-and-forget without a sync indicator", async () => {
+  const [toolbarSource, workspaceSource] = await Promise.all([
+    readWorkspaceFile("src/components/reader/reader-toolbar.tsx"),
+    readWorkspaceFile("src/components/reader/reader-workspace.tsx"),
+  ]);
+
+  assert.doesNotMatch(toolbarSource, /Syncing reader settings\.\.\./);
+  assert.doesNotMatch(toolbarSource, /isPersistingPreferences/);
+  assert.doesNotMatch(workspaceSource, /isPersistingPreferences/);
 });
 
 test("normalizeReaderTocItems keeps nested chapter structure and drops invalid entries", () => {
@@ -285,7 +301,7 @@ test("getReaderImagePageTarget ignores chapters with mixed text content", () => 
   assert.equal(getReaderImagePageTarget(body), null);
 });
 
-test("applyReaderThemeToContents forces a light reading surface for rendition documents", () => {
+test("applyReaderThemeToContents applies the default light reader theme for rendition documents", () => {
   const root = createStyleTarget();
   const body = createStyleTarget();
 
@@ -304,15 +320,49 @@ test("applyReaderThemeToContents forces a light reading surface for rendition do
   });
   assert.deepEqual(root.getProperty("background-color"), {
     priority: "important",
-    value: "#fffbf4",
+    value: "#ffffff",
   });
   assert.deepEqual(body.getProperty("background-color"), {
     priority: "important",
-    value: "#fffbf4",
+    value: "#ffffff",
   });
   assert.deepEqual(body.getProperty("color"), {
     priority: "important",
-    value: "#241b16",
+    value: "#1a1a1a",
+  });
+});
+
+test("applyReaderThemeToContents honors explicit dark reader theme colors", () => {
+  const root = createStyleTarget();
+  const body = createStyleTarget();
+
+  applyReaderThemeToContents(
+    [
+      {
+        document: {
+          body,
+          documentElement: root,
+        },
+      },
+    ],
+    "dark",
+  );
+
+  assert.deepEqual(root.getProperty("color-scheme"), {
+    priority: "important",
+    value: "dark",
+  });
+  assert.deepEqual(root.getProperty("background-color"), {
+    priority: "important",
+    value: "#1a1a1a",
+  });
+  assert.deepEqual(body.getProperty("background-color"), {
+    priority: "important",
+    value: "#1a1a1a",
+  });
+  assert.deepEqual(body.getProperty("color"), {
+    priority: "important",
+    value: "#d4d4d4",
   });
 });
 

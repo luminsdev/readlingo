@@ -1,9 +1,9 @@
-import { notFound } from "next/navigation";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { ReaderWorkspace } from "@/components/reader/reader-workspace";
 import { getOwnedReaderBook } from "@/lib/books";
+import { getOrCreateUserPreferences } from "@/lib/user-preferences";
 
 export default async function ReaderPage({
   params,
@@ -23,6 +23,8 @@ export default async function ReaderPage({
     notFound();
   }
 
+  const preferences = await getOrCreateUserPreferences(session.user.id);
+
   return (
     <ReaderWorkspace
       initialBook={{
@@ -36,6 +38,8 @@ export default async function ReaderPage({
         progressUpdatedAt:
           book.readingProgress?.updatedAt.toISOString() ?? null,
       }}
+      initialFontSize={preferences.readerFontSize}
+      initialReaderTheme={preferences.readerTheme}
     />
   );
 }

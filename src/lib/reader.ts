@@ -1,3 +1,9 @@
+import {
+  READER_FONT_SIZE_DEFAULT,
+  READER_THEME_DEFAULT,
+  type ReaderTheme,
+} from "@/lib/settings-validation";
+
 type MetadataLike = Partial<{
   title: string;
   creator: string;
@@ -45,8 +51,34 @@ type ReaderImagePageNodeLike = {
 const IMAGE_PAGE_MEDIA_TAGS = new Set(["IMG", "SVG"]);
 const MAX_IMAGE_PAGE_DEPTH = 12;
 
-export const READER_VIEWPORT_BACKGROUND = "#fffbf4";
-export const READER_VIEWPORT_FOREGROUND = "#241b16";
+export const READER_THEME_CONFIG = {
+  light: {
+    background: "#ffffff",
+    foreground: "#1a1a1a",
+    colorScheme: "light" as const,
+  },
+  sepia: {
+    background: "#f4ecd8",
+    foreground: "#5b4636",
+    colorScheme: "light" as const,
+  },
+  dark: {
+    background: "#1a1a1a",
+    foreground: "#d4d4d4",
+    colorScheme: "dark" as const,
+  },
+} as const;
+
+export function getReaderViewportBackground(
+  theme: ReaderTheme = READER_THEME_DEFAULT,
+) {
+  return READER_THEME_CONFIG[theme].background;
+}
+
+export const READER_VIEWPORT_BACKGROUND =
+  getReaderViewportBackground(READER_THEME_DEFAULT);
+export const READER_VIEWPORT_FOREGROUND =
+  READER_THEME_CONFIG[READER_THEME_DEFAULT].foreground;
 
 export type ReaderMetadata = {
   title: string;
@@ -169,7 +201,10 @@ export function getReaderImagePageTarget(
 
 export function applyReaderThemeToContents(
   contents: ReaderContentsLike[] | null | undefined,
+  theme: ReaderTheme = READER_THEME_DEFAULT,
 ) {
+  const config = READER_THEME_CONFIG[theme];
+
   for (const content of contents ?? []) {
     const document = content.document;
 
@@ -177,18 +212,27 @@ export function applyReaderThemeToContents(
       continue;
     }
 
-    setImportantStyle(document.documentElement, "color-scheme", "light");
+    setImportantStyle(
+      document.documentElement,
+      "color-scheme",
+      config.colorScheme,
+    );
     setImportantStyle(
       document.documentElement,
       "background-color",
-      READER_VIEWPORT_BACKGROUND,
+      config.background,
     );
-    setImportantStyle(
-      document.body,
-      "background-color",
-      READER_VIEWPORT_BACKGROUND,
-    );
-    setImportantStyle(document.body, "color", READER_VIEWPORT_FOREGROUND);
+    setImportantStyle(document.body, "background-color", config.background);
+    setImportantStyle(document.body, "color", config.foreground);
+  }
+}
+
+export function applyReaderFontSizeToContents(
+  contents: ReaderContentsLike[] | null | undefined,
+  fontSize: number = READER_FONT_SIZE_DEFAULT,
+) {
+  for (const content of contents ?? []) {
+    setImportantStyle(content.document?.body, "font-size", `${fontSize}px`);
   }
 }
 

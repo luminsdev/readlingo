@@ -27,17 +27,19 @@ import {
   styleImageOnlyContent,
 } from "@/components/reader/reader-workspace-utils";
 import {
+  applyReaderFontSizeToContents,
   applyReaderThemeToContents,
+  getReaderViewportBackground,
   getReaderCfi,
   getReaderLocationLabel,
   getReaderNavigationDirection,
   hasReaderMetadataChanged,
   normalizeReaderMetadata,
-  READER_VIEWPORT_BACKGROUND,
   restoreReaderFocus,
   type ReaderMetadata,
   type ReaderNavigationDirection,
 } from "@/lib/reader";
+import type { ReaderTheme } from "@/lib/settings-validation";
 import type { ReaderBookSnapshot } from "@/types";
 
 export type ReaderEpubViewHandle = {
@@ -49,6 +51,7 @@ export type ReaderEpubViewHandle = {
 };
 
 type ReaderEpubViewProps = {
+  fontSize: number;
   initialBook: ReaderBookSnapshot;
   onClearPendingSelection: () => void;
   onDismissPanels: () => void;
@@ -58,7 +61,12 @@ type ReaderEpubViewProps = {
   onSelected: (_cfiRange: string, contents: Contents) => void;
   onStateChange: (state: Partial<ReaderViewState>) => void;
   onTocLoaded: (items: ReturnType<typeof normalizeReaderTocItems>) => void;
+  readerTheme: ReaderTheme;
   readerSurfaceRef: RefObject<HTMLDivElement | null>;
+};
+
+type RenditionWithOptionalResize = Rendition & {
+  resize: (width?: number, height?: number, epubcfi?: string) => void;
 };
 
 export const ReaderEpubView = forwardRef<
@@ -66,6 +74,7 @@ export const ReaderEpubView = forwardRef<
   ReaderEpubViewProps
 >(function ReaderEpubView(
   {
+    fontSize,
     initialBook,
     onClearPendingSelection,
     onDismissPanels,
@@ -75,6 +84,7 @@ export const ReaderEpubView = forwardRef<
     onSelected,
     onStateChange,
     onTocLoaded,
+    readerTheme,
     readerSurfaceRef,
   },
   ref,
@@ -111,6 +121,10 @@ export const ReaderEpubView = forwardRef<
   const renditionKeydownListenerRef = useRef<
     ((event: KeyboardEvent) => void) | null
   >(null);
+  const readerPresentationRef = useRef({
+    fontSize,
+    readerTheme,
+  });
 
   const [isReady, setIsReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -132,35 +146,52 @@ export const ReaderEpubView = forwardRef<
     onStateChange,
     onTocLoaded,
   };
+  readerPresentationRef.current = {
+    fontSize,
+    readerTheme,
+  };
+
+  const getRenditionContents = useCallback(() => {
+    const renditionContents = renditionRef.current?.getContents();
+
+    if (Array.isArray(renditionContents)) {
+      return renditionContents;
+    }
+
+    return renditionContents ? [renditionContents] : [];
+  }, []);
 
   const styleReaderContents = useCallback((contents: Contents) => {
-    applyReaderThemeToContents([{ document: contents.document }]);
+    applyReaderThemeToContents(
+      [{ document: contents.document }],
+      readerPresentationRef.current.readerTheme,
+    );
+    applyReaderFontSizeToContents(
+      [{ document: contents.document }],
+      readerPresentationRef.current.fontSize,
+    );
     styleImageOnlyContent(contents);
   }, []);
 
   useEffect(() => {
-    const renditionContents = renditionRef.current?.getContents();
-    const contents = Array.isArray(renditionContents)
-      ? renditionContents
-      : renditionContents
-        ? [renditionContents]
-        : [];
+    if (!isReady) {
+      return;
+    }
 
-    applyReaderThemeToContents(contents);
-  }, [isReady, resolvedTheme]);
+    const contents = getRenditionContents();
+
+    applyReaderThemeToContents(contents, readerTheme);
+    applyReaderFontSizeToContents(contents, fontSize);
+    (renditionRef.current as RenditionWithOptionalResize | null)?.resize();
+  }, [fontSize, getRenditionContents, isReady, readerTheme, resolvedTheme]);
 
   const refocusReader = useCallback(() => {
     window.requestAnimationFrame(() => {
-      const renditionContents = renditionRef.current?.getContents();
-      const focusTargets = Array.isArray(renditionContents)
-        ? renditionContents
-        : renditionContents
-          ? [renditionContents]
-          : [];
+      const focusTargets = getRenditionContents();
 
       restoreReaderFocus(readerSurfaceRef.current, focusTargets);
     });
-  }, [readerSurfaceRef]);
+  }, [getRenditionContents, readerSurfaceRef]);
 
   const navigate = useCallback(
     async (direction: ReaderNavigationDirection) => {
@@ -573,13 +604,13 @@ export const ReaderEpubView = forwardRef<
       className="relative min-h-[520px] overflow-hidden rounded-[24px] border border-[#eadfce]"
       onKeyDown={handleReaderAction}
       ref={readerSurfaceRef}
-      style={{ backgroundColor: READER_VIEWPORT_BACKGROUND }}
+      style={{ backgroundColor: getReaderViewportBackground(readerTheme) }}
       tabIndex={0}
     >
       <div
         className="absolute inset-0"
         ref={viewerRef}
-        style={{ backgroundColor: READER_VIEWPORT_BACKGROUND }}
+        style={{ backgroundColor: getReaderViewportBackground(readerTheme) }}
       />
 
       {!isReady && !errorMessage ? (

@@ -33,6 +33,12 @@ import type {
 } from "@/components/reader/reader-workspace-types";
 import { getReaderInitialLocationLabel } from "@/components/reader/reader-workspace-utils";
 import type { ReaderMetadata } from "@/lib/reader";
+import {
+  normalizeReaderFontSize,
+  READER_FONT_SIZE_MAX,
+  READER_FONT_SIZE_MIN,
+  type ReaderTheme,
+} from "@/lib/settings-validation";
 import type { ReaderBookSnapshot } from "@/types";
 
 function getInitialReaderMetadata(book: ReaderBookSnapshot): ReaderMetadata {
@@ -60,6 +66,7 @@ function ReaderWorkspaceContent({
   dismissPanels,
   dismissPopover,
   epubViewRef,
+  fontSize,
   hasPopoverOpen,
   initialBook,
   isAiSidebarOpen,
@@ -67,12 +74,15 @@ function ReaderWorkspaceContent({
   metadata,
   moveBack,
   moveForward,
+  onFontSizeChange,
   onRestoreFailure,
   onReaderStateChange,
+  onReaderThemeChange,
   onSelection,
   onTocLoaded,
   panel,
   readerState,
+  readerTheme,
   readerSurfaceRef,
   saveState,
   saveStatusLabel,
@@ -83,15 +93,19 @@ function ReaderWorkspaceContent({
   tocItems,
 }: ReaderSelectionHandlerRenderProps & {
   epubViewRef: RefObject<ReaderEpubViewHandle | null>;
+  fontSize: number;
   initialBook: ReaderBookSnapshot;
   isTocOpen: boolean;
   metadata: ReaderMetadata;
   moveBack: () => void;
   moveForward: () => void;
+  onFontSizeChange: (nextFontSize: number) => void;
   onRestoreFailure: () => void;
   onReaderStateChange: (nextState: Partial<ReaderViewState>) => void;
+  onReaderThemeChange: (theme: ReaderTheme) => void;
   onTocLoaded: (items: ReaderTocItem[]) => void;
   readerState: ReaderViewState;
+  readerTheme: ReaderTheme;
   readerSurfaceRef: RefObject<HTMLDivElement | null>;
   saveState: ReturnType<typeof useReaderProgressSync>["saveState"];
   saveStatusLabel: string;
@@ -249,18 +263,23 @@ function ReaderWorkspaceContent({
         <ReaderToolbar
           canGoNext={readerState.canGoNext}
           canGoPrevious={readerState.canGoPrevious}
+          fontSize={fontSize}
           isReady={readerState.isReady}
           isTocOpen={isTocOpen}
           locationLabel={readerState.locationLabel}
           metadata={metadata}
+          onFontSizeChange={onFontSizeChange}
           onNext={moveForward}
           onPrevious={moveBack}
+          onReaderThemeChange={onReaderThemeChange}
           onToggleToc={handleToggleToc}
+          readerTheme={readerTheme}
           saveState={saveState}
           saveStatusLabel={saveStatusLabel}
           tocItemCount={tocItems.length}
         >
           <ReaderEpubView
+            fontSize={fontSize}
             ref={epubViewRef}
             initialBook={initialBook}
             onClearPendingSelection={clearPendingSelection}
@@ -271,6 +290,7 @@ function ReaderWorkspaceContent({
             onSelected={onSelection}
             onStateChange={onReaderStateChange}
             onTocLoaded={onTocLoaded}
+            readerTheme={readerTheme}
             readerSurfaceRef={readerSurfaceRef}
           />
         </ReaderToolbar>
@@ -304,12 +324,23 @@ function ReaderWorkspaceContent({
 
 export function ReaderWorkspace({
   initialBook,
+  initialFontSize,
+  initialReaderTheme,
 }: {
   initialBook: ReaderBookSnapshot;
+  initialFontSize: number;
+  initialReaderTheme: ReaderTheme;
 }) {
   const readerSurfaceRef = useRef<HTMLDivElement | null>(null);
   const epubViewRef = useRef<ReaderEpubViewHandle | null>(null);
+  const persistAbortControllerRef = useRef<AbortController | null>(null);
+  const isFirstPreferenceRenderRef = useRef(true);
   const [tocErrorMessage, setTocErrorMessage] = useState<string | null>(null);
+  const [fontSize, setFontSize] = useState(() =>
+    normalizeReaderFontSize(initialFontSize),
+  );
+  const [readerTheme, setReaderTheme] =
+    useState<ReaderTheme>(initialReaderTheme);
 
   const [metadata, setMetadata] = useState<ReaderMetadata>(
     getInitialReaderMetadata(initialBook),
@@ -354,6 +385,86 @@ export function ReaderWorkspace({
     void epubViewRef.current?.navigate("next");
   }, []);
 
+  const handleFontSizeChange = useCallback((nextFontSize: number) => {
+    setFontSize(
+      Math.min(
+        READER_FONT_SIZE_MAX,
+        Math.max(READER_FONT_SIZE_MIN, nextFontSize),
+      ),
+    );
+  }, []);
+
+  const handleReaderThemeChange = useCallback((theme: ReaderTheme) => {
+    setReaderTheme(theme);
+  }, []);
+
+  useEffect(() => {
+    if (isFirstPreferenceRenderRef.current) {
+      isFirstPreferenceRenderRef.current = false;
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      persistAbortControllerRef.current?.abort();
+
+      const abortController = new AbortController();
+      persistAbortControllerRef.current = abortController;
+
+      void fetch("/api/settings", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          readerFontSize: fontSize,
+          readerTheme,
+        }),
+        signal: abortController.signal,
+      })
+        .then(async (response) => {
+          if (response.ok) {
+            return;
+          }
+
+          let errorMessage = `Request failed with status ${response.status}`;
+          const payload = await response.json().catch(() => null);
+
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "error" in payload &&
+            typeof payload.error === "string"
+          ) {
+            errorMessage = payload.error;
+          }
+
+          throw new Error(errorMessage);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
+
+          console.warn("Failed to persist reader settings.", error);
+        })
+        .finally(() => {
+          if (persistAbortControllerRef.current === abortController) {
+            persistAbortControllerRef.current = null;
+          }
+        });
+    }, 500);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [fontSize, readerTheme]);
+
+  useEffect(() => {
+    return () => {
+      persistAbortControllerRef.current?.abort();
+    };
+  }, []);
+
   return (
     <ReaderSelectionHandler
       bookId={initialBook.id}
@@ -364,15 +475,19 @@ export function ReaderWorkspace({
         <ReaderWorkspaceContent
           {...selectionProps}
           epubViewRef={epubViewRef}
+          fontSize={fontSize}
           initialBook={initialBook}
           isTocOpen={isTocOpen}
           metadata={metadata}
           moveBack={moveBack}
           moveForward={moveForward}
+          onFontSizeChange={handleFontSizeChange}
           onRestoreFailure={handleRestoreFailure}
           onReaderStateChange={handleReaderStateChange}
+          onReaderThemeChange={handleReaderThemeChange}
           onTocLoaded={handleTocLoaded}
           readerState={readerState}
+          readerTheme={readerTheme}
           readerSurfaceRef={readerSurfaceRef}
           saveState={saveState}
           saveStatusLabel={saveStatusLabel}
