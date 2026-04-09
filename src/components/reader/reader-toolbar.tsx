@@ -68,6 +68,7 @@ type ReaderToolbarProps = {
   onPrevious: () => void;
   onReaderThemeChange: (theme: ReaderTheme) => void;
   onToggleToc: () => void;
+  progressPercentage: number | null;
   readerTheme: ReaderTheme;
   tocItemCount: number;
   saveState: SaveState;
@@ -88,6 +89,7 @@ export function ReaderToolbar({
   onPrevious,
   onReaderThemeChange,
   onToggleToc,
+  progressPercentage,
   readerTheme,
   saveState,
   saveStatusLabel,
@@ -120,6 +122,9 @@ export function ReaderToolbar({
                 : metadata.language}
             </Badge>
             <Badge>{locationLabel}</Badge>
+            {progressPercentage !== null ? (
+              <Badge>{progressPercentage}%</Badge>
+            ) : null}
           </div>
         </div>
 

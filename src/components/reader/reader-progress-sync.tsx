@@ -23,6 +23,7 @@ type ReaderProgressSyncProps = {
   initialProgressCfi: string | null;
   isReady: boolean;
   locationLabel: string;
+  progressPercentage: number | null;
   saveStatusLabel: string;
 };
 
@@ -234,6 +235,7 @@ export function ReaderProgressSync({
   initialProgressCfi,
   isReady,
   locationLabel,
+  progressPercentage,
   saveStatusLabel,
 }: ReaderProgressSyncProps) {
   const isSaving = saveStatusLabel === "Saving location...";
@@ -269,6 +271,11 @@ export function ReaderProgressSync({
             (initialProgressCfi ? "Restoring your last page..." : null) ??
             "Tracking will begin after movement."}
         </p>
+        {progressPercentage !== null ? (
+          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em]">
+            {progressPercentage}% complete
+          </p>
+        ) : null}
       </div>
     </div>
   );

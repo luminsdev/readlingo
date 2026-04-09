@@ -22,6 +22,7 @@ export type ReaderViewState = {
   errorMessage: string | null;
   isReady: boolean;
   locationLabel: string;
+  progressPercentage: number | null;
 };
 
 export type ReaderTableOfContentsState = {

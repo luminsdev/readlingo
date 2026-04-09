@@ -61,6 +61,7 @@ type ReaderEpubViewProps = {
   onSelected: (_cfiRange: string, contents: Contents) => void;
   onStateChange: (state: Partial<ReaderViewState>) => void;
   onTocLoaded: (items: ReturnType<typeof normalizeReaderTocItems>) => void;
+  progressPercentage: number | null;
   readerTheme: ReaderTheme;
   readerSurfaceRef: RefObject<HTMLDivElement | null>;
 };
@@ -80,6 +81,7 @@ export const ReaderEpubView = forwardRef<
     onSelected,
     onStateChange,
     onTocLoaded,
+    progressPercentage,
     readerTheme,
     readerSurfaceRef,
   },
@@ -360,6 +362,7 @@ export const ReaderEpubView = forwardRef<
         errorMessage: null,
         isReady: false,
         locationLabel: getReaderInitialLocationLabel(initialProgressCfi),
+        progressPercentage: null,
       });
       callbacksRef.current.onTocLoaded([]);
 
@@ -401,17 +404,27 @@ export const ReaderEpubView = forwardRef<
         });
 
         handleRelocated = (location: EpubLocation) => {
-          if (cancelled) {
+          if (cancelled || !book) {
             return;
           }
 
           callbacksRef.current.onClearPendingSelection();
+          const currentCfi = getReaderCfi(location);
+          let progressPercentage: number | null = null;
+
+          if (currentCfi && book.locations && book.locations.length() > 0) {
+            const pct = book.locations.percentageFromCfi(currentCfi);
+
+            progressPercentage = Math.round(pct * 100);
+          }
+
           callbacksRef.current.onStateChange({
-            activeCfi: getReaderCfi(location),
+            activeCfi: currentCfi,
             canGoNext: !location.atEnd,
             canGoPrevious: !location.atStart,
             chapterHref: location.start?.href?.trim() || null,
             locationLabel: getReaderLocationLabel(location),
+            progressPercentage,
           });
         };
         handleRenditionKeyDown = (event: KeyboardEvent) => {
@@ -506,6 +519,28 @@ export const ReaderEpubView = forwardRef<
 
         setIsReady(true);
         callbacksRef.current.onStateChange({ isReady: true });
+        void book.locations
+          .generate(1024)
+          .then(() => {
+            if (cancelled || !book) {
+              return;
+            }
+
+            const currentCfi = getReaderCfi(
+              rendition?.location as EpubLocation | undefined,
+            );
+
+            if (currentCfi && book.locations && book.locations.length() > 0) {
+              const pct = book.locations.percentageFromCfi(currentCfi);
+
+              callbacksRef.current.onStateChange({
+                progressPercentage: Math.round(pct * 100),
+              });
+            }
+          })
+          .catch(() => {
+            // Locations generation is best-effort for progress UI.
+          });
       } catch (error) {
         callbacksRef.current.onDismissPanels();
         rendition?.hooks.content.deregister(styleReaderContents);
@@ -543,6 +578,7 @@ export const ReaderEpubView = forwardRef<
           callbacksRef.current.onStateChange({
             errorMessage: nextErrorMessage,
             isReady: false,
+            progressPercentage: null,
           });
         }
       }
@@ -612,6 +648,22 @@ export const ReaderEpubView = forwardRef<
       style={{ backgroundColor: getReaderViewportBackground(readerTheme) }}
       tabIndex={0}
     >
+      {progressPercentage !== null ? (
+        <div
+          aria-label="Reading progress"
+          aria-valuemax={100}
+          aria-valuemin={0}
+          aria-valuenow={progressPercentage}
+          className="absolute top-0 right-0 left-0 z-20 h-[2px]"
+          role="progressbar"
+        >
+          <div
+            className="bg-foreground/20 h-full transition-[width] duration-300 ease-out"
+            style={{ width: `${progressPercentage}%` }}
+          />
+        </div>
+      ) : null}
+
       <div
         className="absolute inset-0"
         ref={viewerRef}

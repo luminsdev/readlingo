@@ -2,7 +2,7 @@ import {
   READER_FONT_SIZE_DEFAULT,
   READER_THEME_DEFAULT,
   type ReaderTheme,
-} from "@/lib/settings-validation";
+} from "./settings-validation.ts";
 
 type MetadataLike = Partial<{
   title: string;

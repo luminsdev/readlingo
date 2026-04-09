@@ -58,6 +58,7 @@ function getInitialReaderState(book: ReaderBookSnapshot): ReaderViewState {
     errorMessage: null,
     isReady: false,
     locationLabel: getReaderInitialLocationLabel(book.progressCfi),
+    progressPercentage: null,
   };
 }
 
@@ -273,6 +274,7 @@ function ReaderWorkspaceContent({
           onPrevious={moveBack}
           onReaderThemeChange={onReaderThemeChange}
           onToggleToc={handleToggleToc}
+          progressPercentage={readerState.progressPercentage}
           readerTheme={readerTheme}
           saveState={saveState}
           saveStatusLabel={saveStatusLabel}
@@ -290,6 +292,7 @@ function ReaderWorkspaceContent({
             onSelected={onSelection}
             onStateChange={onReaderStateChange}
             onTocLoaded={onTocLoaded}
+            progressPercentage={readerState.progressPercentage}
             readerTheme={readerTheme}
             readerSurfaceRef={readerSurfaceRef}
           />
@@ -314,6 +317,7 @@ function ReaderWorkspaceContent({
             initialProgressCfi={initialBook.progressCfi}
             isReady={readerState.isReady}
             locationLabel={readerState.locationLabel}
+            progressPercentage={readerState.progressPercentage}
             saveStatusLabel={saveStatusLabel}
           />
         </div>
