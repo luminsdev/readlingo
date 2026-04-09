@@ -75,6 +75,71 @@ test("reader preference persistence stays fire-and-forget without a sync indicat
   assert.doesNotMatch(workspaceSource, /isPersistingPreferences/);
 });
 
+test("reader progress percentage state is threaded through the workspace", async () => {
+  const [workspaceTypesSource, workspaceSource] = await Promise.all([
+    readWorkspaceFile("src/components/reader/reader-workspace-types.ts"),
+    readWorkspaceFile("src/components/reader/reader-workspace.tsx"),
+  ]);
+
+  assert.match(workspaceTypesSource, /progressPercentage: number \| null;/);
+  assert.match(workspaceSource, /progressPercentage: null,\s*\n\s*};/);
+  assert.match(
+    workspaceSource,
+    /<ReaderToolbar[\s\S]*progressPercentage=\{readerState\.progressPercentage\}/,
+  );
+  assert.match(
+    workspaceSource,
+    /<ReaderEpubView[\s\S]*progressPercentage=\{readerState\.progressPercentage\}/,
+  );
+  assert.match(
+    workspaceSource,
+    /<ReaderProgressSync[\s\S]*progressPercentage=\{readerState\.progressPercentage\}/,
+  );
+});
+
+test("reader progress UI renders percentage badges and status copy", async () => {
+  const [toolbarSource, progressSyncSource] = await Promise.all([
+    readWorkspaceFile("src/components/reader/reader-toolbar.tsx"),
+    readWorkspaceFile("src/components/reader/reader-progress-sync.tsx"),
+  ]);
+
+  assert.match(toolbarSource, /progressPercentage: number \| null;/);
+  assert.match(toolbarSource, /\{progressPercentage !== null \? \(/);
+  assert.match(toolbarSource, /<Badge>\{progressPercentage}%<\/Badge>/);
+
+  assert.match(progressSyncSource, /progressPercentage: number \| null;/);
+  assert.match(progressSyncSource, /\{progressPercentage !== null \? \(/);
+  assert.match(progressSyncSource, /\{progressPercentage}% complete/);
+});
+
+test("reader EPUB view generates locations in the background and renders a progress bar", async () => {
+  const epubViewSource = await readWorkspaceFile(
+    "src/components/reader/reader-epub-view.tsx",
+  );
+  const locationLengthGuards = [
+    ...epubViewSource.matchAll(/book\.locations\.length\(\) > 0/g),
+  ];
+
+  assert.match(epubViewSource, /progressPercentage: number \| null;/);
+  assert.match(epubViewSource, /progressPercentage: null,\s*\n\s*}\);/);
+  assert.match(epubViewSource, /book\.locations\s*\.generate\(1024\)/);
+  assert.doesNotMatch(
+    epubViewSource,
+    /await\s+book\.locations\.generate\(1024\)/,
+  );
+  assert.equal(locationLengthGuards.length, 2);
+  assert.match(
+    epubViewSource,
+    /progressPercentage = Math\.round\(pct \* 100\);/,
+  );
+  assert.match(epubViewSource, /role="progressbar"/);
+  assert.match(epubViewSource, /aria-label="Reading progress"/);
+  assert.match(
+    epubViewSource,
+    /style=\{\{ width: `\$\{progressPercentage}%` \}\}/,
+  );
+});
+
 test("normalizeReaderTocItems keeps nested chapter structure and drops invalid entries", () => {
   assert.deepEqual(
     normalizeReaderTocItems([
