@@ -12,9 +12,22 @@ test("reader reflows pagination after applying loaded-content presentation chang
     "src/components/reader/reader-epub-view.tsx",
   );
 
+  assert.doesNotMatch(epubViewSource, /RenditionWithOptionalResize/);
+  assert.doesNotMatch(epubViewSource, /\.resize\(/);
+
   assert.match(
     epubViewSource,
-    /applyReaderThemeToContents\(contents, readerTheme\);\s+applyReaderFontSizeToContents\(contents, fontSize\);[\s\S]*?resize\(\);/s,
+    /applyReaderThemeToContents\(contents, readerTheme\);\s+applyReaderFontSizeToContents\(contents, fontSize\);/s,
+  );
+  assert.match(epubViewSource, /const rendition = renditionRef\.current;/);
+  assert.match(
+    epubViewSource,
+    /const currentCfi = \(rendition\?\.location as EpubLocation \| undefined\)\?\.start\s*\?\.cfi;/s,
+  );
+  assert.match(epubViewSource, /if \(rendition && currentCfi\) \{/);
+  assert.match(
+    epubViewSource,
+    /requestAnimationFrame\(\(\) => \{\s+void rendition\.display\(currentCfi\);\s+\}\);/s,
   );
 
   const styleReaderContentsMatch = epubViewSource.match(
@@ -23,4 +36,5 @@ test("reader reflows pagination after applying loaded-content presentation chang
 
   assert.ok(styleReaderContentsMatch);
   assert.doesNotMatch(styleReaderContentsMatch[1], /resize\(/);
+  assert.doesNotMatch(styleReaderContentsMatch[1], /display\(/);
 });

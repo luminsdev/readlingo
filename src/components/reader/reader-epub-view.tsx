@@ -65,10 +65,6 @@ type ReaderEpubViewProps = {
   readerSurfaceRef: RefObject<HTMLDivElement | null>;
 };
 
-type RenditionWithOptionalResize = Rendition & {
-  resize: (width?: number, height?: number, epubcfi?: string) => void;
-};
-
 export const ReaderEpubView = forwardRef<
   ReaderEpubViewHandle,
   ReaderEpubViewProps
@@ -182,7 +178,16 @@ export const ReaderEpubView = forwardRef<
 
     applyReaderThemeToContents(contents, readerTheme);
     applyReaderFontSizeToContents(contents, fontSize);
-    (renditionRef.current as RenditionWithOptionalResize | null)?.resize();
+
+    const rendition = renditionRef.current;
+    const currentCfi = (rendition?.location as EpubLocation | undefined)?.start
+      ?.cfi;
+
+    if (rendition && currentCfi) {
+      requestAnimationFrame(() => {
+        void rendition.display(currentCfi);
+      });
+    }
   }, [fontSize, getRenditionContents, isReady, readerTheme, resolvedTheme]);
 
   const refocusReader = useCallback(() => {
