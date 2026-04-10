@@ -1,5 +1,3 @@
-import type { ReactNode } from "react";
-
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,6 +5,8 @@ import {
   Check,
   List,
   LoaderCircle,
+  Maximize,
+  Minimize,
   Minus,
   Plus,
   RefreshCcw,
@@ -57,10 +57,10 @@ const READER_THEME_OPTIONS: Array<{
 type ReaderToolbarProps = {
   canGoNext: boolean;
   canGoPrevious: boolean;
-  children: ReactNode;
   fontSize: number;
   isReady: boolean;
   isTocOpen: boolean;
+  isZenMode: boolean;
   locationLabel: string;
   metadata: ReaderMetadata;
   onFontSizeChange: (size: number) => void;
@@ -68,6 +68,7 @@ type ReaderToolbarProps = {
   onPrevious: () => void;
   onReaderThemeChange: (theme: ReaderTheme) => void;
   onToggleToc: () => void;
+  onToggleZenMode: () => void;
   progressPercentage: number | null;
   readerTheme: ReaderTheme;
   tocItemCount: number;
@@ -78,10 +79,10 @@ type ReaderToolbarProps = {
 export function ReaderToolbar({
   canGoNext,
   canGoPrevious,
-  children,
   fontSize,
   isReady,
   isTocOpen,
+  isZenMode,
   locationLabel,
   metadata,
   onFontSizeChange,
@@ -89,6 +90,7 @@ export function ReaderToolbar({
   onPrevious,
   onReaderThemeChange,
   onToggleToc,
+  onToggleZenMode,
   progressPercentage,
   readerTheme,
   saveState,
@@ -98,6 +100,8 @@ export function ReaderToolbar({
   const canToggleToc = isReady && tocItemCount > 0;
   const canDecreaseFontSize = isReady && fontSize > READER_FONT_SIZE_MIN;
   const canIncreaseFontSize = isReady && fontSize < READER_FONT_SIZE_MAX;
+  // prettier-ignore
+  const zenModeIcon = isZenMode ? <Minimize className="size-4" /> : <Maximize className="size-4" />;
 
   return (
     <Card>
@@ -239,6 +243,20 @@ export function ReaderToolbar({
                 );
               })}
             </div>
+
+            <Button
+              aria-label={isZenMode ? "Exit zen mode" : "Enter zen mode"}
+              disabled={!isReady}
+              onClick={onToggleZenMode}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              {zenModeIcon}
+              <span className="hidden sm:inline">
+                {isZenMode ? "Exit Zen" : "Zen Mode"}
+              </span>
+            </Button>
           </div>
 
           <div className="text-muted-foreground text-sm">
@@ -254,8 +272,6 @@ export function ReaderToolbar({
             <ArrowRight className="size-4" />
           </Button>
         </div>
-
-        {children}
       </CardContent>
     </Card>
   );

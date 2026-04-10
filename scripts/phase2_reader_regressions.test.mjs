@@ -246,11 +246,12 @@ test("getReaderActiveTocHref matches the current chapter when TOC entries includ
   assert.equal(getReaderActiveTocHref(tocItems, "Text/appendix.xhtml"), null);
 });
 
-test("getReaderEscapeAction prioritizes popover, AI sidebar, then TOC", () => {
+test("getReaderEscapeAction prioritizes popover, AI sidebar, zen mode, then TOC", () => {
   assert.equal(
     getReaderEscapeAction({
       hasPopoverOpen: true,
       isAiSidebarOpen: true,
+      isZenMode: true,
       isTocOpen: true,
     }),
     "dismiss-popover",
@@ -259,6 +260,7 @@ test("getReaderEscapeAction prioritizes popover, AI sidebar, then TOC", () => {
     getReaderEscapeAction({
       hasPopoverOpen: false,
       isAiSidebarOpen: true,
+      isZenMode: true,
       isTocOpen: true,
     }),
     "dismiss-ai-sidebar",
@@ -267,6 +269,16 @@ test("getReaderEscapeAction prioritizes popover, AI sidebar, then TOC", () => {
     getReaderEscapeAction({
       hasPopoverOpen: false,
       isAiSidebarOpen: false,
+      isZenMode: true,
+      isTocOpen: true,
+    }),
+    "exit-zen-mode",
+  );
+  assert.equal(
+    getReaderEscapeAction({
+      hasPopoverOpen: false,
+      isAiSidebarOpen: false,
+      isZenMode: false,
       isTocOpen: true,
     }),
     "dismiss-toc",
@@ -275,10 +287,70 @@ test("getReaderEscapeAction prioritizes popover, AI sidebar, then TOC", () => {
     getReaderEscapeAction({
       hasPopoverOpen: false,
       isAiSidebarOpen: false,
+      isZenMode: false,
       isTocOpen: false,
     }),
     null,
   );
+});
+
+test("reader zen mode keeps a single EPUB view instance and threads zen-specific UI state", async () => {
+  const [workspaceSource, toolbarSource, epubViewSource, zenControlsSource] =
+    await Promise.all([
+      readWorkspaceFile("src/components/reader/reader-workspace.tsx"),
+      readWorkspaceFile("src/components/reader/reader-toolbar.tsx"),
+      readWorkspaceFile("src/components/reader/reader-epub-view.tsx"),
+      readWorkspaceFile("src/components/reader/reader-zen-controls.tsx"),
+    ]);
+
+  assert.match(
+    workspaceSource,
+    /const \[isZenMode, setIsZenMode\] = useState\(false\);/,
+  );
+  assert.match(workspaceSource, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(
+    workspaceSource,
+    /<ReaderToolbar[\s\S]*isZenMode=\{isZenMode\}[\s\S]*onToggleZenMode=\{handleToggleZenMode\}/,
+  );
+  assert.match(
+    workspaceSource,
+    /<ReaderEpubView[\s\S]*isZenMode=\{isZenMode\}/,
+  );
+  assert.equal([...workspaceSource.matchAll(/<ReaderEpubView/g)].length, 1);
+  assert.match(
+    workspaceSource,
+    /isZenMode && isAiSidebarOpen \? \([\s\S]*max-w-\[480px\][\s\S]*\{panel\}/,
+  );
+  assert.match(workspaceSource, /<ZenModeControls/);
+
+  assert.match(toolbarSource, /isZenMode: boolean;/);
+  assert.match(toolbarSource, /onToggleZenMode: \(\) => void;/);
+  assert.match(
+    toolbarSource,
+    /aria-label=\{isZenMode \? "Exit zen mode" : "Enter zen mode"\}/,
+  );
+  assert.match(
+    toolbarSource,
+    /isZenMode \? <Minimize className="size-4" \/> : <Maximize className="size-4" \/>/,
+  );
+  assert.doesNotMatch(toolbarSource, /children: ReactNode;/);
+  assert.doesNotMatch(toolbarSource, /\{children\}/);
+
+  assert.match(epubViewSource, /isZenMode: boolean;/);
+  assert.match(
+    epubViewSource,
+    /isZenMode\s*\?\s*"h-full rounded-none border-0"\s*:\s*"min-h-\[520px\] rounded-\[24px\]"/,
+  );
+
+  assert.match(
+    zenControlsSource,
+    /className="pointer-events-none fixed inset-x-0 top-0 z-\[70\] h-20"/,
+  );
+  assert.match(
+    zenControlsSource,
+    /window\.addEventListener\("pointermove", handlePointerMove\)/,
+  );
+  assert.match(zenControlsSource, /event\.clientY <= 80/);
 });
 
 test("getReaderBookLoadKey stays stable for the same book snapshot values", () => {

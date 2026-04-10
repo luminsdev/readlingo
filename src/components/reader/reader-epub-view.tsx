@@ -40,6 +40,7 @@ import {
   type ReaderNavigationDirection,
 } from "@/lib/reader";
 import type { ReaderTheme } from "@/lib/settings-validation";
+import { cn } from "@/lib/utils";
 import type { ReaderBookSnapshot } from "@/types";
 
 export type ReaderEpubViewHandle = {
@@ -53,6 +54,7 @@ export type ReaderEpubViewHandle = {
 type ReaderEpubViewProps = {
   fontSize: number;
   initialBook: ReaderBookSnapshot;
+  isZenMode: boolean;
   onClearPendingSelection: () => void;
   onDismissPanels: () => void;
   onEscapeKey: () => boolean;
@@ -73,6 +75,7 @@ export const ReaderEpubView = forwardRef<
   {
     fontSize,
     initialBook,
+    isZenMode,
     onClearPendingSelection,
     onDismissPanels,
     onEscapeKey,
@@ -642,7 +645,12 @@ export const ReaderEpubView = forwardRef<
 
   return (
     <div
-      className="relative min-h-[520px] overflow-hidden rounded-[24px] border border-[#eadfce]"
+      className={cn(
+        "relative overflow-hidden border border-[#eadfce]",
+        isZenMode
+          ? "h-full rounded-none border-0"
+          : "min-h-[520px] rounded-[24px]",
+      )}
       onKeyDown={handleReaderAction}
       ref={readerSurfaceRef}
       style={{ backgroundColor: getReaderViewportBackground(readerTheme) }}

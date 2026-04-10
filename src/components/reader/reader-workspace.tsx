@@ -31,6 +31,7 @@ import type {
   ReaderSelectionHandlerRenderProps,
   ReaderViewState,
 } from "@/components/reader/reader-workspace-types";
+import { ZenModeControls } from "@/components/reader/reader-zen-controls";
 import { getReaderInitialLocationLabel } from "@/components/reader/reader-workspace-utils";
 import type { ReaderMetadata } from "@/lib/reader";
 import {
@@ -39,6 +40,7 @@ import {
   READER_FONT_SIZE_MIN,
   type ReaderTheme,
 } from "@/lib/settings-validation";
+import { cn } from "@/lib/utils";
 import type { ReaderBookSnapshot } from "@/types";
 
 function getInitialReaderMetadata(book: ReaderBookSnapshot): ReaderMetadata {
@@ -71,6 +73,7 @@ function ReaderWorkspaceContent({
   hasPopoverOpen,
   initialBook,
   isAiSidebarOpen,
+  isZenMode,
   isTocOpen,
   metadata,
   moveBack,
@@ -80,6 +83,7 @@ function ReaderWorkspaceContent({
   onReaderStateChange,
   onReaderThemeChange,
   onSelection,
+  onToggleZenMode,
   onTocLoaded,
   panel,
   readerState,
@@ -93,9 +97,10 @@ function ReaderWorkspaceContent({
   tocErrorMessage,
   tocItems,
 }: ReaderSelectionHandlerRenderProps & {
-  epubViewRef: RefObject<ReaderEpubViewHandle | null>;
+  epubViewRef: RefObject<null | ReaderEpubViewHandle>;
   fontSize: number;
   initialBook: ReaderBookSnapshot;
+  isZenMode: boolean;
   isTocOpen: boolean;
   metadata: ReaderMetadata;
   moveBack: () => void;
@@ -104,6 +109,7 @@ function ReaderWorkspaceContent({
   onRestoreFailure: () => void;
   onReaderStateChange: (nextState: Partial<ReaderViewState>) => void;
   onReaderThemeChange: (theme: ReaderTheme) => void;
+  onToggleZenMode: () => void;
   onTocLoaded: (items: ReaderTocItem[]) => void;
   readerState: ReaderViewState;
   readerTheme: ReaderTheme;
@@ -201,10 +207,17 @@ function ReaderWorkspaceContent({
     [epubViewRef, handleCloseToc, setTocErrorMessage],
   );
 
+  const handleToggleZenMode = useCallback(() => {
+    setTocErrorMessage(null);
+    setIsTocOpen(false);
+    onToggleZenMode();
+  }, [onToggleZenMode, setIsTocOpen, setTocErrorMessage]);
+
   const handleEscapeAction = useCallback(() => {
     const action = getReaderEscapeAction({
       hasPopoverOpen,
       isAiSidebarOpen,
+      isZenMode,
       isTocOpen,
     });
 
@@ -222,14 +235,21 @@ function ReaderWorkspaceContent({
       return true;
     }
 
+    if (action === "exit-zen-mode") {
+      handleToggleZenMode();
+      return true;
+    }
+
     handleCloseToc();
     return true;
   }, [
+    handleToggleZenMode,
     handleCloseToc,
     dismissPanels,
     dismissPopover,
     hasPopoverOpen,
     isAiSidebarOpen,
+    isZenMode,
     isTocOpen,
   ]);
 
@@ -258,32 +278,72 @@ function ReaderWorkspaceContent({
     };
   }, [handleEscapeAction]);
 
+  const zenAiOverlay =
+    isZenMode && isAiSidebarOpen ? (
+      <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className="bg-background pointer-events-auto max-h-[80vh] w-full max-w-[480px] overflow-y-auto rounded-2xl border p-6 shadow-2xl">
+          {panel}
+        </div>
+      </div>
+    ) : null;
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-      <div className="relative">
-        <ReaderToolbar
-          canGoNext={readerState.canGoNext}
-          canGoPrevious={readerState.canGoPrevious}
-          fontSize={fontSize}
-          isReady={readerState.isReady}
-          isTocOpen={isTocOpen}
-          locationLabel={readerState.locationLabel}
-          metadata={metadata}
-          onFontSizeChange={onFontSizeChange}
-          onNext={moveForward}
-          onPrevious={moveBack}
-          onReaderThemeChange={onReaderThemeChange}
-          onToggleToc={handleToggleToc}
-          progressPercentage={readerState.progressPercentage}
-          readerTheme={readerTheme}
-          saveState={saveState}
-          saveStatusLabel={saveStatusLabel}
-          tocItemCount={tocItems.length}
-        >
+    <div
+      className={cn(
+        isZenMode
+          ? "bg-background fixed inset-0 z-50 flex flex-col"
+          : "grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]",
+      )}
+    >
+      <div
+        className={cn(
+          "relative",
+          isZenMode ? "flex min-h-0 flex-1 flex-col" : "space-y-6",
+        )}
+      >
+        {!isZenMode ? (
+          <ReaderToolbar
+            canGoNext={readerState.canGoNext}
+            canGoPrevious={readerState.canGoPrevious}
+            fontSize={fontSize}
+            isReady={readerState.isReady}
+            isTocOpen={isTocOpen}
+            isZenMode={isZenMode}
+            locationLabel={readerState.locationLabel}
+            metadata={metadata}
+            onFontSizeChange={onFontSizeChange}
+            onNext={moveForward}
+            onPrevious={moveBack}
+            onReaderThemeChange={onReaderThemeChange}
+            onToggleToc={handleToggleToc}
+            onToggleZenMode={handleToggleZenMode}
+            progressPercentage={readerState.progressPercentage}
+            readerTheme={readerTheme}
+            saveState={saveState}
+            saveStatusLabel={saveStatusLabel}
+            tocItemCount={tocItems.length}
+          />
+        ) : null}
+
+        {isZenMode ? (
+          <ZenModeControls
+            canGoNext={readerState.canGoNext}
+            canGoPrevious={readerState.canGoPrevious}
+            isReady={readerState.isReady}
+            locationLabel={readerState.locationLabel}
+            onExitZenMode={handleToggleZenMode}
+            onNext={moveForward}
+            onPrevious={moveBack}
+            progressPercentage={readerState.progressPercentage}
+          />
+        ) : null}
+
+        <div className={cn("relative", isZenMode && "min-h-0 flex-1")}>
           <ReaderEpubView
             fontSize={fontSize}
             ref={epubViewRef}
             initialBook={initialBook}
+            isZenMode={isZenMode}
             onClearPendingSelection={clearPendingSelection}
             onDismissPanels={dismissPanels}
             onEscapeKey={handleEscapeAction}
@@ -296,32 +356,42 @@ function ReaderWorkspaceContent({
             readerTheme={readerTheme}
             readerSurfaceRef={readerSurfaceRef}
           />
-        </ReaderToolbar>
 
-        <ReaderTableOfContents
-          activeHref={activeTocHref}
-          errorMessage={tocErrorMessage}
-          isOpen={isTocOpen}
-          items={tocItems}
-          onClose={handleCloseToc}
-          onNavigate={(href) => {
-            void handleTocNavigate(href);
-          }}
-        />
+          {!isZenMode ? (
+            <ReaderTableOfContents
+              activeHref={activeTocHref}
+              errorMessage={tocErrorMessage}
+              isOpen={isTocOpen}
+              items={tocItems}
+              onClose={handleCloseToc}
+              onNavigate={(href) => {
+                void handleTocNavigate(href);
+              }}
+            />
+          ) : null}
+        </div>
       </div>
 
-      <aside className="xl:sticky xl:top-24 xl:h-[calc(100vh-8rem)]">
-        <div className="border-line bg-surface flex flex-col gap-6 border p-6 xl:h-full xl:min-h-0 xl:overflow-y-auto">
-          {panel}
-          <ReaderProgressSync
-            initialProgressCfi={initialBook.progressCfi}
-            isReady={readerState.isReady}
-            locationLabel={readerState.locationLabel}
-            progressPercentage={readerState.progressPercentage}
-            saveStatusLabel={saveStatusLabel}
-          />
-        </div>
-      </aside>
+      {!isZenMode ? (
+        <aside className="xl:sticky xl:top-24 xl:h-[calc(100vh-8rem)]">
+          <div className="border-line bg-surface flex flex-col gap-6 border p-6 xl:h-full xl:min-h-0 xl:overflow-y-auto">
+            {panel}
+            <ReaderProgressSync
+              initialProgressCfi={initialBook.progressCfi}
+              isReady={readerState.isReady}
+              locationLabel={readerState.locationLabel}
+              progressPercentage={readerState.progressPercentage}
+              saveStatusLabel={saveStatusLabel}
+            />
+          </div>
+        </aside>
+      ) : null}
+
+      {isZenMode
+        ? (zenAiOverlay ?? (
+            <div className="[&>div:last-child]:hidden">{panel}</div>
+          ))
+        : null}
     </div>
   );
 }
@@ -336,7 +406,7 @@ export function ReaderWorkspace({
   initialReaderTheme: ReaderTheme;
 }) {
   const readerSurfaceRef = useRef<HTMLDivElement | null>(null);
-  const epubViewRef = useRef<ReaderEpubViewHandle | null>(null);
+  const epubViewRef = useRef<null | ReaderEpubViewHandle>(null);
   const persistAbortControllerRef = useRef<AbortController | null>(null);
   const isFirstPreferenceRenderRef = useRef(true);
   const [tocErrorMessage, setTocErrorMessage] = useState<string | null>(null);
@@ -352,6 +422,7 @@ export function ReaderWorkspace({
   const [readerState, setReaderState] = useState<ReaderViewState>(
     getInitialReaderState(initialBook),
   );
+  const [isZenMode, setIsZenMode] = useState(false);
   const [isTocOpen, setIsTocOpen] = useState(false);
   const [tocItems, setTocItems] = useState<ReaderTocItem[]>([]);
 
@@ -400,6 +471,12 @@ export function ReaderWorkspace({
 
   const handleReaderThemeChange = useCallback((theme: ReaderTheme) => {
     setReaderTheme(theme);
+  }, []);
+
+  const handleToggleZenMode = useCallback(() => {
+    setTocErrorMessage(null);
+    setIsTocOpen(false);
+    setIsZenMode((currentIsZenMode) => !currentIsZenMode);
   }, []);
 
   useEffect(() => {
@@ -469,6 +546,19 @@ export function ReaderWorkspace({
     };
   }, []);
 
+  useEffect(() => {
+    if (!isZenMode) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isZenMode]);
+
   return (
     <ReaderSelectionHandler
       bookId={initialBook.id}
@@ -481,6 +571,7 @@ export function ReaderWorkspace({
           epubViewRef={epubViewRef}
           fontSize={fontSize}
           initialBook={initialBook}
+          isZenMode={isZenMode}
           isTocOpen={isTocOpen}
           metadata={metadata}
           moveBack={moveBack}
@@ -489,6 +580,7 @@ export function ReaderWorkspace({
           onRestoreFailure={handleRestoreFailure}
           onReaderStateChange={handleReaderStateChange}
           onReaderThemeChange={handleReaderThemeChange}
+          onToggleZenMode={handleToggleZenMode}
           onTocLoaded={handleTocLoaded}
           readerState={readerState}
           readerTheme={readerTheme}

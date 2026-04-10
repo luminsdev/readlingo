@@ -7,12 +7,14 @@ export type ReaderTocItem = {
 export type ReaderEscapeAction =
   | "dismiss-popover"
   | "dismiss-ai-sidebar"
+  | "exit-zen-mode"
   | "dismiss-toc"
   | null;
 
 type ReaderEscapeActionState = {
   hasPopoverOpen: boolean;
   isAiSidebarOpen: boolean;
+  isZenMode: boolean;
   isTocOpen: boolean;
 };
 
@@ -173,6 +175,7 @@ export function getReaderActiveTocHref(
 export function getReaderEscapeAction({
   hasPopoverOpen,
   isAiSidebarOpen,
+  isZenMode,
   isTocOpen,
 }: ReaderEscapeActionState): ReaderEscapeAction {
   if (hasPopoverOpen) {
@@ -181,6 +184,10 @@ export function getReaderEscapeAction({
 
   if (isAiSidebarOpen) {
     return "dismiss-ai-sidebar";
+  }
+
+  if (isZenMode) {
+    return "exit-zen-mode";
   }
 
   if (isTocOpen) {
