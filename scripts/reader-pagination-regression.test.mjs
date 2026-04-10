@@ -7,13 +7,19 @@ async function readWorkspaceFile(relativePath) {
   return readFile(path.resolve(process.cwd(), relativePath), "utf8");
 }
 
-test("reader reflows pagination after applying loaded-content presentation changes", async () => {
+test("reader reflows pagination after font-size and zen-mode container changes", async () => {
   const epubViewSource = await readWorkspaceFile(
     "src/components/reader/reader-epub-view.tsx",
   );
 
-  assert.doesNotMatch(epubViewSource, /RenditionWithOptionalResize/);
-  assert.doesNotMatch(epubViewSource, /\.resize\(/);
+  assert.match(
+    epubViewSource,
+    /type RenditionWithOptionalResize = Rendition & \{/,
+  );
+  assert.match(
+    epubViewSource,
+    /resize: \(width\?: number, height\?: number\) => void;/,
+  );
 
   assert.match(
     epubViewSource,
@@ -24,11 +30,26 @@ test("reader reflows pagination after applying loaded-content presentation chang
     epubViewSource,
     /const currentCfi = \(rendition\?\.location as EpubLocation \| undefined\)\?\.start\s*\?\.cfi;/s,
   );
+  assert.match(epubViewSource, /const viewer = viewerRef\.current;/);
   assert.match(epubViewSource, /if \(rendition && currentCfi\) \{/);
   assert.match(
     epubViewSource,
-    /requestAnimationFrame\(\(\) => \{\s+void rendition\.display\(currentCfi\);\s+\}\);/s,
+    /requestAnimationFrame\(\(\) => \{\s+if \(viewer\) \{\s+const width = viewer\.clientWidth;\s+const height = viewer\.clientHeight;\s+if \(width > 0 && height > 0\) \{\s+\(rendition as RenditionWithOptionalResize\)\.resize\(width, height\);\s+\}\s+\}\s+void rendition\.display\(currentCfi\);\s+\}\);/s,
   );
+  assert.match(epubViewSource, /useEffect\(\(\) => \{\s+if \(!isReady\) \{/s);
+  assert.match(
+    epubViewSource,
+    /if \(!rendition \|\| !viewer \|\| !currentCfi\) \{\s+return;\s+\}/s,
+  );
+  assert.match(
+    epubViewSource,
+    /const frameId = requestAnimationFrame\(\(\) => \{\s+const width = viewer\.clientWidth;\s+const height = viewer\.clientHeight;\s+if \(width > 0 && height > 0\) \{\s+\(rendition as RenditionWithOptionalResize\)\.resize\(width, height\);\s+void rendition\.display\(currentCfi\);\s+\}\s+\}\);/s,
+  );
+  assert.match(
+    epubViewSource,
+    /return \(\) => cancelAnimationFrame\(frameId\);/,
+  );
+  assert.match(epubViewSource, /\}, \[isZenMode, isReady\]\);/);
 
   const styleReaderContentsMatch = epubViewSource.match(
     /const styleReaderContents = useCallback\(\(contents: Contents\) => \{([\s\S]*?)\n\s*\}, \[\]\);/,

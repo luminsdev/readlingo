@@ -51,6 +51,10 @@ export type ReaderEpubViewHandle = {
   refocus: () => void;
 };
 
+type RenditionWithOptionalResize = Rendition & {
+  resize: (width?: number, height?: number) => void;
+};
+
 type ReaderEpubViewProps = {
   fontSize: number;
   initialBook: ReaderBookSnapshot;
@@ -185,15 +189,54 @@ export const ReaderEpubView = forwardRef<
     applyReaderFontSizeToContents(contents, fontSize);
 
     const rendition = renditionRef.current;
+    const viewer = viewerRef.current;
     const currentCfi = (rendition?.location as EpubLocation | undefined)?.start
       ?.cfi;
 
     if (rendition && currentCfi) {
       requestAnimationFrame(() => {
+        if (viewer) {
+          const width = viewer.clientWidth;
+          const height = viewer.clientHeight;
+
+          if (width > 0 && height > 0) {
+            (rendition as RenditionWithOptionalResize).resize(width, height);
+          }
+        }
+
         void rendition.display(currentCfi);
       });
     }
   }, [fontSize, getRenditionContents, isReady, readerTheme, resolvedTheme]);
+
+  // Recalculate epub.js pagination when zen mode changes the container size.
+  // Percentage-based resize values can be treated as unchanged by epub.js.
+  useEffect(() => {
+    if (!isReady) {
+      return;
+    }
+
+    const rendition = renditionRef.current;
+    const viewer = viewerRef.current;
+    const currentCfi = (rendition?.location as EpubLocation | undefined)?.start
+      ?.cfi;
+
+    if (!rendition || !viewer || !currentCfi) {
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      const width = viewer.clientWidth;
+      const height = viewer.clientHeight;
+
+      if (width > 0 && height > 0) {
+        (rendition as RenditionWithOptionalResize).resize(width, height);
+        void rendition.display(currentCfi);
+      }
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [isZenMode, isReady]);
 
   const refocusReader = useCallback(() => {
     window.requestAnimationFrame(() => {

@@ -322,6 +322,10 @@ test("reader zen mode keeps a single EPUB view instance and threads zen-specific
     /isZenMode && isAiSidebarOpen \? \([\s\S]*max-w-\[480px\][\s\S]*\{panel\}/,
   );
   assert.match(workspaceSource, /<ZenModeControls/);
+  assert.match(
+    workspaceSource,
+    /const handleToggleZenMode = useCallback\(\(\) => \{[\s\S]*setIsZenMode\(\(currentIsZenMode\) => !currentIsZenMode\);[\s\S]*requestAnimationFrame\(\(\) => \{\s*epubViewRef\.current\?\.refocus\(\);\s*\}\);[\s\S]*\}, \[\]\);/,
+  );
 
   assert.match(toolbarSource, /isZenMode: boolean;/);
   assert.match(toolbarSource, /onToggleZenMode: \(\) => void;/);

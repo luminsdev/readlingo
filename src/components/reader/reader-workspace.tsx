@@ -477,6 +477,10 @@ export function ReaderWorkspace({
     setTocErrorMessage(null);
     setIsTocOpen(false);
     setIsZenMode((currentIsZenMode) => !currentIsZenMode);
+
+    requestAnimationFrame(() => {
+      epubViewRef.current?.refocus();
+    });
   }, []);
 
   useEffect(() => {
