@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { bookMetadataSchema } from "@/lib/book-validation";
 import { getOwnedReaderBook, updateOwnedBookMetadata } from "@/lib/books";
 import { removeBookFileBestEffort } from "@/lib/book-storage";
+import { removeBookCover } from "@/lib/cover-extraction";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -71,6 +72,10 @@ export async function DELETE(
       );
     },
   });
+
+  if (book.coverUrl) {
+    await removeBookCover(book.coverUrl);
+  }
 
   return new NextResponse(null, { status: 204 });
 }

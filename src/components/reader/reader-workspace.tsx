@@ -433,6 +433,7 @@ export function ReaderWorkspace({
       initialCfi: initialBook.progressCfi,
       initialUpdatedAt: initialBook.progressUpdatedAt,
       isReady: readerState.isReady,
+      progressPercentage: readerState.progressPercentage,
       readerErrorMessage: readerState.errorMessage,
     });
 

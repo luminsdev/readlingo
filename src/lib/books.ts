@@ -7,9 +7,10 @@ import {
   R2_FILE_PATH_PREFIX,
   resolveStoredUploadFilePath,
 } from "@/lib/book-storage";
+import { getCoverR2Key } from "@/lib/cover-extraction";
 import type { BookMetadataInput } from "@/lib/book-validation";
 import { prisma } from "@/lib/prisma";
-import { downloadFromR2 } from "@/lib/r2";
+import { downloadFromR2, getR2SignedUrl } from "@/lib/r2";
 
 const readerBookSelect = {
   id: true,
@@ -23,6 +24,7 @@ const readerBookSelect = {
   readingProgress: {
     select: {
       cfi: true,
+      percentage: true,
       updatedAt: true,
     },
   },
@@ -73,6 +75,7 @@ export async function upsertOwnedReadingProgress(
   userId: string,
   bookId: string,
   cfi: string,
+  percentage?: number | null,
 ) {
   const book = await prisma.book.findFirst({
     where: {
@@ -95,11 +98,51 @@ export async function upsertOwnedReadingProgress(
     create: {
       bookId: book.id,
       cfi,
+      ...(percentage != null ? { percentage } : {}),
     },
     update: {
       cfi,
+      ...(percentage != null ? { percentage } : {}),
     },
   });
+}
+
+export async function getContinueReadingBook(userId: string) {
+  return prisma.readingProgress.findFirst({
+    where: {
+      book: {
+        userId,
+      },
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+    select: {
+      percentage: true,
+      updatedAt: true,
+      book: {
+        select: {
+          id: true,
+          title: true,
+          author: true,
+          coverUrl: true,
+        },
+      },
+    },
+  });
+}
+
+export async function resolveBookCoverUrl(coverUrl: string | null) {
+  if (!coverUrl) {
+    return null;
+  }
+
+  try {
+    return await getR2SignedUrl(getCoverR2Key(coverUrl), 60 * 60 * 24);
+  } catch (error) {
+    console.error("Cover URL signing failed:", error);
+    return null;
+  }
 }
 
 export async function readStoredBookFile(filePath: string) {

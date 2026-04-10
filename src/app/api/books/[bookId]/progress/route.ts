@@ -53,6 +53,7 @@ export async function PUT(
     session.user.id,
     bookId,
     parsedPayload.data.cfi,
+    parsedPayload.data.percentage,
   );
 
   if (!progress) {

@@ -47,7 +47,7 @@ export function UploadBookForm() {
 
           formRef.current?.reset();
           setMessage({
-            text: "Book uploaded. Metadata enrichment comes in the next slice.",
+            text: "Book uploaded successfully.",
             tone: "success",
           });
           router.refresh();

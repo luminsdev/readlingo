@@ -8,6 +8,11 @@ import {
   removeBookFile,
   validateEpubArchive,
 } from "@/lib/book-storage";
+import {
+  extractCoverFromEpub,
+  persistBookCover,
+  removeBookCover,
+} from "@/lib/cover-extraction";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -78,6 +83,7 @@ export async function POST(request: Request) {
   });
 
   let filePath: string | null = null;
+  let coverUrl: string | null = null;
 
   try {
     filePath = await persistBookFile({
@@ -87,15 +93,29 @@ export async function POST(request: Request) {
       fileBytes: validatedFileBytes,
     });
 
+    try {
+      const coverBuffer = await extractCoverFromEpub(validatedFileBytes);
+
+      if (coverBuffer) {
+        coverUrl = await persistBookCover(provisionalBook.id, coverBuffer);
+      }
+    } catch (error) {
+      console.error("Cover extraction failed during upload:", error);
+    }
+
     const savedBook = await prisma.book.update({
       where: { id: provisionalBook.id },
-      data: { filePath },
+      data: { filePath, coverUrl },
     });
 
     return NextResponse.json({ book: savedBook }, { status: 201 });
   } catch (error) {
     if (filePath) {
       await removeBookFile(filePath).catch(() => undefined);
+    }
+
+    if (coverUrl) {
+      await removeBookCover(coverUrl);
     }
 
     await prisma.book.delete({ where: { id: provisionalBook.id } });

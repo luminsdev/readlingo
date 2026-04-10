@@ -16,6 +16,7 @@ type UseReaderProgressSyncProps = {
   initialCfi: string | null;
   initialUpdatedAt: string | null;
   isReady: boolean;
+  progressPercentage: number | null;
   readerErrorMessage: string | null;
 };
 
@@ -33,11 +34,13 @@ export function useReaderProgressSync({
   initialCfi,
   initialUpdatedAt,
   isReady,
+  progressPercentage,
   readerErrorMessage,
 }: UseReaderProgressSyncProps) {
   const activeCfiRef = useRef(activeCfi);
   const lastPersistedCfiRef = useRef(initialCfi);
   const pendingSaveCfiRef = useRef<string | null>(null);
+  const progressPercentageRef = useRef(progressPercentage);
   const saveAbortControllerRef = useRef<AbortController | null>(null);
   const isSavingRef = useRef(false);
 
@@ -51,6 +54,10 @@ export function useReaderProgressSync({
   useEffect(() => {
     activeCfiRef.current = activeCfi;
   }, [activeCfi]);
+
+  useEffect(() => {
+    progressPercentageRef.current = progressPercentage;
+  }, [progressPercentage]);
 
   useEffect(() => {
     lastPersistedCfiRef.current = initialCfi;
@@ -90,7 +97,12 @@ export function useReaderProgressSync({
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ cfi }),
+          body: JSON.stringify({
+            cfi,
+            ...(progressPercentageRef.current != null
+              ? { percentage: progressPercentageRef.current / 100 }
+              : {}),
+          }),
           keepalive,
           signal: keepalive ? undefined : abortController.signal,
         });

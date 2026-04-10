@@ -42,6 +42,12 @@ export const readingProgressSchema = z.object({
     .refine(isValidReaderProgressCfi, {
       message: "A valid EPUB CFI location is required.",
     }),
+  percentage: z
+    .number()
+    .min(0, "Percentage must be at least 0.")
+    .max(1, "Percentage must be at most 1.")
+    .optional()
+    .nullable(),
 });
 
 export type BookMetadataInput = z.infer<typeof bookMetadataSchema>;

@@ -8,13 +8,13 @@ datasource db {
 }
 
 model User {
-  id            String       @id @default(cuid())
-  email         String       @unique
+  id            String           @id @default(cuid())
+  email         String           @unique
   name          String?
   image         String?
   emailVerified DateTime?
   passwordHash  String?
-  createdAt     DateTime     @default(now())
+  createdAt     DateTime         @default(now())
   accounts      Account[]
   books         Book[]
   preferences   UserPreferences?
@@ -63,11 +63,12 @@ model Book {
 }
 
 model ReadingProgress {
-  id        String   @id @default(cuid())
-  bookId    String   @unique
-  cfi       String
-  updatedAt DateTime @updatedAt
-  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  bookId     String   @unique
+  cfi        String
+  percentage Float?
+  updatedAt  DateTime @updatedAt
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
 }
 
 model Vocabulary {

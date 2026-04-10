@@ -1,20 +1,17 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookCopy, Clock3, FolderOpenDot } from "lucide-react";
 
 import { auth } from "@/auth";
-import { DeleteBookButton } from "@/components/library/delete-book-button";
+import { BookCard } from "@/components/library/book-card";
+import { ContinueReading } from "@/components/library/continue-reading";
 import { UploadBookForm } from "@/components/library/upload-book-form";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getContinueReadingBook, resolveBookCoverUrl } from "@/lib/books";
 import { prisma } from "@/lib/prisma";
 
 export default async function LibraryPage() {
@@ -24,92 +21,123 @@ export default async function LibraryPage() {
     redirect("/login");
   }
 
-  const books = await prisma.book.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-  });
+  const [books, continueBook] = await Promise.all([
+    prisma.book.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        author: true,
+        coverUrl: true,
+      },
+    }),
+    getContinueReadingBook(session.user.id),
+  ]);
+
+  const [booksWithCovers, continueBookCoverUrl] = await Promise.all([
+    Promise.all(
+      books.map(async (book) => ({
+        ...book,
+        coverImageUrl: await resolveBookCoverUrl(book.coverUrl),
+      })),
+    ),
+    continueBook ? resolveBookCoverUrl(continueBook.book.coverUrl) : null,
+  ]);
+
+  const bookCountLabel = `${books.length} ${books.length === 1 ? "book" : "books"} in your library`;
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-      <Card className="h-fit">
-        <CardHeader>
-          <Badge>Phase 2</Badge>
-          <CardTitle className="font-serif text-3xl">
-            Your reading library
-          </CardTitle>
-          <CardDescription>
-            Upload EPUB files here, then open them in the live reader to enrich
-            metadata and resume from saved progress.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <UploadBookForm />
-        </CardContent>
-      </Card>
+    <div className="flex flex-col gap-6">
+      {continueBook ? (
+        <ContinueReading
+          author={continueBook.book.author}
+          bookId={continueBook.book.id}
+          coverImageUrl={continueBookCoverUrl}
+          percentage={continueBook.percentage}
+          title={continueBook.book.title}
+        />
+      ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {books.length ? (
-          books.map((book) => (
-            <Card className="flex h-full flex-col" key={book.id}>
-              <CardHeader className="gap-4">
-                <div className="bg-accent/12 text-accent flex size-14 items-center justify-center rounded-3xl">
-                  <BookCopy className="size-6" />
-                </div>
-                <div className="space-y-2">
-                  <CardTitle className="line-clamp-2 text-xl">
-                    {book.title}
-                  </CardTitle>
-                  <CardDescription>
-                    {book.author ??
-                      "Author enrichment comes in the reader slice."}
-                  </CardDescription>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  <Badge>
-                    {book.language === "und"
-                      ? "Language pending"
-                      : book.language}
-                  </Badge>
-                  <Badge>{new Date(book.createdAt).toLocaleDateString()}</Badge>
-                </div>
-
-                <div className="border-border text-muted-foreground bg-surface rounded-3xl border border-dashed p-4 text-sm">
-                  Open the reader to parse metadata, page through the EPUB, and
-                  keep your place synced in the background.
-                </div>
-              </CardContent>
-              <CardFooter className="justify-between">
-                <Button asChild size="sm" variant="secondary">
-                  <Link href={`/reader/${book.id}`}>Open reader</Link>
-                </Button>
-                <DeleteBookButton bookId={book.id} title={book.title} />
-              </CardFooter>
-            </Card>
-          ))
-        ) : (
-          <Card className="md:col-span-2 xl:col-span-3">
-            <CardHeader>
-              <div className="bg-accent/12 text-accent flex size-14 items-center justify-center rounded-3xl">
-                <FolderOpenDot className="size-6" />
-              </div>
-              <CardTitle className="font-serif text-3xl">
-                Your shelf is ready.
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+        <Card className="border-border/90 bg-card/95 relative overflow-hidden">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(200,106,60,0.15),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(92,130,95,0.12),transparent_28%)]" />
+          <CardHeader className="relative gap-3 sm:p-8">
+            <p className="text-ink-kicker text-xs font-semibold tracking-[0.3em] uppercase">
+              Curated reading desk
+            </p>
+            <div className="flex max-w-3xl flex-col gap-2">
+              <CardTitle className="font-serif text-4xl tracking-tight sm:text-5xl">
+                Your Library
               </CardTitle>
-              <CardDescription>
-                Upload a first EPUB to seed the library slice. Book metadata and
-                inline reading come next.
+              <CardDescription className="max-w-2xl text-sm leading-6 sm:text-base">
+                Every upload keeps its own jacket art when available, remembers
+                your place, and keeps the path back into the reader close at
+                hand.
               </CardDescription>
-            </CardHeader>
-            <CardContent className="text-muted-foreground flex items-center gap-3 text-sm">
-              <Clock3 className="size-4" />
-              Files are stored per user with ownership checks already enforced
-              in the API layer.
-            </CardContent>
-          </Card>
-        )}
+            </div>
+            <p className="text-ink-soft text-sm font-medium">
+              {bookCountLabel}
+            </p>
+          </CardHeader>
+        </Card>
+
+        <Card className="border-border/90 bg-card/95">
+          <CardHeader className="gap-2">
+            <CardTitle className="font-serif text-2xl">
+              Add a new EPUB
+            </CardTitle>
+            <CardDescription>
+              Drop another title onto your shelf. The library will keep the
+              cover, progress, and reading route together.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UploadBookForm />
+          </CardContent>
+        </Card>
       </div>
+
+      {booksWithCovers.length ? (
+        <section className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="font-serif text-2xl tracking-tight">Your shelf</h2>
+              <p className="text-muted-foreground text-sm">
+                Covers stay visible, and every title opens straight into the
+                reader.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {booksWithCovers.map((book) => (
+              <BookCard
+                author={book.author}
+                coverImageUrl={book.coverImageUrl}
+                id={book.id}
+                key={book.id}
+                title={book.title}
+              />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <Card className="border-border/90 bg-card/95">
+          <CardContent className="flex flex-col items-center gap-3 py-16 text-center sm:py-20">
+            <p className="text-ink-kicker text-xs font-semibold tracking-[0.3em] uppercase">
+              Shelf waiting
+            </p>
+            <h2 className="font-serif text-3xl tracking-tight sm:text-4xl">
+              Start your library with a first EPUB.
+            </h2>
+            <p className="text-muted-foreground max-w-xl text-sm leading-6 sm:text-base">
+              Upload a book to see extracted cover art, continue-reading
+              shortcuts, and your saved place appear here.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

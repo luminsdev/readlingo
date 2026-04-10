@@ -95,6 +95,10 @@ test("reader progress percentage state is threaded through the workspace", async
     workspaceSource,
     /<ReaderProgressSync[\s\S]*progressPercentage=\{readerState\.progressPercentage\}/,
   );
+  assert.match(
+    workspaceSource,
+    /useReaderProgressSync\([\s\S]*progressPercentage: readerState\.progressPercentage,[\s\S]*\)/,
+  );
 });
 
 test("reader progress UI renders percentage badges and status copy", async () => {
@@ -110,6 +114,48 @@ test("reader progress UI renders percentage badges and status copy", async () =>
   assert.match(progressSyncSource, /progressPercentage: number \| null;/);
   assert.match(progressSyncSource, /\{progressPercentage !== null \? \(/);
   assert.match(progressSyncSource, /\{progressPercentage}% complete/);
+});
+
+test("reader progress sync sends normalized percentage values to the API", async () => {
+  const progressSyncSource = await readWorkspaceFile(
+    "src/components/reader/reader-progress-sync.tsx",
+  );
+
+  assert.match(progressSyncSource, /progressPercentage: number \| null;/);
+  assert.match(
+    progressSyncSource,
+    /const progressPercentageRef = useRef\(progressPercentage\);/,
+  );
+  assert.match(
+    progressSyncSource,
+    /progressPercentageRef\.current = progressPercentage;/,
+  );
+  assert.match(
+    progressSyncSource,
+    /JSON\.stringify\(\{[\s\S]*cfi,[\s\S]*percentage: progressPercentageRef\.current \/ 100[\s\S]*\}\)/,
+  );
+});
+
+test("reader progress persistence stores optional percentage values", async () => {
+  const [booksSource, progressRouteSource] = await Promise.all([
+    readWorkspaceFile("src/lib/books.ts"),
+    readWorkspaceFile("src/app/api/books/[bookId]/progress/route.ts"),
+  ]);
+
+  assert.match(booksSource, /percentage: true,/);
+  assert.match(
+    booksSource,
+    /export async function upsertOwnedReadingProgress\([\s\S]*percentage\?: number \| null,[\s\S]*\)/,
+  );
+  assert.match(
+    booksSource,
+    /create: \{[\s\S]*\.\.\.\(percentage != null \? \{ percentage \} : \{\}\),[\s\S]*\}/,
+  );
+  assert.match(
+    booksSource,
+    /update: \{[\s\S]*\.\.\.\(percentage != null \? \{ percentage \} : \{\}\),[\s\S]*\}/,
+  );
+  assert.match(progressRouteSource, /parsedPayload\.data\.percentage/);
 });
 
 test("reader EPUB view generates locations in the background and renders a progress bar", async () => {
@@ -507,14 +553,28 @@ test("applyReaderThemeToContents honors explicit dark reader theme colors", () =
   });
 });
 
-test("readingProgressSchema rejects malformed EPUB CFIs", () => {
+test("readingProgressSchema validates EPUB CFIs and optional percentage bounds", () => {
   assert.equal(
     readingProgressSchema.safeParse({ cfi: "epubcfi(/6/2!/4/2/8,/1:0,/1:12)" })
       .success,
     true,
   );
   assert.equal(
+    readingProgressSchema.safeParse({
+      cfi: "epubcfi(/6/2!/4/2/8,/1:0,/1:12)",
+      percentage: 0.5,
+    }).success,
+    true,
+  );
+  assert.equal(
     readingProgressSchema.safeParse({ cfi: "chapter-1" }).success,
+    false,
+  );
+  assert.equal(
+    readingProgressSchema.safeParse({
+      cfi: "epubcfi(/6/2!/4/2/8,/1:0,/1:12)",
+      percentage: 1.1,
+    }).success,
     false,
   );
 });
