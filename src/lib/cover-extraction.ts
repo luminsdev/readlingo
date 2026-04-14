@@ -13,6 +13,17 @@ type ManifestItem = {
   properties: string[];
 };
 
+type EpubExtractedMetadata = {
+  title: string | null;
+  author: string | null;
+  language: string | null;
+};
+
+type EpubExtractedInfo = {
+  cover: Buffer | null;
+  metadata: EpubExtractedMetadata;
+};
+
 function getXmlAttribute(element: string, attributeName: string) {
   const match = element.match(
     new RegExp(`${attributeName}\\s*=\\s*(["'])(.*?)\\1`, "i"),
@@ -27,6 +38,53 @@ function decodeXmlPath(value: string) {
   } catch {
     return value;
   }
+}
+
+function decodeXmlText(value: string) {
+  return value.replace(
+    /&(?:amp|lt|gt|quot|apos);|&#(?:x([\da-f]+)|(\d+));/giu,
+    (
+      match,
+      hexCodePoint: string | undefined,
+      decimalCodePoint: string | undefined,
+    ) => {
+      if (hexCodePoint || decimalCodePoint) {
+        const codePoint = Number.parseInt(
+          hexCodePoint ?? decimalCodePoint ?? "",
+          hexCodePoint ? 16 : 10,
+        );
+
+        if (
+          !Number.isInteger(codePoint) ||
+          codePoint < 0 ||
+          codePoint > 0x10ffff
+        ) {
+          return match;
+        }
+
+        try {
+          return String.fromCodePoint(codePoint);
+        } catch {
+          return match;
+        }
+      }
+
+      switch (match.toLowerCase()) {
+        case "&amp;":
+          return "&";
+        case "&lt;":
+          return "<";
+        case "&gt;":
+          return ">";
+        case "&quot;":
+          return '"';
+        case "&apos;":
+          return "'";
+        default:
+          return match;
+      }
+    },
+  );
 }
 
 function sanitizeManifestPath(href: string) {
@@ -44,6 +102,15 @@ function parseManifestItems(opfContent: string): ManifestItem[] {
       .split(/\s+/u)
       .filter(Boolean),
   }));
+}
+
+function extractDublinCoreText(opfContent: string, element: string) {
+  const match = opfContent.match(
+    new RegExp(`<dc:${element}[^>]*>([^<]+)</dc:${element}>`, "si"),
+  );
+  const value = match?.[1]?.trim();
+
+  return value ? decodeXmlText(value) : null;
 }
 
 function getCoverHrefFromOpf(opfContent: string) {
@@ -107,13 +174,24 @@ function getZipCoverCandidates(opfPath: string, href: string) {
   );
 }
 
-export async function extractCoverFromEpub(epubBytes: Uint8Array) {
+export async function extractEpubInfo(
+  epubBytes: Uint8Array,
+): Promise<EpubExtractedInfo> {
+  const emptyResult: EpubExtractedInfo = {
+    cover: null,
+    metadata: {
+      title: null,
+      author: null,
+      language: null,
+    },
+  };
+
   try {
     const zip = await new JSZip().loadAsync(epubBytes);
     const containerEntry = zip.file("META-INF/container.xml");
 
     if (!containerEntry) {
-      return null;
+      return emptyResult;
     }
 
     const containerXml = await containerEntry.async("string");
@@ -124,39 +202,54 @@ export async function extractCoverFromEpub(epubBytes: Uint8Array) {
       : null;
 
     if (!opfPath) {
-      return null;
+      return emptyResult;
     }
 
     const opfEntry = zip.file(opfPath);
 
     if (!opfEntry) {
-      return null;
+      return emptyResult;
     }
 
     const opfContent = await opfEntry.async("string");
-    const coverHref = getCoverHrefFromOpf(opfContent);
+    const metadata: EpubExtractedMetadata = {
+      title: extractDublinCoreText(opfContent, "title"),
+      author: extractDublinCoreText(opfContent, "creator"),
+      language:
+        extractDublinCoreText(opfContent, "language")?.toLowerCase() ?? null,
+    };
 
-    if (!coverHref) {
-      return null;
+    let cover: Buffer | null = null;
+
+    try {
+      const coverHref = getCoverHrefFromOpf(opfContent);
+
+      if (!coverHref) {
+        return { cover, metadata };
+      }
+
+      const coverEntry = getZipCoverCandidates(opfPath, coverHref)
+        .map((candidate) => zip.file(candidate))
+        .find((entry) => entry != null);
+
+      if (!coverEntry) {
+        return { cover, metadata };
+      }
+
+      const imageBuffer = await coverEntry.async("nodebuffer");
+
+      cover = await sharp(imageBuffer)
+        .resize({ width: 400, withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+    } catch (error) {
+      console.error("Cover extraction failed:", error);
     }
 
-    const coverEntry = getZipCoverCandidates(opfPath, coverHref)
-      .map((candidate) => zip.file(candidate))
-      .find((entry) => entry != null);
-
-    if (!coverEntry) {
-      return null;
-    }
-
-    const imageBuffer = await coverEntry.async("nodebuffer");
-
-    return sharp(imageBuffer)
-      .resize({ width: 400, withoutEnlargement: true })
-      .jpeg({ quality: 80 })
-      .toBuffer();
+    return { cover, metadata };
   } catch (error) {
-    console.error("Cover extraction failed:", error);
-    return null;
+    console.error("EPUB info extraction failed:", error);
+    return emptyResult;
   }
 }
 

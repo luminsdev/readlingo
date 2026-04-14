@@ -4,10 +4,7 @@ import test from "node:test";
 import JSZip from "jszip";
 import sharp from "sharp";
 
-import {
-  extractCoverFromEpub,
-  getCoverR2Key,
-} from "../src/lib/cover-extraction.ts";
+import { extractEpubInfo, getCoverR2Key } from "../src/lib/cover-extraction.ts";
 
 async function createEpubBytes({ opfPath, opfContent, extraFiles }) {
   const zip = new JSZip();
@@ -44,7 +41,7 @@ async function createTestImageBuffer() {
     .toBuffer();
 }
 
-test("extractCoverFromEpub reads EPUB2 cover metadata with reordered attributes", async () => {
+test("extractEpubInfo reads EPUB2 cover metadata with reordered attributes", async () => {
   const imageBuffer = await createTestImageBuffer();
   const epubBytes = await createEpubBytes({
     opfPath: "OEBPS/content.opf",
@@ -66,17 +63,17 @@ test("extractCoverFromEpub reads EPUB2 cover metadata with reordered attributes"
     ],
   });
 
-  const coverBuffer = await extractCoverFromEpub(epubBytes);
+  const result = await extractEpubInfo(epubBytes);
 
-  assert.ok(coverBuffer instanceof Buffer);
+  assert.ok(result.cover instanceof Buffer);
 
-  const metadata = await sharp(coverBuffer).metadata();
+  const metadata = await sharp(result.cover).metadata();
   assert.equal(metadata.format, "jpeg");
   assert.ok((metadata.width ?? 0) > 0);
   assert.ok((metadata.width ?? 0) <= 400);
 });
 
-test("extractCoverFromEpub reads EPUB3 cover-image manifest entries", async () => {
+test("extractEpubInfo reads EPUB3 cover-image manifest entries", async () => {
   const imageBuffer = await createTestImageBuffer();
   const epubBytes = await createEpubBytes({
     opfPath: "OPS/package.opf",
@@ -95,12 +92,12 @@ test("extractCoverFromEpub reads EPUB3 cover-image manifest entries", async () =
     ],
   });
 
-  const coverBuffer = await extractCoverFromEpub(epubBytes);
+  const result = await extractEpubInfo(epubBytes);
 
-  assert.ok(coverBuffer instanceof Buffer);
+  assert.ok(result.cover instanceof Buffer);
 });
 
-test("extractCoverFromEpub falls back to the first image and handles root-relative hrefs", async () => {
+test("extractEpubInfo falls back to the first image and handles root-relative hrefs", async () => {
   const imageBuffer = await createTestImageBuffer();
   const epubBytes = await createEpubBytes({
     opfPath: "package.opf",
@@ -119,9 +116,119 @@ test("extractCoverFromEpub falls back to the first image and handles root-relati
     ],
   });
 
-  const coverBuffer = await extractCoverFromEpub(epubBytes);
+  const result = await extractEpubInfo(epubBytes);
 
-  assert.ok(coverBuffer instanceof Buffer);
+  assert.ok(result.cover instanceof Buffer);
+});
+
+test("extractEpubInfo extracts Dublin Core metadata from OPF", async () => {
+  const imageBuffer = await createTestImageBuffer();
+  const epubBytes = await createEpubBytes({
+    opfPath: "OEBPS/content.opf",
+    opfContent: `<?xml version="1.0" encoding="UTF-8"?>
+      <package version="2.0" xmlns="http://www.idpf.org/2007/opf">
+        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+          <dc:title>Test Book Title</dc:title>
+          <dc:creator>Jane Doe</dc:creator>
+          <dc:language>ja</dc:language>
+          <meta content="cover-image" name="cover" />
+        </metadata>
+        <manifest>
+          <item href="images/cover.png" media-type="image/png" id="cover-image" />
+        </manifest>
+        <spine />
+      </package>`,
+    extraFiles: [
+      {
+        path: "OEBPS/images/cover.png",
+        data: imageBuffer,
+      },
+    ],
+  });
+
+  const result = await extractEpubInfo(epubBytes);
+
+  assert.equal(result.metadata.title, "Test Book Title");
+  assert.equal(result.metadata.author, "Jane Doe");
+  assert.equal(result.metadata.language, "ja");
+  assert.ok(result.cover instanceof Buffer);
+});
+
+test("extractEpubInfo returns null metadata fields when Dublin Core elements are missing", async () => {
+  const imageBuffer = await createTestImageBuffer();
+  const epubBytes = await createEpubBytes({
+    opfPath: "OEBPS/content.opf",
+    opfContent: `<?xml version="1.0" encoding="UTF-8"?>
+      <package version="2.0" xmlns="http://www.idpf.org/2007/opf">
+        <metadata>
+          <meta content="cover-image" name="cover" />
+        </metadata>
+        <manifest>
+          <item href="images/cover.png" media-type="image/png" id="cover-image" />
+        </manifest>
+        <spine />
+      </package>`,
+    extraFiles: [
+      {
+        path: "OEBPS/images/cover.png",
+        data: imageBuffer,
+      },
+    ],
+  });
+
+  const result = await extractEpubInfo(epubBytes);
+
+  assert.equal(result.metadata.title, null);
+  assert.equal(result.metadata.author, null);
+  assert.equal(result.metadata.language, null);
+  assert.ok(result.cover instanceof Buffer);
+});
+
+test("extractEpubInfo normalizes language to lowercase", async () => {
+  const epubBytes = await createEpubBytes({
+    opfPath: "content.opf",
+    opfContent: `<?xml version="1.0" encoding="UTF-8"?>
+      <package version="3.0" xmlns="http://www.idpf.org/2007/opf">
+        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+          <dc:language>EN-US</dc:language>
+        </metadata>
+        <manifest />
+        <spine />
+      </package>`,
+    extraFiles: [],
+  });
+
+  const result = await extractEpubInfo(epubBytes);
+
+  assert.equal(result.metadata.language, "en-us");
+  assert.equal(result.cover, null);
+});
+
+test("extractEpubInfo decodes XML entities in Dublin Core metadata", async () => {
+  const epubBytes = await createEpubBytes({
+    opfPath: "content.opf",
+    opfContent: `<?xml version="1.0" encoding="UTF-8"?>
+      <package version="3.0" xmlns="http://www.idpf.org/2007/opf">
+        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+          <dc:title>Rock &amp; Roll &#x1F3B8;</dc:title>
+          <dc:creator>Fran&#231;ois &lt;Auteur&gt;</dc:creator>
+        </metadata>
+        <manifest />
+        <spine />
+      </package>`,
+    extraFiles: [],
+  });
+
+  const result = await extractEpubInfo(epubBytes);
+
+  assert.equal(
+    result.metadata.title,
+    `Rock & Roll ${String.fromCodePoint(0x1f3b8)}`,
+  );
+  assert.equal(
+    result.metadata.author,
+    `Fran${String.fromCodePoint(231)}ois <Auteur>`,
+  );
 });
 
 test("getCoverR2Key strips the r2 prefix and rejects other URLs", () => {

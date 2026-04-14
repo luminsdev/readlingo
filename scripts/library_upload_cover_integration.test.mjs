@@ -14,11 +14,20 @@ test("books upload route persists extracted covers and cleans them up on rollbac
   assert.match(routeSource, /let coverUrl: string \| null = null;/);
   assert.match(
     routeSource,
-    /const coverBuffer = await extractCoverFromEpub\(validatedFileBytes\);/,
+    /const extractedInfo = await extractEpubInfo\(validatedFileBytes\);/,
   );
   assert.match(
     routeSource,
-    /coverUrl = await persistBookCover\(provisionalBook\.id, coverBuffer\);/,
+    /title: extractedInfo\.metadata\.title \|\| createBookTitle\(file\.name\),/,
+  );
+  assert.match(routeSource, /author: extractedInfo\.metadata\.author,/);
+  assert.match(
+    routeSource,
+    /language: extractedInfo\.metadata\.language \|\| "und",/,
+  );
+  assert.match(
+    routeSource,
+    /if \(extractedInfo\.cover\) \{\s*coverUrl = await persistBookCover\(\s*provisionalBook\.id,\s*extractedInfo\.cover,?\s*\);/s,
   );
   assert.match(routeSource, /data: \{ filePath, coverUrl \},/);
   assert.match(
