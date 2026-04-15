@@ -2,16 +2,8 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { BookCard } from "@/components/library/book-card";
-import { ContinueReading } from "@/components/library/continue-reading";
-import { UploadBookForm } from "@/components/library/upload-book-form";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { getContinueReadingBook, resolveBookCoverUrl } from "@/lib/books";
+import { UploadBookDialog } from "@/components/library/upload-book-dialog";
+import { resolveBookCoverUrl } from "@/lib/books";
 import { prisma } from "@/lib/prisma";
 
 export default async function LibraryPage() {
@@ -21,122 +13,97 @@ export default async function LibraryPage() {
     redirect("/login");
   }
 
-  const [books, continueBook] = await Promise.all([
-    prisma.book.findMany({
-      where: { userId: session.user.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        author: true,
-        coverUrl: true,
+  const books = await prisma.book.findMany({
+    where: { userId: session.user.id },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      author: true,
+      coverUrl: true,
+      readingProgress: {
+        select: {
+          percentage: true,
+          updatedAt: true,
+        },
       },
-    }),
-    getContinueReadingBook(session.user.id),
-  ]);
+    },
+  });
 
-  const [booksWithCovers, continueBookCoverUrl] = await Promise.all([
-    Promise.all(
-      books.map(async (book) => ({
-        ...book,
-        coverImageUrl: await resolveBookCoverUrl(book.coverUrl),
-      })),
-    ),
-    continueBook ? resolveBookCoverUrl(continueBook.book.coverUrl) : null,
-  ]);
+  const booksWithCovers = await Promise.all(
+    books.map(async (book) => ({
+      ...book,
+      coverImageUrl: await resolveBookCoverUrl(book.coverUrl),
+    })),
+  );
 
-  const bookCountLabel = `${books.length} ${books.length === 1 ? "book" : "books"} in your library`;
+  const featuredBookId =
+    booksWithCovers
+      .filter((book) => book.readingProgress?.updatedAt)
+      .sort((leftBook, rightBook) => {
+        const leftUpdatedAt = leftBook.readingProgress!.updatedAt.getTime();
+        const rightUpdatedAt = rightBook.readingProgress!.updatedAt.getTime();
+
+        return rightUpdatedAt - leftUpdatedAt;
+      })[0]?.id ?? null;
+
+  const sortedBooks = featuredBookId
+    ? [
+        ...booksWithCovers.filter((book) => book.id === featuredBookId),
+        ...booksWithCovers.filter((book) => book.id !== featuredBookId),
+      ]
+    : booksWithCovers;
 
   return (
-    <div className="flex flex-col gap-6">
-      {continueBook ? (
-        <ContinueReading
-          author={continueBook.book.author}
-          bookId={continueBook.book.id}
-          coverImageUrl={continueBookCoverUrl}
-          percentage={continueBook.percentage}
-          title={continueBook.book.title}
-        />
-      ) : null}
+    <div className="flex flex-col gap-8">
+      <header className="relative flex flex-col gap-5 overflow-hidden rounded-[28px] px-1 py-2">
+        <div className="pointer-events-none absolute inset-x-8 -top-10 h-28 bg-[radial-gradient(circle_at_top,var(--page-glow-primary),transparent_68%)] opacity-90" />
+        <div className="pointer-events-none absolute top-3 right-10 h-16 w-40 bg-[radial-gradient(circle,var(--page-glow-secondary),transparent_72%)] opacity-80" />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
-        <Card className="border-border/90 bg-card/95 relative overflow-hidden">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(200,106,60,0.15),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(92,130,95,0.12),transparent_28%)]" />
-          <CardHeader className="relative gap-3 sm:p-8">
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div className="flex flex-col gap-1">
             <p className="text-ink-kicker text-xs font-semibold tracking-[0.3em] uppercase">
-              Curated reading desk
+              Your Library
             </p>
-            <div className="flex max-w-3xl flex-col gap-2">
-              <CardTitle className="font-serif text-4xl tracking-tight sm:text-5xl">
-                Your Library
-              </CardTitle>
-              <CardDescription className="max-w-2xl text-sm leading-6 sm:text-base">
-                Every upload keeps its own jacket art when available, remembers
-                your place, and keeps the path back into the reader close at
-                hand.
-              </CardDescription>
-            </div>
-            <p className="text-ink-soft text-sm font-medium">
-              {bookCountLabel}
-            </p>
-          </CardHeader>
-        </Card>
-
-        <Card className="border-border/90 bg-card/95">
-          <CardHeader className="gap-2">
-            <CardTitle className="font-serif text-2xl">
-              Add a new EPUB
-            </CardTitle>
-            <CardDescription>
-              Drop another title onto your shelf. The library will keep the
-              cover, progress, and reading route together.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <UploadBookForm />
-          </CardContent>
-        </Card>
-      </div>
-
-      {booksWithCovers.length ? (
-        <section className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="font-serif text-2xl tracking-tight">Your shelf</h2>
-              <p className="text-muted-foreground text-sm">
-                Covers stay visible, and every title opens straight into the
-                reader.
-              </p>
-            </div>
+            <h1 className="font-serif text-4xl tracking-tight sm:text-5xl">
+              {books.length} {books.length === 1 ? "book" : "books"}
+            </h1>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {booksWithCovers.map((book) => (
-              <BookCard
-                author={book.author}
-                coverImageUrl={book.coverImageUrl}
-                id={book.id}
-                key={book.id}
-                title={book.title}
-              />
-            ))}
-          </div>
-        </section>
+          <UploadBookDialog />
+        </div>
+
+        <div className="bg-line-strong h-px" />
+      </header>
+
+      {sortedBooks.length ? (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {sortedBooks.map((book) => (
+            <BookCard
+              author={book.author}
+              coverImageUrl={book.coverImageUrl}
+              featured={book.id === featuredBookId}
+              hasStartedReading={book.readingProgress != null}
+              id={book.id}
+              key={book.id}
+              progressPercentage={book.readingProgress?.percentage ?? null}
+              title={book.title}
+            />
+          ))}
+        </div>
       ) : (
-        <Card className="border-border/90 bg-card/95">
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center sm:py-20">
-            <p className="text-ink-kicker text-xs font-semibold tracking-[0.3em] uppercase">
-              Shelf waiting
-            </p>
-            <h2 className="font-serif text-3xl tracking-tight sm:text-4xl">
-              Start your library with a first EPUB.
-            </h2>
-            <p className="text-muted-foreground max-w-xl text-sm leading-6 sm:text-base">
-              Upload a book to see extracted cover art, continue-reading
-              shortcuts, and your saved place appear here.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center gap-4 py-20 text-center">
+          <p className="text-ink-kicker text-xs font-semibold tracking-[0.3em] uppercase">
+            Your shelf is waiting
+          </p>
+          <h2 className="font-serif text-3xl tracking-tight sm:text-4xl">
+            Add your first book
+          </h2>
+          <p className="text-muted-foreground max-w-md text-sm leading-6">
+            Upload an EPUB to see its cover art, track your reading progress,
+            and pick up right where you left off.
+          </p>
+        </div>
       )}
     </div>
   );

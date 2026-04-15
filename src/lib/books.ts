@@ -107,31 +107,6 @@ export async function upsertOwnedReadingProgress(
   });
 }
 
-export async function getContinueReadingBook(userId: string) {
-  return prisma.readingProgress.findFirst({
-    where: {
-      book: {
-        userId,
-      },
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-    select: {
-      percentage: true,
-      updatedAt: true,
-      book: {
-        select: {
-          id: true,
-          title: true,
-          author: true,
-          coverUrl: true,
-        },
-      },
-    },
-  });
-}
-
 export async function resolveBookCoverUrl(coverUrl: string | null) {
   if (!coverUrl) {
     return null;

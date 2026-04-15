@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function UploadBookForm() {
+export function UploadBookForm({ onSuccess }: { onSuccess?: () => void } = {}) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [message, setMessage] = useState<{
@@ -20,7 +20,7 @@ export function UploadBookForm() {
   return (
     <form
       ref={formRef}
-      className="space-y-4"
+      className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
 
@@ -51,10 +51,11 @@ export function UploadBookForm() {
             tone: "success",
           });
           router.refresh();
+          onSuccess?.();
         });
       }}
     >
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2">
         <Label htmlFor="file">EPUB file</Label>
         <Input
           id="file"

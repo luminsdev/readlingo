@@ -101,3 +101,4 @@ scaffold-temp/
 .dolt/
 *.db
 .beads-credential-key
+.gitnexus
