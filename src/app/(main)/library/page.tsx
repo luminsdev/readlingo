@@ -37,25 +37,8 @@ export default async function LibraryPage() {
     })),
   );
 
-  const featuredBookId =
-    booksWithCovers
-      .filter((book) => book.readingProgress?.updatedAt)
-      .sort((leftBook, rightBook) => {
-        const leftUpdatedAt = leftBook.readingProgress!.updatedAt.getTime();
-        const rightUpdatedAt = rightBook.readingProgress!.updatedAt.getTime();
-
-        return rightUpdatedAt - leftUpdatedAt;
-      })[0]?.id ?? null;
-
-  const sortedBooks = featuredBookId
-    ? [
-        ...booksWithCovers.filter((book) => book.id === featuredBookId),
-        ...booksWithCovers.filter((book) => book.id !== featuredBookId),
-      ]
-    : booksWithCovers;
-
   return (
-    <div className="flex flex-col gap-8">
+    <div className="library-grain relative flex flex-col gap-8">
       <header className="relative flex flex-col gap-5 overflow-hidden rounded-[28px] px-1 py-2">
         <div className="pointer-events-none absolute inset-x-8 -top-10 h-28 bg-[radial-gradient(circle_at_top,var(--page-glow-primary),transparent_68%)] opacity-90" />
         <div className="pointer-events-none absolute top-3 right-10 h-16 w-40 bg-[radial-gradient(circle,var(--page-glow-secondary),transparent_72%)] opacity-80" />
@@ -76,13 +59,12 @@ export default async function LibraryPage() {
         <div className="bg-line-strong h-px" />
       </header>
 
-      {sortedBooks.length ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {sortedBooks.map((book) => (
+      {booksWithCovers.length ? (
+        <div className="z-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {booksWithCovers.map((book) => (
             <BookCard
               author={book.author}
               coverImageUrl={book.coverImageUrl}
-              featured={book.id === featuredBookId}
               hasStartedReading={book.readingProgress != null}
               id={book.id}
               key={book.id}
