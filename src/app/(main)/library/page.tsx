@@ -43,17 +43,33 @@ export default async function LibraryPage() {
         <div className="pointer-events-none absolute inset-x-8 -top-10 h-28 bg-[radial-gradient(circle_at_top,var(--page-glow-primary),transparent_68%)] opacity-90" />
         <div className="pointer-events-none absolute top-3 right-10 h-16 w-40 bg-[radial-gradient(circle,var(--page-glow-secondary),transparent_72%)] opacity-80" />
 
-        <div className="relative flex flex-wrap items-end justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <p className="text-ink-kicker text-xs font-semibold tracking-[0.3em] uppercase">
+        <div className="relative mt-2 flex flex-wrap items-end justify-between gap-6 pt-2 pb-4">
+          {/* Left: Titles */}
+          <div className="flex shrink-0 flex-col gap-1.5">
+            <p className="text-ink-kicker text-[0.65rem] font-bold tracking-[0.3em] uppercase">
               Your Library
             </p>
-            <h1 className="font-serif text-4xl tracking-tight sm:text-5xl">
+            <h1 className="text-foreground font-serif text-4xl tracking-tight sm:text-5xl">
               {books.length} {books.length === 1 ? "book" : "books"}
             </h1>
           </div>
 
-          <UploadBookDialog />
+          {/* Center: Editorial Quote */}
+          <div className="relative ml-6 hidden max-w-2xl flex-1 items-center pl-10 lg:flex">
+            <div className="bg-line-strong/80 absolute top-1/2 left-0 h-12 w-px -translate-y-1/2" />
+            <p className="text-muted-foreground/90 font-serif text-base leading-relaxed tracking-wide italic">
+              &ldquo;I have always imagined that Paradise will be a kind of
+              library.&rdquo;
+              <span className="text-ink-kicker/80 mt-2.5 block font-sans text-[0.62rem] font-bold tracking-[0.25em] uppercase not-italic">
+                &mdash; Jorge Luis Borges
+              </span>
+            </p>
+          </div>
+
+          {/* Right: Actions */}
+          <div className="z-10 mb-1 shrink-0">
+            <UploadBookDialog />
+          </div>
         </div>
 
         <div className="bg-line-strong h-px" />
