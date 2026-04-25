@@ -139,7 +139,7 @@ export default async function VocabularyPage() {
   );
 
   return (
-    <div className="space-y-10">
+    <div className="animate-content-in space-y-10">
       <header className="border-line space-y-3 border-b pb-6">
         <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
           Phase 3 Archive

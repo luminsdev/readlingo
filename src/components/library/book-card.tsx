@@ -3,7 +3,6 @@ import Link from "next/link";
 
 import { DeleteBookButton } from "@/components/library/delete-book-button";
 import { ProgressRing } from "@/components/library/progress-ring";
-import { cn } from "@/lib/utils";
 
 const FALLBACK_COLORS = [
   "var(--ink-soft)",
@@ -51,6 +50,7 @@ function BookCardCover({
         height={800}
         sizes="(min-width: 1280px) 18vw, (min-width: 1024px) 22vw, (min-width: 640px) 30vw, 45vw"
         src={coverImageUrl}
+        unoptimized
         width={600}
       />
     );

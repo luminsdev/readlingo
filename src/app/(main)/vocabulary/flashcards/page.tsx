@@ -23,10 +23,12 @@ export default async function FlashcardsPage() {
   ]);
 
   return (
-    <FlashcardSession
-      initialCards={cards}
-      initialDueCount={dueCount}
-      totalVocabularyCount={totalVocabularyCount}
-    />
+    <div className="animate-content-in">
+      <FlashcardSession
+        initialCards={cards}
+        initialDueCount={dueCount}
+        totalVocabularyCount={totalVocabularyCount}
+      />
+    </div>
   );
 }

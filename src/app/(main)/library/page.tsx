@@ -38,7 +38,7 @@ export default async function LibraryPage() {
   );
 
   return (
-    <div className="library-grain relative flex flex-col gap-8">
+    <div className="library-grain animate-content-in relative flex flex-col gap-8">
       <header className="relative flex flex-col gap-5 overflow-hidden rounded-[28px] px-1 py-2">
         <div className="pointer-events-none absolute inset-x-8 -top-10 h-28 bg-[radial-gradient(circle_at_top,var(--page-glow-primary),transparent_68%)] opacity-90" />
         <div className="pointer-events-none absolute top-3 right-10 h-16 w-40 bg-[radial-gradient(circle,var(--page-glow-secondary),transparent_72%)] opacity-80" />

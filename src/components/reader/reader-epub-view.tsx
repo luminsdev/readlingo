@@ -15,9 +15,9 @@ import type Contents from "epubjs/types/contents";
 import type { PackagingMetadataObject } from "epubjs/types/packaging";
 import type Rendition from "epubjs/types/rendition";
 import type { Location as EpubLocation } from "epubjs/types/rendition";
-import { LoaderCircle } from "lucide-react";
 import { useTheme } from "next-themes";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { getReaderBookLoadKey } from "@/components/reader/reader-epub-view-utils";
 import { normalizeReaderTocItems } from "@/components/reader/reader-table-of-contents-utils";
 import type { ReaderViewState } from "@/components/reader/reader-workspace-types";
@@ -722,15 +722,17 @@ export const ReaderEpubView = forwardRef<
       />
 
       {!isReady && !errorMessage ? (
-        <div className="bg-reader-overlay absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 text-center backdrop-blur-sm">
-          <LoaderCircle className="text-foreground size-5 animate-spin" />
-          <div className="space-y-1.5 focus:ring-0 focus:outline-none">
-            <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
-              Preparing EPUB
-            </p>
-            <p className="text-ink-muted font-serif text-[13px] italic">
-              Loading chapters and extracting structural metadata.
-            </p>
+        <div className="bg-reader-overlay absolute inset-0 z-10 flex items-center justify-center p-6 backdrop-blur-sm">
+          <span className="sr-only">Preparing EPUB</span>
+          <div className="flex w-full max-w-3xl flex-col gap-5">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-[95%]" />
+            <Skeleton className="h-4 w-[84%]" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-[90%]" />
+            <Skeleton className="h-4 w-[76%]" />
+            <Skeleton className="h-4 w-[96%]" />
+            <Skeleton className="h-4 w-[88%]" />
           </div>
         </div>
       ) : null}

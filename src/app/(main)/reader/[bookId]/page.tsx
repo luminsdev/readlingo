@@ -26,20 +26,22 @@ export default async function ReaderPage({
   const preferences = await getOrCreateUserPreferences(session.user.id);
 
   return (
-    <ReaderWorkspace
-      initialBook={{
-        id: book.id,
-        title: book.title,
-        author: book.author,
-        coverUrl: book.coverUrl,
-        language: book.language,
-        createdAt: book.createdAt.toISOString(),
-        progressCfi: book.readingProgress?.cfi ?? null,
-        progressUpdatedAt:
-          book.readingProgress?.updatedAt.toISOString() ?? null,
-      }}
-      initialFontSize={preferences.readerFontSize}
-      initialReaderTheme={preferences.readerTheme}
-    />
+    <div className="animate-content-in">
+      <ReaderWorkspace
+        initialBook={{
+          id: book.id,
+          title: book.title,
+          author: book.author,
+          coverUrl: book.coverUrl,
+          language: book.language,
+          createdAt: book.createdAt.toISOString(),
+          progressCfi: book.readingProgress?.cfi ?? null,
+          progressUpdatedAt:
+            book.readingProgress?.updatedAt.toISOString() ?? null,
+        }}
+        initialFontSize={preferences.readerFontSize}
+        initialReaderTheme={preferences.readerTheme}
+      />
+    </div>
   );
 }
