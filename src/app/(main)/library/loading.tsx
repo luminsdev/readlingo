@@ -3,7 +3,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 function LibraryBookCardSkeleton() {
   return (
     <div className="relative flex flex-col">
-      <Skeleton className="border-border/40 aspect-[3/4] w-full rounded-[8px] border" />
+      <div className="relative">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-3 -bottom-2 h-5 rounded-full bg-[radial-gradient(ellipse_at_center,var(--paper-shadow),transparent_70%)] opacity-60 blur-md"
+        />
+        <Skeleton className="border-border/40 relative aspect-[3/4] w-full rounded-[8px] border" />
+      </div>
       <div className="mt-4 flex flex-col gap-2 px-0.5">
         <Skeleton className="h-5 w-3/4" />
         <Skeleton className="h-4 w-1/2" />

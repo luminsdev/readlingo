@@ -103,20 +103,27 @@ export function BookCard({
 
   return (
     <div className="group relative flex flex-col">
-      <div className="bg-surface-strong border-border/40 relative aspect-[3/4] w-full overflow-hidden rounded-[8px] border shadow-[0_4px_18px_var(--paper-shadow)] transition-all duration-300 ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-[1.015] group-hover:shadow-[0_20px_45px_var(--paper-shadow)]">
-        <BookCardCover
-          authorLabel={authorLabel}
-          coverImageUrl={coverImageUrl}
-          title={title}
+      <div className="relative">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-3 -bottom-2 h-5 rounded-full bg-[radial-gradient(ellipse_at_center,var(--paper-shadow),transparent_70%)] opacity-80 blur-md transition-all duration-300 group-hover:-bottom-3 group-hover:opacity-100"
         />
 
-        {progressPercentage != null ? (
-          <div className="absolute right-2.5 bottom-2.5 drop-shadow-md">
-            <ProgressRing percentage={progressPercentage * 100} size={24} />
-          </div>
-        ) : null}
+        <div className="bg-surface-strong border-border/40 relative aspect-[3/4] w-full overflow-hidden rounded-[8px] border shadow-[0_4px_18px_var(--paper-shadow)] transition-all duration-300 ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-[1.015] group-hover:shadow-[0_20px_45px_var(--paper-shadow)]">
+          <BookCardCover
+            authorLabel={authorLabel}
+            coverImageUrl={coverImageUrl}
+            title={title}
+          />
 
-        {/* Delete Box - Subtly visible on hover over cover */}
+          {progressPercentage != null ? (
+            <div className="absolute right-2.5 bottom-2.5 drop-shadow-md">
+              <ProgressRing percentage={progressPercentage * 100} size={24} />
+            </div>
+          ) : null}
+        </div>
+
+        {/* Keep the delete action above the full-card link, outside the transformed cover. */}
         <div className="pointer-events-none absolute top-2 right-2 z-20 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
           <div className="bg-surface-strong/70 border-line-strong hover:bg-surface-strong/90 overflow-hidden rounded-full border shadow-sm backdrop-blur-md transition-colors">
             <DeleteBookButton bookId={id} iconOnly title={title} />
