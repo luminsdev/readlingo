@@ -29,7 +29,7 @@ export async function GET(
 
     return new NextResponse(new Uint8Array(file), {
       headers: {
-        "Cache-Control": "private, no-store",
+        "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400",
         "Content-Disposition": `inline; filename="${createDownloadFileName(book.title)}"`,
         "Content-Length": String(file.byteLength),
         "Content-Type": "application/epub+zip",

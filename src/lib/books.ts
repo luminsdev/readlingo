@@ -34,6 +34,18 @@ export type ReaderBookRecord = Prisma.BookGetPayload<{
   select: typeof readerBookSelect;
 }>;
 
+async function verifyBookOwnership(userId: string, bookId: string) {
+  return prisma.book.findFirst({
+    where: {
+      id: bookId,
+      userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
 export async function getOwnedReaderBook(userId: string, bookId: string) {
   return prisma.book.findFirst({
     where: {
@@ -77,15 +89,7 @@ export async function upsertOwnedReadingProgress(
   cfi: string,
   percentage?: number | null,
 ) {
-  const book = await prisma.book.findFirst({
-    where: {
-      id: bookId,
-      userId,
-    },
-    select: {
-      id: true,
-    },
-  });
+  const book = await verifyBookOwnership(userId, bookId);
 
   if (!book) {
     return null;

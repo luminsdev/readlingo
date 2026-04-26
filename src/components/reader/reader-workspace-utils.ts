@@ -28,7 +28,7 @@ const IRREGULAR_WORD_ROOTS = new Map<string, string>([
   ["were", "be"],
 ]);
 
-export const SAVE_DEBOUNCE_MS = 1200;
+export const SAVE_DEBOUNCE_MS = 800;
 
 export type HighlightedExampleSegment = {
   text: string;

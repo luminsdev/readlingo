@@ -4,6 +4,17 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
 export function DeleteBookButton({
@@ -17,13 +28,10 @@ export function DeleteBookButton({
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = () => {
-    if (!window.confirm(`Delete "${title}" from your library?`)) {
-      return;
-    }
-
     setError(null);
 
     startTransition(async () => {
@@ -39,34 +47,70 @@ export function DeleteBookButton({
         return;
       }
 
+      setOpen(false);
       router.refresh();
     });
   };
 
   return (
-    <div className={iconOnly ? "relative" : "space-y-2"}>
-      {iconOnly ? (
-        <button
-          aria-label={isPending ? `Removing ${title}` : `Delete ${title}`}
-          className="flex size-7 items-center justify-center rounded-full bg-black/40 text-white/60 transition-colors hover:bg-red-500/80 hover:text-white disabled:pointer-events-none disabled:opacity-50"
-          disabled={isPending}
-          type="button"
-          onClick={handleDelete}
-        >
-          <Trash2 className="size-3.5" />
-        </button>
-      ) : (
-        <Button
-          disabled={isPending}
-          size="sm"
-          type="button"
-          variant="danger"
-          onClick={handleDelete}
-        >
-          <Trash2 className="size-4" />
-          {isPending ? "Removing..." : "Delete"}
-        </Button>
-      )}
+    <div className={iconOnly ? "relative" : "flex flex-col gap-2"}>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogTrigger asChild>
+          {iconOnly ? (
+            <button
+              aria-label={isPending ? `Removing ${title}` : `Delete ${title}`}
+              className="flex size-7 items-center justify-center rounded-full bg-black/40 text-white/60 transition-colors hover:bg-red-500/80 hover:text-white disabled:pointer-events-none disabled:opacity-50"
+              disabled={isPending}
+              type="button"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setOpen(true);
+              }}
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          ) : (
+            <Button
+              disabled={isPending}
+              size="sm"
+              type="button"
+              variant="danger"
+            >
+              <Trash2 className="size-4" />
+              {isPending ? "Removing..." : "Delete"}
+            </Button>
+          )}
+        </AlertDialogTrigger>
+        <AlertDialogContent className="bg-surface border-line rounded-[24px] sm:rounded-[24px]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif">
+              Delete &quot;{title}&quot;?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-ink-soft text-sm leading-relaxed">
+              This will permanently remove this book from your library,
+              including its reading progress and cover image. This action cannot
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                disabled={isPending}
+                type="button"
+                variant="danger"
+                onClick={(event) => {
+                  event.preventDefault();
+                  handleDelete();
+                }}
+              >
+                {isPending ? "Removing..." : "Delete"}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {error ? (
         <p
           className={
