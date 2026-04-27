@@ -1,34 +1,162 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { auth } from "@/auth";
 import { BookCard } from "@/components/library/book-card";
 import { UploadBookDialog } from "@/components/library/upload-book-dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+} from "@/components/ui/pagination";
 import { resolveBookCoverUrl } from "@/lib/books";
 import { prisma } from "@/lib/prisma";
+import { cn } from "@/lib/utils";
 
-export default async function LibraryPage() {
+type PaginationPage = number | "ellipsis-start" | "ellipsis-end";
+
+function getPaginationPages(currentPage: number, totalPages: number) {
+  const pages = new Set<number>([1, totalPages]);
+  const firstSibling = Math.max(2, currentPage - 1);
+  const lastSibling = Math.min(totalPages - 1, currentPage + 1);
+
+  for (let page = firstSibling; page <= lastSibling; page += 1) {
+    pages.add(page);
+  }
+
+  return Array.from(pages)
+    .sort((a, b) => a - b)
+    .reduce<PaginationPage[]>((items, page, index, sortedPages) => {
+      const previousPage = sortedPages[index - 1];
+
+      if (previousPage && page - previousPage > 1) {
+        items.push(index === 1 ? "ellipsis-start" : "ellipsis-end");
+      }
+
+      items.push(page);
+      return items;
+    }, []);
+}
+
+function LibraryPagination({
+  currentPage,
+  totalPages,
+}: {
+  currentPage: number;
+  totalPages: number;
+}) {
+  const paginationPages = getPaginationPages(currentPage, totalPages);
+
+  return (
+    <Pagination className="mt-8">
+      <PaginationContent>
+        <PaginationItem>
+          <PaginationLink
+            asChild
+            size="default"
+            className={cn(
+              "text-ink-soft gap-1 pl-2.5",
+              currentPage === 1 && "pointer-events-none opacity-40",
+            )}
+            aria-disabled={currentPage === 1}
+          >
+            <Link href={`/library?page=${Math.max(1, currentPage - 1)}`}>
+              <ChevronLeft className="size-4" />
+              <span>Previous</span>
+            </Link>
+          </PaginationLink>
+        </PaginationItem>
+
+        {paginationPages.map((page) => (
+          <PaginationItem key={page}>
+            {typeof page === "number" ? (
+              <PaginationLink
+                asChild
+                isActive={page === currentPage}
+                className={cn(
+                  page === currentPage
+                    ? "border-line bg-surface-strong text-foreground"
+                    : "text-ink-soft",
+                )}
+              >
+                <Link href={`/library?page=${page}`}>{page}</Link>
+              </PaginationLink>
+            ) : (
+              <PaginationEllipsis className="text-ink-soft" />
+            )}
+          </PaginationItem>
+        ))}
+
+        <PaginationItem>
+          <PaginationLink
+            asChild
+            size="default"
+            className={cn(
+              "text-ink-soft gap-1 pr-2.5",
+              currentPage === totalPages && "pointer-events-none opacity-40",
+            )}
+            aria-disabled={currentPage === totalPages}
+          >
+            <Link
+              href={`/library?page=${Math.min(totalPages, currentPage + 1)}`}
+            >
+              <span>Next</span>
+              <ChevronRight className="size-4" />
+            </Link>
+          </PaginationLink>
+        </PaginationItem>
+      </PaginationContent>
+    </Pagination>
+  );
+}
+
+export default async function LibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const session = await auth();
 
   if (!session?.user) {
     redirect("/login");
   }
 
-  const books = await prisma.book.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      title: true,
-      author: true,
-      coverUrl: true,
-      readingProgress: {
-        select: {
-          percentage: true,
-          updatedAt: true,
+  const { page: pageParam } = await searchParams;
+  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const PAGE_SIZE = 20;
+
+  const [books, totalCount] = await Promise.all([
+    prisma.book.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      skip: (currentPage - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      select: {
+        id: true,
+        title: true,
+        author: true,
+        coverUrl: true,
+        readingProgress: {
+          select: {
+            percentage: true,
+            updatedAt: true,
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.book.count({
+      where: { userId: session.user.id },
+    }),
+  ]);
+
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  if (currentPage > totalPages && totalPages > 0) {
+    redirect(`/library?page=${totalPages}`);
+  }
 
   const booksWithCovers = await Promise.all(
     books.map(async (book) => ({
@@ -50,7 +178,7 @@ export default async function LibraryPage() {
               Your Library
             </p>
             <h1 className="text-foreground font-serif text-4xl tracking-tight sm:text-5xl">
-              {books.length} {books.length === 1 ? "book" : "books"}
+              {totalCount} {totalCount === 1 ? "book" : "books"}
             </h1>
           </div>
 
@@ -76,19 +204,27 @@ export default async function LibraryPage() {
       </header>
 
       {booksWithCovers.length ? (
-        <div className="z-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {booksWithCovers.map((book) => (
-            <BookCard
-              author={book.author}
-              coverImageUrl={book.coverImageUrl}
-              hasStartedReading={book.readingProgress != null}
-              id={book.id}
-              key={book.id}
-              progressPercentage={book.readingProgress?.percentage ?? null}
-              title={book.title}
+        <>
+          <div className="z-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {booksWithCovers.map((book) => (
+              <BookCard
+                author={book.author}
+                coverImageUrl={book.coverImageUrl}
+                hasStartedReading={book.readingProgress != null}
+                id={book.id}
+                key={book.id}
+                progressPercentage={book.readingProgress?.percentage ?? null}
+                title={book.title}
+              />
+            ))}
+          </div>
+          {totalPages > 1 ? (
+            <LibraryPagination
+              currentPage={currentPage}
+              totalPages={totalPages}
             />
-          ))}
-        </div>
+          ) : null}
+        </>
       ) : (
         <div className="flex flex-col items-center gap-4 py-20 text-center">
           <p className="text-ink-kicker text-xs font-semibold tracking-[0.3em] uppercase">

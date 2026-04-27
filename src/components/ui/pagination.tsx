@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
 
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -35,28 +36,34 @@ const PaginationItem = React.forwardRef<
 PaginationItem.displayName = "PaginationItem";
 
 type PaginationLinkProps = {
+  asChild?: boolean;
   isActive?: boolean;
   size?: "default" | "sm" | "lg" | "icon";
 } & React.ComponentProps<"a">;
 
 const PaginationLink = ({
+  asChild = false,
   className,
   isActive,
   size = "icon",
   ...props
-}: PaginationLinkProps) => (
-  <a
-    aria-current={isActive ? "page" : undefined}
-    className={cn(
-      buttonVariants({
-        variant: isActive ? "secondary" : "ghost",
-        size,
-      }),
-      className,
-    )}
-    {...props}
-  />
-);
+}: PaginationLinkProps) => {
+  const Comp = asChild ? Slot : "a";
+
+  return (
+    <Comp
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        buttonVariants({
+          variant: isActive ? "secondary" : "ghost",
+          size,
+        }),
+        className,
+      )}
+      {...props}
+    />
+  );
+};
 PaginationLink.displayName = "PaginationLink";
 
 const PaginationPrevious = ({

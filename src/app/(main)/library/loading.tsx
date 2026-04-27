@@ -49,6 +49,15 @@ export default function LibraryLoading() {
           <LibraryBookCardSkeleton key={index} />
         ))}
       </div>
+
+      {/* Pagination skeleton */}
+      <div className="mt-8 flex items-center justify-center gap-2">
+        <Skeleton className="h-9 w-20 rounded-md" />
+        {Array.from({ length: 3 }, (_, i) => (
+          <Skeleton key={i} className="size-9 rounded-md" />
+        ))}
+        <Skeleton className="h-9 w-16 rounded-md" />
+      </div>
     </div>
   );
 }
