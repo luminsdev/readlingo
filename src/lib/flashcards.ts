@@ -1,5 +1,6 @@
 import { Prisma, type SRSData } from "@prisma/client";
 
+import { recordLearningActivity } from "@/lib/learning-activity";
 import { prisma } from "@/lib/prisma";
 import {
   computeSRSUpdate,
@@ -125,7 +126,15 @@ export async function submitReview(
 ): Promise<SRSData | null> {
   for (let attempt = 0; attempt <= SUBMIT_REVIEW_MAX_RETRIES; attempt += 1) {
     try {
-      return await submitReviewAttempt(userId, vocabularyId, rating);
+      const result = await submitReviewAttempt(userId, vocabularyId, rating);
+
+      if (result) {
+        await recordLearningActivity(userId, "review").catch(() => {
+          // Activity recording is non-critical; do not fail the review.
+        });
+      }
+
+      return result;
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

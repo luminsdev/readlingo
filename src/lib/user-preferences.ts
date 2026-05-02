@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import {
+  DAILY_GOAL_DEFAULT,
   normalizeReaderFontSize,
   normalizeReaderTheme,
   READER_FONT_SIZE_DEFAULT,
@@ -8,9 +9,13 @@ import {
   type UpdateSettingsInput,
 } from "@/lib/settings-validation";
 
-export type ReaderSettingsSnapshot = {
+export type UserPreferencesSnapshot = {
   readerFontSize: number;
   readerTheme: ReaderTheme;
+  dailyGoal: number;
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate: Date | null;
 };
 
 function buildDefaultPreferences(userId: string) {
@@ -18,22 +23,34 @@ function buildDefaultPreferences(userId: string) {
     userId,
     readerFontSize: READER_FONT_SIZE_DEFAULT,
     readerTheme: READER_THEME_DEFAULT,
+    dailyGoal: DAILY_GOAL_DEFAULT,
+    currentStreak: 0,
+    longestStreak: 0,
+    lastActiveDate: null,
   };
 }
 
-function normalizeReaderSettings(preferences: {
+function normalizePreferences(preferences: {
   readerFontSize: number;
   readerTheme: string;
-}): ReaderSettingsSnapshot {
+  dailyGoal: number;
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate: Date | null;
+}): UserPreferencesSnapshot {
   return {
     readerFontSize: normalizeReaderFontSize(preferences.readerFontSize),
     readerTheme: normalizeReaderTheme(preferences.readerTheme),
+    dailyGoal: preferences.dailyGoal,
+    currentStreak: preferences.currentStreak,
+    longestStreak: preferences.longestStreak,
+    lastActiveDate: preferences.lastActiveDate,
   };
 }
 
 export async function getOrCreateUserPreferences(
   userId: string,
-): Promise<ReaderSettingsSnapshot> {
+): Promise<UserPreferencesSnapshot> {
   const preferences = await prisma.userPreferences.upsert({
     where: {
       userId,
@@ -42,13 +59,13 @@ export async function getOrCreateUserPreferences(
     update: {},
   });
 
-  return normalizeReaderSettings(preferences);
+  return normalizePreferences(preferences);
 }
 
 export async function updateUserPreferences(
   userId: string,
   input: UpdateSettingsInput,
-): Promise<ReaderSettingsSnapshot> {
+): Promise<UserPreferencesSnapshot> {
   const preferences = await prisma.userPreferences.upsert({
     where: {
       userId,
@@ -60,5 +77,5 @@ export async function updateUserPreferences(
     update: input,
   });
 
-  return normalizeReaderSettings(preferences);
+  return normalizePreferences(preferences);
 }

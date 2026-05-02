@@ -9,6 +9,10 @@ export const READER_THEMES = ["light", "sepia", "dark"] as const;
 export type ReaderTheme = (typeof READER_THEMES)[number];
 export const READER_THEME_DEFAULT: ReaderTheme = "light";
 
+export const DAILY_GOAL_MIN = 1;
+export const DAILY_GOAL_MAX = 50;
+export const DAILY_GOAL_DEFAULT = 10;
+
 export function isValidReaderFontSize(value: number) {
   return (
     Number.isInteger(value) &&
@@ -50,6 +54,12 @@ export const updateSettingsSchema = z.object({
     )
     .optional(),
   readerTheme: z.enum(READER_THEMES).optional(),
+  dailyGoal: z
+    .number()
+    .int()
+    .min(DAILY_GOAL_MIN)
+    .max(DAILY_GOAL_MAX)
+    .optional(),
 });
 
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;

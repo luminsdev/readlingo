@@ -8,25 +8,30 @@ datasource db {
 }
 
 model User {
-  id            String           @id @default(cuid())
-  email         String           @unique
-  name          String?
-  image         String?
-  emailVerified DateTime?
-  passwordHash  String?
-  createdAt     DateTime         @default(now())
-  accounts      Account[]
-  books         Book[]
-  preferences   UserPreferences?
-  vocabularies  Vocabulary[]
+  id                 String             @id @default(cuid())
+  email              String             @unique
+  name               String?
+  image              String?
+  emailVerified      DateTime?
+  passwordHash       String?
+  createdAt          DateTime           @default(now())
+  accounts           Account[]
+  books              Book[]
+  learningActivities LearningActivity[]
+  preferences        UserPreferences?
+  vocabularies       Vocabulary[]
 }
 
 model UserPreferences {
-  id             String @id @default(cuid())
-  userId         String @unique
-  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  readerFontSize Int    @default(18)
-  readerTheme    String @default("light")
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readerFontSize Int       @default(18)
+  readerTheme    String    @default("light")
+  dailyGoal      Int       @default(10)
+  currentStreak  Int       @default(0)
+  longestStreak  Int       @default(0)
+  lastActiveDate DateTime?
 }
 
 model Account {
@@ -109,4 +114,16 @@ model SRSData {
   vocabulary     Vocabulary @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
 
   @@index([nextReviewAt])
+}
+
+model LearningActivity {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date   DateTime @db.Date
+  type   String
+  count  Int      @default(1)
+
+  @@unique([userId, date, type])
+  @@index([userId, date])
 }

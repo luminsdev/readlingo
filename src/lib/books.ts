@@ -9,6 +9,7 @@ import {
 } from "@/lib/book-storage";
 import { getCoverR2Key } from "@/lib/cover-extraction";
 import type { BookMetadataInput } from "@/lib/book-validation";
+import { recordLearningActivity } from "@/lib/learning-activity";
 import { prisma } from "@/lib/prisma";
 import { downloadFromR2, getR2SignedUrl } from "@/lib/r2";
 
@@ -95,7 +96,7 @@ export async function upsertOwnedReadingProgress(
     return null;
   }
 
-  return prisma.readingProgress.upsert({
+  const progress = await prisma.readingProgress.upsert({
     where: {
       bookId: book.id,
     },
@@ -109,6 +110,12 @@ export async function upsertOwnedReadingProgress(
       ...(percentage != null ? { percentage } : {}),
     },
   });
+
+  await recordLearningActivity(userId, "reading").catch(() => {
+    // Activity recording is non-critical; do not fail the progress save.
+  });
+
+  return progress;
 }
 
 export async function resolveBookCoverUrl(coverUrl: string | null) {
