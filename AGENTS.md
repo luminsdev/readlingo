@@ -176,13 +176,13 @@ pnpm phase1:smoke
 
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **readlingo** (1573 symbols, 2554 relationships, 95 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **readlingo** (1726 symbols, 2898 relationships, 107 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+> If any GitNexus tool warns the index is stale, run `pnpm gitnexus:analyze` in terminal first. This repo pins `gitnexus@1.6.4-rc.41` because stable `1.6.3` currently crashes during analyze on this Windows setup, while the upstream RC includes native dependency fixes.
 
 ## Always Do
 
-- **At the start of work, check GitNexus freshness.** If the repo is unindexed or the index is stale relative to `HEAD`, run `npx gitnexus analyze` before relying on GitNexus results.
+- **At the start of work, check GitNexus freshness.** If the repo is unindexed or the index is stale relative to `HEAD`, run `pnpm gitnexus:analyze` before relying on GitNexus results.
 - **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
 - **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
 - **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
