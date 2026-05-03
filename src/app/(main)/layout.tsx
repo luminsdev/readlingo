@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpenText, LayoutGrid, Languages, RotateCcw } from "lucide-react";
+import { BookOpenText, Languages, LayoutGrid, RotateCcw } from "lucide-react";
 
 import { auth } from "@/auth";
 import { SignOutButton } from "@/components/auth/sign-out-button";
@@ -31,7 +31,7 @@ export default async function MainLayout({
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <header className="paper-panel border-border flex flex-col gap-4 rounded-[32px] border px-6 py-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-3">
+            <Link href="/dashboard" className="flex items-center gap-3">
               <div className="bg-accent text-accent-foreground flex size-12 items-center justify-center rounded-2xl shadow-[0_18px_45px_var(--accent-shadow)]">
                 <BookOpenText className="size-5" />
               </div>
@@ -41,7 +41,7 @@ export default async function MainLayout({
                   Read, understand, save, review.
                 </p>
               </div>
-            </div>
+            </Link>
 
             <nav className="flex flex-wrap items-center gap-2">
               {navigation.map((item) => {
@@ -65,7 +65,7 @@ export default async function MainLayout({
 
           <div className="flex flex-wrap items-center gap-3">
             <ThemeToggle />
-            <Badge>Phase 5 live</Badge>
+            <Badge>Phase 8 live</Badge>
             <div className="text-muted-foreground text-sm">
               {session.user.email}
             </div>

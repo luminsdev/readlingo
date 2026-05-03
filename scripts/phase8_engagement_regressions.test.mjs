@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import test from "node:test";
 
 import { computeStreakUpdate } from "../src/lib/streak.ts";
 
 const FIXED_TODAY = new Date("2026-05-03T12:00:00.000Z");
+
+async function readWorkspaceFile(relativePath) {
+  return readFile(path.resolve(process.cwd(), relativePath), "utf8");
+}
 
 function daysAgo(days) {
   return new Date(FIXED_TODAY.getTime() - days * 24 * 60 * 60 * 1000);
@@ -82,4 +88,40 @@ test("computeStreakUpdate always updates lastActiveDate to today", () => {
     FIXED_TODAY,
   );
   assert.equal(result.lastActiveDate.getTime(), FIXED_TODAY.getTime());
+});
+
+test("main layout uses logo as dashboard link without dashboard nav item", async () => {
+  const source = await readWorkspaceFile("src/app/(main)/layout.tsx");
+
+  assert.doesNotMatch(source, /LayoutDashboard/);
+  assert.doesNotMatch(source, /label: "Dashboard"/);
+  assert.match(
+    source,
+    /<Link href="\/dashboard" className="flex items-center gap-3">/,
+  );
+});
+
+test("getDashboardData excludes completed books from continue reading", async () => {
+  const source = await readWorkspaceFile("src/lib/dashboard.ts");
+
+  assert.match(
+    source,
+    /prisma\.book\.findFirst\(\{\s*where:\s*\{\s*userId,\s*readingProgress:\s*\{\s*is:\s*\{\s*OR:\s*\[\s*\{ percentage: null \},\s*\{ percentage: \{ lt: COMPLETED_BOOK_THRESHOLD \} \},\s*\],\s*\},\s*\},/s,
+  );
+});
+
+test("dashboard action hero includes library shortcuts without orphaning one below the heatmap", async () => {
+  const source = await readWorkspaceFile("src/app/(main)/dashboard/page.tsx");
+  const actionHeroSource = source.slice(0, source.indexOf("<ActivityHeatmap"));
+
+  assert.equal(
+    actionHeroSource.match(
+      /<Button asChild variant="secondary">\s*<Link href="\/library">Browse Library<\/Link>\s*<\/Button>/g,
+    )?.length,
+    4,
+  );
+  assert.doesNotMatch(
+    source,
+    /<ActivityHeatmap data=\{data\.activityHeatmap\} \/>\s*<div className="flex justify-center">\s*<Link\s+className="text-ink-muted hover:text-accent inline-flex items-center gap-1 text-sm"\s+href="\/library"\s*>\s*Browse library\s*<ArrowRight className="size-3\.5" \/>/s,
+  );
 });
