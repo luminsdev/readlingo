@@ -53,6 +53,8 @@ type FlashcardSessionProps = {
   initialCards: DueCard[];
   initialDueCount: number;
   totalVocabularyCount: number;
+  dailyGoal: number;
+  initialReviewedToday: number;
 };
 
 function EmptyState({
@@ -133,13 +135,17 @@ export function FlashcardSession({
   initialCards,
   initialDueCount,
   totalVocabularyCount,
+  dailyGoal,
+  initialReviewedToday,
 }: FlashcardSessionProps) {
   const router = useRouter();
   const [cards, setCards] = useState(initialCards);
   const [revealed, setRevealed] = useState(false);
-  const [hintVisible, setHintVisible] = useState(false);
   const [reviewedCount, setReviewedCount] = useState(0);
   const [pendingRating, setPendingRating] = useState<SRSRating | null>(null);
+  const [cardTransition, setCardTransition] = useState<
+    "idle" | "exiting" | "entering"
+  >("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [ratingCounts, setRatingCounts] = useState<Record<SRSRating, number>>({
     again: 0,
@@ -152,10 +158,12 @@ export function FlashcardSession({
   const activeCard = cards[0] ?? null;
   const batchSize = initialCards.length;
   const remainingDueCount = Math.max(initialDueCount - reviewedCount, 0);
-  const hasMnemonicHint = Boolean(activeCard?.mnemonic?.trim());
+  const todayProgress = initialReviewedToday + reviewedCount;
+  const dailyGoalProgress =
+    dailyGoal > 0 ? Math.min(100, (todayProgress / dailyGoal) * 100) : 100;
 
   async function handleRate(rating: SRSRating) {
-    if (!activeCard || pendingRating) {
+    if (!activeCard || pendingRating || cardTransition !== "idle") {
       return;
     }
 
@@ -184,21 +192,29 @@ export function FlashcardSession({
         );
       }
 
-      setCards((currentCards) => currentCards.slice(1));
-      setReviewedCount((currentCount) => currentCount + 1);
-      setRatingCounts((currentCounts) => ({
-        ...currentCounts,
-        [rating]: currentCounts[rating] + 1,
-      }));
-      setHintVisible(false);
-      setRevealed(false);
+      setCardTransition("exiting");
+
+      window.setTimeout(() => {
+        setCards((currentCards) => currentCards.slice(1));
+        setReviewedCount((currentCount) => currentCount + 1);
+        setRatingCounts((currentCounts) => ({
+          ...currentCounts,
+          [rating]: currentCounts[rating] + 1,
+        }));
+        setRevealed(false);
+        setPendingRating(null);
+        setCardTransition("entering");
+
+        window.setTimeout(() => {
+          setCardTransition("idle");
+        }, 250);
+      }, 250);
     } catch (error) {
       setErrorMessage(
         error instanceof Error && error.message.trim()
           ? error.message
           : "Unable to submit this flashcard review.",
       );
-    } finally {
       setPendingRating(null);
     }
   }
@@ -329,6 +345,20 @@ export function FlashcardSession({
               Reveal only when you have truly tried to recall the meaning, then
               rate the answer with enough honesty for tomorrow&apos;s queue.
             </p>
+            <div className="flex items-center gap-2">
+              <div
+                className="border-line bg-surface-strong h-1.5 flex-1 overflow-hidden rounded-full border"
+                style={{ minWidth: "80px" }}
+              >
+                <div
+                  className="bg-accent h-full rounded-full transition-all duration-300"
+                  style={{ width: `${dailyGoalProgress}%` }}
+                />
+              </div>
+              <span className="text-ink-muted text-xs whitespace-nowrap">
+                {todayProgress}/{dailyGoal} today
+              </span>
+            </div>
           </div>
         </div>
 
@@ -355,45 +385,103 @@ export function FlashcardSession({
       </header>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,0.9fr)]">
-        <article className="paper-panel border-border overflow-hidden rounded-[32px] border">
-          <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-6 py-5 sm:px-8">
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge>{activeCard.srsData ? "Due review" : "New card"}</Badge>
-              <p className="text-ink-kicker text-[11px] tracking-[0.2em] uppercase">
-                Card {reviewedCount + 1} of {batchSize}
-              </p>
-            </div>
-            <p className="text-ink-muted text-sm">
-              {activeCard.book?.title ?? "Personal archive"}
-            </p>
-          </div>
+        <article
+          aria-label={revealed ? undefined : "Flip flashcard"}
+          className={cn(
+            "flashcard-scene",
+            cardTransition === "exiting" && "flashcard-exit",
+            cardTransition === "entering" && "flashcard-enter",
+          )}
+          onKeyDown={(event) => {
+            if (revealed || event.target !== event.currentTarget) {
+              return;
+            }
 
-          <div className="space-y-8 px-6 py-8 sm:px-8 sm:py-10">
-            <div className="space-y-4">
-              <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
-                Front
-              </p>
-              <div className="space-y-4">
-                <h2 className="text-foreground font-serif text-5xl font-light tracking-tight sm:text-6xl">
-                  {activeCard.word}
-                </h2>
-                <div className="text-ink-muted flex flex-wrap items-center gap-3 text-sm">
-                  {activeCard.pronunciation ? (
-                    <span className="text-ink-soft font-serif text-base italic">
-                      {activeCard.pronunciation}
-                    </span>
-                  ) : null}
-                  {activeCard.partOfSpeech ? (
-                    <span className="border-line bg-surface-strong rounded-full border px-3 py-1 text-[10px] tracking-[0.22em] uppercase">
-                      {activeCard.partOfSpeech}
-                    </span>
-                  ) : null}
+            if (event.key === " " || event.key === "Enter") {
+              event.preventDefault();
+              setErrorMessage(null);
+              setRevealed(true);
+            }
+          }}
+          role={revealed ? undefined : "button"}
+          tabIndex={revealed ? undefined : 0}
+        >
+          <div className={cn("flashcard-inner", revealed && "is-flipped")}>
+            <div className="flashcard-face paper-panel border-border overflow-hidden rounded-[32px] border">
+              <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-6 py-5 sm:px-8">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge>
+                    {activeCard.srsData ? "Due review" : "New card"}
+                  </Badge>
+                  <p className="text-ink-kicker text-[11px] tracking-[0.2em] uppercase">
+                    Card {reviewedCount + 1} of {batchSize}
+                  </p>
+                </div>
+                <p className="text-ink-muted text-sm">
+                  {activeCard.book?.title ?? "Personal archive"}
+                </p>
+              </div>
+
+              <div className="space-y-8 px-6 py-8 sm:px-8 sm:py-10">
+                <div className="space-y-4">
+                  <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
+                    Front
+                  </p>
+                  <div className="space-y-4">
+                    <h2 className="text-foreground font-serif text-5xl font-light tracking-tight sm:text-6xl">
+                      {activeCard.word}
+                    </h2>
+                    <div className="text-ink-muted flex flex-wrap items-center gap-3 text-sm">
+                      {activeCard.pronunciation ? (
+                        <span className="text-ink-soft font-serif text-base italic">
+                          {activeCard.pronunciation}
+                        </span>
+                      ) : null}
+                      {activeCard.partOfSpeech ? (
+                        <span className="border-line bg-surface-strong rounded-full border px-3 py-1 text-[10px] tracking-[0.22em] uppercase">
+                          {activeCard.partOfSpeech}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-line space-y-5 border-t pt-8">
+                  <p className="text-ink-muted max-w-xl text-sm leading-loose">
+                    Pause for recall first. When you are ready, flip the card to
+                    reveal the answer and rate your recall.
+                  </p>
+                  <Button
+                    className="sm:min-w-40"
+                    onClick={() => {
+                      setErrorMessage(null);
+                      setRevealed(true);
+                    }}
+                    type="button"
+                  >
+                    Flip card
+                    <ArrowRight className="size-4" />
+                  </Button>
                 </div>
               </div>
             </div>
 
-            {revealed ? (
-              <div className="border-line space-y-8 border-t pt-8">
+            <div className="flashcard-face flashcard-face--back paper-panel border-border overflow-hidden rounded-[32px] border">
+              <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-6 py-5 sm:px-8">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge>
+                    {activeCard.srsData ? "Due review" : "New card"}
+                  </Badge>
+                  <p className="text-ink-kicker text-[11px] tracking-[0.2em] uppercase">
+                    Card {reviewedCount + 1} of {batchSize}
+                  </p>
+                </div>
+                <p className="text-ink-muted text-sm">
+                  {activeCard.book?.title ?? "Personal archive"}
+                </p>
+              </div>
+
+              <div className="space-y-8 px-6 py-8 sm:px-8 sm:py-10">
                 <div className="space-y-3">
                   <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
                     Back
@@ -402,6 +490,24 @@ export function FlashcardSession({
                     {activeCard.definition}
                   </p>
                 </div>
+
+                {activeCard.mnemonic?.trim() ? (
+                  <div className="border-line bg-surface rounded-[24px] border p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="border-line bg-surface-strong flex size-9 shrink-0 items-center justify-center rounded-full border">
+                        <Brain className="text-ink-muted size-4" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                          Memory hint
+                        </p>
+                        <p className="text-ink-muted text-xs leading-relaxed italic">
+                          {activeCard.mnemonic}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
 
                 {activeCard.explanation ? (
                   <div className="space-y-2">
@@ -455,6 +561,8 @@ export function FlashcardSession({
                         className={cn(
                           "rounded-[24px] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
                           ratingCopy[rating].className,
+                          pendingRating === rating &&
+                            "scale-[1.02] ring-2 ring-[var(--accent)]",
                         )}
                         disabled={pendingRating !== null}
                         onClick={() => {
@@ -474,63 +582,12 @@ export function FlashcardSession({
                     ))}
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="border-line space-y-5 border-t pt-8">
-                <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-                  <p className="text-ink-muted max-w-xl text-sm leading-loose">
-                    Pause for recall first. When you are ready, reveal the
-                    answer, read the context, and choose the next interval.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    {hasMnemonicHint ? (
-                      <Button
-                        onClick={() => {
-                          setHintVisible((currentValue) => !currentValue);
-                        }}
-                        type="button"
-                        variant="secondary"
-                      >
-                        {hintVisible ? "Hide hint" : "Show hint"}
-                      </Button>
-                    ) : null}
-                    <Button
-                      className="sm:min-w-40"
-                      onClick={() => {
-                        setErrorMessage(null);
-                        setRevealed(true);
-                      }}
-                      type="button"
-                    >
-                      Reveal
-                      <ArrowRight className="size-4" />
-                    </Button>
-                  </div>
-                </div>
 
-                {hasMnemonicHint && hintVisible ? (
-                  <div className="border-line bg-surface rounded-[24px] border p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="border-line bg-surface-strong flex size-9 shrink-0 items-center justify-center rounded-full border">
-                        <Brain className="text-ink-muted size-4" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                          Memory hint
-                        </p>
-                        <p className="text-ink-muted text-xs leading-relaxed italic">
-                          {activeCard.mnemonic}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                {errorMessage ? (
+                  <p className="text-danger text-sm">{errorMessage}</p>
                 ) : null}
               </div>
-            )}
-
-            {errorMessage ? (
-              <p className="text-danger text-sm">{errorMessage}</p>
-            ) : null}
+            </div>
           </div>
         </article>
 
