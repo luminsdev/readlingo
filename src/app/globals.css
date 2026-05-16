@@ -257,7 +257,7 @@ select {
 .flashcard-face--back {
   position: absolute;
   inset: 0;
-  overflow-y: auto;
+  overflow: hidden;
   pointer-events: none;
   transform: rotateY(180deg);
 }

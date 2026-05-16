@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import {
   ArrowRight,
   Brain,
@@ -154,6 +154,8 @@ export function FlashcardSession({
     easy: 0,
   });
   const [isRefreshing, startRefresh] = useTransition();
+  const backFaceRef = useRef<HTMLDivElement>(null);
+  const cardSceneRef = useRef<HTMLElement>(null);
 
   const activeCard = cards[0] ?? null;
   const batchSize = initialCards.length;
@@ -161,6 +163,12 @@ export function FlashcardSession({
   const todayProgress = initialReviewedToday + reviewedCount;
   const dailyGoalProgress =
     dailyGoal > 0 ? Math.min(100, (todayProgress / dailyGoal) * 100) : 100;
+
+  useEffect(() => {
+    if (activeCard && !revealed && cardTransition === "idle") {
+      cardSceneRef.current?.focus();
+    }
+  }, [activeCard, revealed, cardTransition]);
 
   async function handleRate(rating: SRSRating) {
     if (!activeCard || pendingRating || cardTransition !== "idle") {
@@ -202,6 +210,9 @@ export function FlashcardSession({
           [rating]: currentCounts[rating] + 1,
         }));
         setRevealed(false);
+        if (backFaceRef.current) {
+          backFaceRef.current.scrollTop = 0;
+        }
         setPendingRating(null);
         setCardTransition("entering");
 
@@ -386,6 +397,7 @@ export function FlashcardSession({
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,0.9fr)]">
         <article
+          ref={cardSceneRef}
           aria-label={revealed ? undefined : "Flip flashcard"}
           className={cn(
             "flashcard-scene",
@@ -467,125 +479,127 @@ export function FlashcardSession({
             </div>
 
             <div className="flashcard-face flashcard-face--back paper-panel border-border overflow-hidden rounded-[32px] border">
-              <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-6 py-5 sm:px-8">
-                <div className="flex flex-wrap items-center gap-3">
-                  <Badge>
-                    {activeCard.srsData ? "Due review" : "New card"}
-                  </Badge>
-                  <p className="text-ink-kicker text-[11px] tracking-[0.2em] uppercase">
-                    Card {reviewedCount + 1} of {batchSize}
-                  </p>
-                </div>
-                <p className="text-ink-muted text-sm">
-                  {activeCard.book?.title ?? "Personal archive"}
-                </p>
-              </div>
-
-              <div className="space-y-8 px-6 py-8 sm:px-8 sm:py-10">
-                <div className="space-y-3">
-                  <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
-                    Back
-                  </p>
-                  <p className="text-foreground font-serif text-3xl leading-tight font-light">
-                    {activeCard.definition}
+              <div ref={backFaceRef} className="h-full overflow-y-auto">
+                <div className="border-line flex flex-wrap items-center justify-between gap-3 border-b px-6 py-5 sm:px-8">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge>
+                      {activeCard.srsData ? "Due review" : "New card"}
+                    </Badge>
+                    <p className="text-ink-kicker text-[11px] tracking-[0.2em] uppercase">
+                      Card {reviewedCount + 1} of {batchSize}
+                    </p>
+                  </div>
+                  <p className="text-ink-muted text-sm">
+                    {activeCard.book?.title ?? "Personal archive"}
                   </p>
                 </div>
 
-                {activeCard.mnemonic?.trim() ? (
-                  <div className="border-line bg-surface rounded-[24px] border p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="border-line bg-surface-strong flex size-9 shrink-0 items-center justify-center rounded-full border">
-                        <Brain className="text-ink-muted size-4" />
-                      </div>
-                      <div className="space-y-1.5">
-                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                          Memory hint
-                        </p>
-                        <p className="text-ink-muted text-xs leading-relaxed italic">
-                          {activeCard.mnemonic}
-                        </p>
+                <div className="space-y-8 px-6 py-8 sm:px-8 sm:py-10">
+                  <div className="space-y-3">
+                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
+                      Back
+                    </p>
+                    <p className="text-foreground font-serif text-3xl leading-tight font-light">
+                      {activeCard.definition}
+                    </p>
+                  </div>
+
+                  {activeCard.mnemonic?.trim() ? (
+                    <div className="border-line bg-surface rounded-[24px] border p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="border-line bg-surface-strong flex size-9 shrink-0 items-center justify-center rounded-full border">
+                          <Brain className="text-ink-muted size-4" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                            Memory hint
+                          </p>
+                          <p className="text-ink-muted text-xs leading-relaxed italic">
+                            {activeCard.mnemonic}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ) : null}
+                  ) : null}
 
-                {activeCard.explanation ? (
-                  <div className="space-y-2">
-                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                      Editorial note
-                    </p>
-                    <p className="text-ink-soft text-sm leading-loose">
-                      {activeCard.explanation}
-                    </p>
-                  </div>
-                ) : null}
-
-                <div className="space-y-3">
-                  <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                    Example
-                  </p>
-                  <div className="border-quote border-l pl-4">
-                    <p className="text-ink-soft font-serif text-lg leading-relaxed italic">
-                      {activeCard.exampleSentence}
-                    </p>
-                    {activeCard.exampleTranslation ? (
-                      <p className="text-ink-muted mt-2 text-sm leading-relaxed">
-                        {activeCard.exampleTranslation}
+                  {activeCard.explanation ? (
+                    <div className="space-y-2">
+                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                        Editorial note
                       </p>
-                    ) : null}
-                  </div>
-                </div>
+                      <p className="text-ink-soft text-sm leading-loose">
+                        {activeCard.explanation}
+                      </p>
+                    </div>
+                  ) : null}
 
-                <div className="space-y-3">
-                  <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                    Reading context
-                  </p>
-                  <div className="border-line bg-surface rounded-[24px] border p-5">
-                    <p className="text-ink-soft font-serif text-[15px] leading-loose">
-                      {activeCard.contextSentence}
+                  <div className="space-y-3">
+                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                      Example
                     </p>
+                    <div className="border-quote border-l pl-4">
+                      <p className="text-ink-soft font-serif text-lg leading-relaxed italic">
+                        {activeCard.exampleSentence}
+                      </p>
+                      {activeCard.exampleTranslation ? (
+                        <p className="text-ink-muted mt-2 text-sm leading-relaxed">
+                          {activeCard.exampleTranslation}
+                        </p>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
 
-                <div className="border-line space-y-3 border-t pt-6">
-                  <div className="text-ink-muted flex items-center gap-2">
-                    <Sparkles className="size-4" />
-                    <p className="text-[10px] font-medium tracking-[0.22em] uppercase">
-                      Rate recall
+                  <div className="space-y-3">
+                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                      Reading context
                     </p>
+                    <div className="border-line bg-surface rounded-[24px] border p-5">
+                      <p className="text-ink-soft font-serif text-[15px] leading-loose">
+                        {activeCard.contextSentence}
+                      </p>
+                    </div>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    {SRS_RATING_VALUES.map((rating) => (
-                      <button
-                        key={rating}
-                        className={cn(
-                          "rounded-[24px] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
-                          ratingCopy[rating].className,
-                          pendingRating === rating &&
-                            "scale-[1.02] ring-2 ring-[var(--accent)]",
-                        )}
-                        disabled={pendingRating !== null}
-                        onClick={() => {
-                          void handleRate(rating);
-                        }}
-                        type="button"
-                      >
-                        <span className="block font-semibold">
-                          {pendingRating === rating
-                            ? "Saving..."
-                            : ratingCopy[rating].label}
-                        </span>
-                        <span className="mt-1 block text-xs leading-relaxed opacity-80">
-                          {ratingCopy[rating].hint}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
-                {errorMessage ? (
-                  <p className="text-danger text-sm">{errorMessage}</p>
-                ) : null}
+                  <div className="border-line space-y-3 border-t pt-6">
+                    <div className="text-ink-muted flex items-center gap-2">
+                      <Sparkles className="size-4" />
+                      <p className="text-[10px] font-medium tracking-[0.22em] uppercase">
+                        Rate recall
+                      </p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      {SRS_RATING_VALUES.map((rating) => (
+                        <button
+                          key={rating}
+                          className={cn(
+                            "rounded-[24px] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
+                            ratingCopy[rating].className,
+                            pendingRating === rating &&
+                              "scale-[1.02] ring-2 ring-[var(--accent)]",
+                          )}
+                          disabled={pendingRating !== null}
+                          onClick={() => {
+                            void handleRate(rating);
+                          }}
+                          type="button"
+                        >
+                          <span className="block font-semibold">
+                            {pendingRating === rating
+                              ? "Saving..."
+                              : ratingCopy[rating].label}
+                          </span>
+                          <span className="mt-1 block text-xs leading-relaxed opacity-80">
+                            {ratingCopy[rating].hint}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {errorMessage ? (
+                    <p className="text-danger text-sm">{errorMessage}</p>
+                  ) : null}
+                </div>
               </div>
             </div>
           </div>
