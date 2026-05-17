@@ -32,7 +32,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${sans.variable} ${serif.variable} antialiased`}>
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <div className="page-background" aria-hidden="true" />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
