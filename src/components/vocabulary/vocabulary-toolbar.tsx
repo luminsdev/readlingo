@@ -104,7 +104,7 @@ export function VocabularyToolbar() {
               className={cn(
                 "rounded-full border px-3 py-1.5 text-xs font-medium transition",
                 currentStatus === option.value
-                  ? "border-accent bg-accent/10 text-accent"
+                  ? "border-foreground bg-foreground text-background"
                   : "border-line text-ink-muted hover:border-line-strong hover:text-foreground",
               )}
             >
@@ -122,7 +122,7 @@ export function VocabularyToolbar() {
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-medium transition",
                 currentSort === option.value
-                  ? "bg-surface-strong text-foreground"
+                  ? "bg-foreground text-background"
                   : "text-ink-muted hover:text-foreground",
               )}
             >

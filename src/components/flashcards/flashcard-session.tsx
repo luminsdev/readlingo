@@ -166,7 +166,7 @@ export function FlashcardSession({
 
   useEffect(() => {
     if (activeCard && !revealed && cardTransition === "idle") {
-      cardSceneRef.current?.focus();
+      cardSceneRef.current?.focus({ preventScroll: true });
     }
   }, [activeCard, revealed, cardTransition]);
 
