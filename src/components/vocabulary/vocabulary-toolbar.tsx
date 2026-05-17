@@ -2,7 +2,7 @@
 
 import { Search } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,6 @@ const SORT_OPTIONS = [
 export function VocabularyToolbar() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentQuery = searchParams.get("q") ?? "";
@@ -58,10 +57,8 @@ export function VocabularyToolbar() {
 
       params.delete("page");
 
-      startTransition(() => {
-        const queryString = params.toString();
-        router.push(queryString ? `/vocabulary?${queryString}` : "/vocabulary");
-      });
+      const queryString = params.toString();
+      router.push(queryString ? `/vocabulary?${queryString}` : "/vocabulary");
     },
     [router, searchParams],
   );
@@ -93,7 +90,6 @@ export function VocabularyToolbar() {
           className={cn(
             "border-line bg-surface placeholder:text-ink-muted text-foreground w-full rounded-full border py-2 pr-4 pl-9 text-sm outline-none",
             "focus:border-accent focus:ring-1 focus:ring-[var(--accent)]",
-            isPending && "opacity-70",
           )}
         />
       </div>
@@ -117,17 +113,23 @@ export function VocabularyToolbar() {
           ))}
         </div>
 
-        <select
-          value={currentSort}
-          onChange={(event) => updateParams({ sort: event.target.value })}
-          className="border-line bg-surface text-ink-soft rounded-full border px-3 py-1.5 text-xs outline-none"
-        >
+        <div className="border-line flex gap-1 rounded-full border p-0.5">
           {SORT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => updateParams({ sort: option.value })}
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-medium transition",
+                currentSort === option.value
+                  ? "bg-surface-strong text-foreground"
+                  : "text-ink-muted hover:text-foreground",
+              )}
+            >
               {option.label}
-            </option>
+            </button>
           ))}
-        </select>
+        </div>
       </div>
     </div>
   );

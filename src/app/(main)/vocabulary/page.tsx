@@ -309,30 +309,32 @@ export default async function VocabularyPage({
   );
 
   return (
-    <div className="animate-content-in space-y-10">
-      <header className="border-line space-y-3 border-b pb-6">
-        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
-          Vocabulary archive
-        </p>
+    <div className="animate-content-in space-y-6">
+      <header className="space-y-5">
         <div className="space-y-2">
-          <h1 className="text-foreground font-serif text-4xl font-light tracking-tight">
+          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
             Vocabulary archive
-          </h1>
+          </p>
+          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-2">
+            <h1 className="text-foreground font-serif text-4xl font-light tracking-tight">
+              Vocabulary archive
+            </h1>
+            <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
+              {statusFilter || searchQuery
+                ? `${totalCount} ${totalCount === 1 ? "result" : "results"}`
+                : `${totalCount} ${totalCount === 1 ? "word" : "words"} saved`}
+            </p>
+          </div>
           <p className="text-ink-muted max-w-2xl text-sm leading-relaxed">
             Revisit saved words, keep their reading context close at hand, and
             prepare the collection for the flashcard loop.
           </p>
-          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
-            {statusFilter || searchQuery
-              ? `${totalCount} ${totalCount === 1 ? "result" : "results"}`
-              : `${totalCount} ${totalCount === 1 ? "word" : "words"} saved`}
-          </p>
         </div>
-      </header>
 
-      <Suspense>
-        <VocabularyToolbar />
-      </Suspense>
+        <Suspense>
+          <VocabularyToolbar />
+        </Suspense>
+      </header>
 
       {vocabularyArchiveItems.length ? (
         <>
