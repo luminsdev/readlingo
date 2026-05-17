@@ -1,10 +1,13 @@
+import type { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { ChevronLeft, ChevronRight, Lightbulb } from "lucide-react";
 
 import { auth } from "@/auth";
 import { DeleteVocabularyButton } from "@/components/vocabulary/delete-vocabulary-button";
+import { VocabularyToolbar } from "@/components/vocabulary/vocabulary-toolbar";
 import { getHighlightedExampleSegments } from "@/components/reader/reader-workspace-utils";
 import {
   Pagination,
@@ -15,11 +18,25 @@ import {
 } from "@/components/ui/pagination";
 import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/utils";
+import {
+  buildVocabularyWhere,
+  deriveVocabularyStatus,
+  getVocabularyOrderBy,
+  getVocabularyStatusBadge,
+  parseVocabularySearchParams,
+} from "@/lib/vocabulary-query";
 import { vocabularyIdSchema } from "@/lib/vocabulary-validation";
 
-type VocabularyArchiveRecord = Awaited<
-  ReturnType<typeof prisma.vocabulary.findMany>
->[number];
+type VocabularyArchiveRecord = Prisma.VocabularyGetPayload<{
+  include: {
+    srsData: {
+      select: {
+        interval: true;
+        nextReviewAt: true;
+      };
+    };
+  };
+}>;
 
 type PaginationPage = number | "ellipsis-start" | "ellipsis-end";
 
@@ -48,12 +65,20 @@ function getPaginationPages(currentPage: number, totalPages: number) {
 
 function VocabularyPagination({
   currentPage,
+  searchParamsString,
   totalPages,
 }: {
   currentPage: number;
+  searchParamsString: string;
   totalPages: number;
 }) {
   const paginationPages = getPaginationPages(currentPage, totalPages);
+
+  function buildPageUrl(page: number) {
+    const params = new URLSearchParams(searchParamsString);
+    params.set("page", String(page));
+    return `/vocabulary?${params.toString()}`;
+  }
 
   return (
     <Pagination className="mt-8">
@@ -68,7 +93,7 @@ function VocabularyPagination({
             )}
             aria-disabled={currentPage === 1}
           >
-            <Link href={`/vocabulary?page=${Math.max(1, currentPage - 1)}`}>
+            <Link href={buildPageUrl(Math.max(1, currentPage - 1))}>
               <ChevronLeft className="size-4" />
               <span>Previous</span>
             </Link>
@@ -87,7 +112,7 @@ function VocabularyPagination({
                     : "text-ink-soft",
                 )}
               >
-                <Link href={`/vocabulary?page=${page}`}>{page}</Link>
+                <Link href={buildPageUrl(page)}>{page}</Link>
               </PaginationLink>
             ) : (
               <PaginationEllipsis className="text-ink-soft" />
@@ -105,9 +130,7 @@ function VocabularyPagination({
             )}
             aria-disabled={currentPage === totalPages}
           >
-            <Link
-              href={`/vocabulary?page=${Math.min(totalPages, currentPage + 1)}`}
-            >
+            <Link href={buildPageUrl(Math.min(totalPages, currentPage + 1))}>
               <span>Next</span>
               <ChevronRight className="size-4" />
             </Link>
@@ -227,7 +250,12 @@ function renderHighlightedText(text: string, selectedText: string) {
 export default async function VocabularyPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    q?: string;
+    status?: string;
+    sort?: string;
+  }>;
 }) {
   const session = await auth();
 
@@ -235,32 +263,44 @@ export default async function VocabularyPage({
     redirect("/login");
   }
 
-  const { page: pageParam } = await searchParams;
-  const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
+  const { currentPage, searchQuery, statusFilter, sortBy } =
+    parseVocabularySearchParams(await searchParams);
   const PAGE_SIZE = 20;
+  const where = buildVocabularyWhere({
+    userId: session.user.id,
+    searchQuery,
+    statusFilter,
+  });
+  const searchParamsString = new URLSearchParams({
+    ...(searchQuery && { q: searchQuery }),
+    ...(statusFilter && { status: statusFilter }),
+    ...(sortBy !== "newest" && { sort: sortBy }),
+  }).toString();
 
   const [vocabularyItems, totalCount] = await Promise.all([
     prisma.vocabulary.findMany({
-      where: {
-        userId: session.user.id,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      where,
+      orderBy: getVocabularyOrderBy(sortBy),
       skip: (currentPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-    }),
-    prisma.vocabulary.count({
-      where: {
-        userId: session.user.id,
+      include: {
+        srsData: {
+          select: {
+            interval: true,
+            nextReviewAt: true,
+          },
+        },
       },
     }),
+    prisma.vocabulary.count({ where }),
   ]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   if (currentPage > totalPages && totalPages > 0) {
-    redirect(`/vocabulary?page=${totalPages}`);
+    const redirectParams = new URLSearchParams(searchParamsString);
+    redirectParams.set("page", String(totalPages));
+    redirect(`/vocabulary?${redirectParams.toString()}`);
   }
 
   const vocabularyArchiveItems = await attachOwnedBookTitles(
@@ -272,7 +312,7 @@ export default async function VocabularyPage({
     <div className="animate-content-in space-y-10">
       <header className="border-line space-y-3 border-b pb-6">
         <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
-          Phase 3 Archive
+          Vocabulary archive
         </p>
         <div className="space-y-2">
           <h1 className="text-foreground font-serif text-4xl font-light tracking-tight">
@@ -283,158 +323,201 @@ export default async function VocabularyPage({
             prepare the collection for the flashcard loop.
           </p>
           <p className="text-ink-kicker text-[10px] font-medium tracking-[0.24em] uppercase">
-            {totalCount} {totalCount === 1 ? "word" : "words"} saved
+            {statusFilter || searchQuery
+              ? `${totalCount} ${totalCount === 1 ? "result" : "results"}`
+              : `${totalCount} ${totalCount === 1 ? "word" : "words"} saved`}
           </p>
         </div>
       </header>
 
+      <Suspense>
+        <VocabularyToolbar />
+      </Suspense>
+
       {vocabularyArchiveItems.length ? (
         <>
           <div className="grid gap-4">
-            {vocabularyArchiveItems.map((item) => (
-              <article
-                key={item.id}
-                className="paper-panel border-border space-y-8 rounded-[32px] border p-6"
-              >
-                <div className="border-line space-y-4 border-b pb-6">
-                  <div className="space-y-3">
-                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                      Saved term
-                    </p>
-                    <div className="flex flex-wrap items-end gap-3">
-                      <h2 className="text-foreground font-serif text-3xl font-light">
-                        {item.word}
-                      </h2>
-                      {item.pronunciation ? (
-                        <p className="text-ink-muted pb-1 text-sm italic">
-                          {item.pronunciation}
-                        </p>
-                      ) : null}
-                    </div>
-                    {item.partOfSpeech || item.difficultyHint ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        {item.partOfSpeech ? (
-                          <span className="border-line text-ink-muted inline-block border px-2 py-0.5 text-[10px] tracking-widest uppercase">
-                            {item.partOfSpeech}
-                          </span>
-                        ) : null}
-                        {item.difficultyHint ? (
-                          <span
-                            className={`inline-block border px-2 py-0.5 text-[10px] tracking-widest uppercase ${getDifficultyBadgeClass(item.difficultyHint)}`}
-                          >
-                            {item.difficultyHint}
-                          </span>
+            {vocabularyArchiveItems.map((item) => {
+              const status = deriveVocabularyStatus(item.srsData);
+              const statusBadge = getVocabularyStatusBadge(status);
+
+              return (
+                <article
+                  key={item.id}
+                  className="paper-panel border-border space-y-8 rounded-[32px] border p-6"
+                >
+                  <div className="border-line space-y-4 border-b pb-6">
+                    <div className="space-y-3">
+                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                        Saved term
+                      </p>
+                      <div className="flex flex-wrap items-end gap-3">
+                        <h2 className="text-foreground font-serif text-3xl font-light">
+                          {item.word}
+                        </h2>
+                        {item.pronunciation ? (
+                          <p className="text-ink-muted pb-1 text-sm italic">
+                            {item.pronunciation}
+                          </p>
                         ) : null}
                       </div>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="grid gap-8 xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
-                  <div className="space-y-2">
-                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                      Translation
-                    </p>
-                    <div className="space-y-3">
-                      <p className="text-foreground font-serif text-2xl leading-tight">
-                        {item.definition}
-                      </p>
-                      {item.mnemonic ? (
-                        <div className="text-ink-muted flex items-start gap-2 text-xs italic">
-                          <Lightbulb className="mt-0.5 size-3.5 shrink-0" />
-                          <p>{item.mnemonic}</p>
+                      {item.partOfSpeech || item.difficultyHint ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {item.partOfSpeech ? (
+                            <span className="border-line text-ink-muted inline-block border px-2 py-0.5 text-[10px] tracking-widest uppercase">
+                              {item.partOfSpeech}
+                            </span>
+                          ) : null}
+                          {item.difficultyHint ? (
+                            <span
+                              className={`inline-block border px-2 py-0.5 text-[10px] tracking-widest uppercase ${getDifficultyBadgeClass(item.difficultyHint)}`}
+                            >
+                              {item.difficultyHint}
+                            </span>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
                   </div>
 
-                  <div className="space-y-5">
-                    {item.explanation ? (
-                      <div className="space-y-2">
-                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                          Editorial note
-                        </p>
-                        <p className="text-ink-soft text-sm leading-loose">
-                          {item.explanation}
-                        </p>
-                      </div>
-                    ) : null}
-
+                  <div className="grid gap-8 xl:grid-cols-[minmax(0,220px)_minmax(0,1fr)]">
                     <div className="space-y-2">
                       <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                        Example
+                        Translation
                       </p>
-                      <div className="border-quote space-y-1.5 border-l pl-4">
-                        <p className="text-ink-soft font-serif text-sm leading-relaxed italic">
-                          {renderHighlightedText(
-                            item.exampleSentence,
-                            item.word,
-                          )}
+                      <div className="space-y-3">
+                        <p className="text-foreground font-serif text-2xl leading-tight">
+                          {item.definition}
                         </p>
-                        {item.exampleTranslation ? (
-                          <p className="text-ink-muted text-xs leading-relaxed italic">
-                            {item.exampleTranslation}
+                        {item.mnemonic ? (
+                          <div className="text-ink-muted flex items-start gap-2 text-xs italic">
+                            <Lightbulb className="mt-0.5 size-3.5 shrink-0" />
+                            <p>{item.mnemonic}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="space-y-5">
+                      {item.explanation ? (
+                        <div className="space-y-2">
+                          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                            Editorial note
+                          </p>
+                          <p className="text-ink-soft text-sm leading-loose">
+                            {item.explanation}
+                          </p>
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-2">
+                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                          Example
+                        </p>
+                        <div className="border-quote space-y-1.5 border-l pl-4">
+                          <p className="text-ink-soft font-serif text-sm leading-relaxed italic">
+                            {renderHighlightedText(
+                              item.exampleSentence,
+                              item.word,
+                            )}
+                          </p>
+                          {item.exampleTranslation ? (
+                            <p className="text-ink-muted text-xs leading-relaxed italic">
+                              {item.exampleTranslation}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {item.alternativeMeaning ? (
+                        <div className="space-y-2">
+                          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                            Alternative meaning
+                          </p>
+                          <p className="text-ink-muted text-xs leading-relaxed">
+                            {item.alternativeMeaning}
+                          </p>
+                        </div>
+                      ) : null}
+
+                      <div className="space-y-3">
+                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                          In context
+                        </p>
+                        <div className="border-line bg-surface rounded-[24px] border p-5">
+                          <p className="text-ink-soft font-serif text-[15px] leading-loose">
+                            {renderHighlightedText(
+                              item.contextSentence,
+                              item.word,
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-line flex flex-wrap items-end justify-between gap-4 border-t pt-4">
+                    <div className="flex flex-wrap items-end gap-4">
+                      <div className="space-y-1.5">
+                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+                          From
+                        </p>
+                        <p className="text-ink-soft text-sm">
+                          {item.bookTitle ?? "Personal archive"}
+                        </p>
+                        <p className="text-ink-kicker text-[11px] tracking-[0.2em] uppercase">
+                          {formatVocabularyDate(item.createdAt)}
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <span
+                          className={cn(
+                            "inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-medium tracking-widest uppercase",
+                            statusBadge.className,
+                          )}
+                        >
+                          {statusBadge.label}
+                        </span>
+                        {item.srsData?.nextReviewAt ? (
+                          <p className="text-ink-muted text-xs">
+                            Next review:{" "}
+                            {formatVocabularyDate(item.srsData.nextReviewAt)}
                           </p>
                         ) : null}
                       </div>
                     </div>
 
-                    {item.alternativeMeaning ? (
-                      <div className="space-y-2">
-                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                          Alternative meaning
-                        </p>
-                        <p className="text-ink-muted text-xs leading-relaxed">
-                          {item.alternativeMeaning}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    <div className="space-y-3">
-                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                        In context
-                      </p>
-                      <div className="border-line bg-surface rounded-[24px] border p-5">
-                        <p className="text-ink-soft font-serif text-[15px] leading-loose">
-                          {renderHighlightedText(
-                            item.contextSentence,
-                            item.word,
-                          )}
-                        </p>
-                      </div>
-                    </div>
+                    <DeleteVocabularyButton
+                      action={deleteVocabularyAction}
+                      vocabularyId={item.id}
+                      word={item.word}
+                    />
                   </div>
-                </div>
-
-                <div className="border-line flex flex-wrap items-end justify-between gap-4 border-t pt-4">
-                  <div className="space-y-1.5">
-                    <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
-                      From
-                    </p>
-                    <p className="text-ink-soft text-sm">
-                      {item.bookTitle ?? "Personal archive"}
-                    </p>
-                    <p className="text-ink-kicker text-[11px] tracking-[0.2em] uppercase">
-                      {formatVocabularyDate(item.createdAt)}
-                    </p>
-                  </div>
-
-                  <DeleteVocabularyButton
-                    action={deleteVocabularyAction}
-                    vocabularyId={item.id}
-                    word={item.word}
-                  />
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
           {totalPages > 1 ? (
             <VocabularyPagination
               currentPage={currentPage}
+              searchParamsString={searchParamsString}
               totalPages={totalPages}
             />
           ) : null}
         </>
+      ) : statusFilter || searchQuery ? (
+        <div className="paper-panel border-border rounded-[32px] border p-8">
+          <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
+            No matches
+          </p>
+          <h2 className="text-foreground mt-3 font-serif text-3xl font-light">
+            No words match the current filters.
+          </h2>
+          <p className="text-ink-muted mt-4 text-sm leading-relaxed">
+            Try adjusting your search term or status filter.
+          </p>
+        </div>
       ) : (
         <div className="paper-panel border-border rounded-[32px] border p-8">
           <p className="text-ink-kicker text-[10px] font-medium tracking-[0.22em] uppercase">
