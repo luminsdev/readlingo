@@ -8,19 +8,27 @@
 
 ## Operating Philosophy
 
-- Think Before Coding: If requirements are materially ambiguous or constraints conflict, state the ambiguity and ask one short clarifying question. For routine implementation choices, proceed with the smallest safe change.
+- Think Before Coding: If requirements are materially ambiguous or constraints conflict, state assumptions and ask one short clarifying question. For routine implementation choices, proceed with the smallest safe change.
 - Simplicity First: Implement the minimum code that solves the task. Do not add speculative abstractions, configurability, fallback behavior, or compatibility layers without a concrete need.
 - Surgical Changes: Touch only files and lines required by the request. Do not refactor adjacent code, rewrite unrelated comments, or remove pre-existing dead code unless asked.
-- Goal-Driven Execution: For non-trivial work, identify verification steps up front, implement until the goal is met, and report what passed or could not be run.
+- Goal-Driven Execution: For non-trivial work, define success criteria and verification steps up front, implement until the goal is met, and report what passed or could not be run.
 - Tradeoff: Bias toward caution over speed for substantial work, but use judgment for trivial fixes.
+
+## Current Project State
+
+- ReadLingo is an AI-powered EPUB reader for language learning: upload books, read in-browser, ask AI for contextual explanations, save vocabulary, and review via SRS flashcards.
+- Phases 0-8 are implemented: auth, library, reader, AI explanations, vocabulary, flashcards, R2 storage, Google OAuth, reader customization, dashboard, streaks, vocabulary filtering, security headers, and AI rate limiting.
+- Phase 9 is next: public landing page, onboarding, native-language AI configuration, vocabulary export, account management, E2E tests, responsive audit, analytics, and error boundaries.
+- Phase 10 remains production hardening: remote PostgreSQL, Vercel deployment, PWA work, production smoke tests, security audit, backups, and Lighthouse targets.
+- `TASKS.md` is the most granular progress tracker. `HANDOFF.md` contains the latest session-level project state. `PLANNING.md` is useful for architecture context but may lag completed Phase 7-8 work.
 
 ## Stack Snapshot
 
 - Next.js 15 App Router + React 19 + strict TypeScript
 - Tailwind CSS v4 + shadcn/ui + `prettier-plugin-tailwindcss`
-- Prisma + PostgreSQL in local development
+- Prisma + PostgreSQL in local development; production database target is still planned
 - NextAuth v5 beta with credentials and Google provider wiring
-- Vercel AI SDK, `epubjs`, and Zod-based validation in `src/lib/*-validation.ts`
+- Vercel AI SDK, `epubjs`, Cloudflare R2 storage, and Zod-based validation in `src/lib/*-validation.ts`
 - Tests use Node's built-in runner in `scripts/*.test.mjs`
 
 ## Common Commands
@@ -53,7 +61,13 @@ pnpm exec prettier --write src/lib/utils.ts
 - Route, auth, Prisma, config, or build-sensitive changes: run `pnpm build` after typecheck-relevant checks.
 - Reader or upload changes: run `node --test scripts/phase2_reader_regressions.test.mjs`.
 - AI prompt, model, or response-shaping changes: run `node --test scripts/phase3_ai_regressions.test.mjs`.
+- AI streaming changes: run `node --test scripts/phase6_ai_streaming_regressions.test.mjs`.
 - Flashcard or SRS changes: run `node --test scripts/phase4_srs_regressions.test.mjs`.
+- Reader pagination or library pagination changes: run `node --test scripts/phase7_pagination_regressions.test.mjs`.
+- Library cover/upload/delete changes: run the relevant `scripts/library_*.test.mjs` regression script.
+- Dashboard, streak, learning activity, or daily-goal changes: run `node --test scripts/phase8_engagement_regressions.test.mjs`.
+- Vocabulary filtering, sorting, status, or pagination changes: run `node --test scripts/phase8_vocabulary_query.test.mjs` and, for UI expectations, `node --test scripts/phase8_vocabulary_ui.test.mjs`.
+- Security headers, AI rate limiting, dashboard structure, or hardening changes: run `node --test scripts/phase8_hardening.test.mjs`.
 - Do not run `pnpm typecheck` in parallel with `pnpm build`; `.next/types/**/*.ts` can be regenerated during builds and cause transient TS6053 errors.
 
 ## Project Map
@@ -62,10 +76,12 @@ pnpm exec prettier --write src/lib/utils.ts
 - `src/app/api/**/route.ts` - JSON endpoints and auth handlers
 - `src/components/` and `src/components/ui/` - feature UI and primitives
 - `src/lib/` - domain helpers, validation, Prisma access, reader logic, AI helpers
+- `src/lib/r2.ts` and `src/lib/book-storage.ts` - R2-backed EPUB and cover storage helpers
+- `src/lib/dashboard.ts`, `src/lib/learning-activity.ts`, `src/lib/streak.ts`, and `src/lib/vocabulary-query.ts` - Phase 8 progress, dashboard, and vocabulary-query helpers
 - `prisma/schema.prisma` - database schema and indexes
 - `scripts/*.test.mjs` - Node regression tests
 - `uploads/` and `.next/` - generated runtime data; do not treat as source
-- `PLANNING.md` and `TASKS.md` - keep visible and consistent if work changes planning state
+- `HANDOFF.md`, `PLANNING.md`, and `TASKS.md` - keep visible and consistent if work changes planning or handoff state
 
 ## Imports, Formatting, And Naming
 
@@ -91,6 +107,7 @@ pnpm exec prettier --write src/lib/utils.ts
 - Use `useRouter()` only in client components.
 - Type route params explicitly; this repo uses patterns like `{ params }: { params: Promise<{ bookId: string }> }`.
 - Preserve the current route-group split between `(auth)` and `(main)`.
+- Preserve the editorial reading-room visual language already in the app: paper-like panels, serif headings, warm surfaces, and shadcn-compatible primitives.
 
 ## Validation, Data Access, And Auth
 
@@ -99,7 +116,10 @@ pnpm exec prettier --write src/lib/utils.ts
 - Normalize strings with `.trim()` and `.toLowerCase()` where appropriate.
 - Centralize Prisma access through `src/lib/prisma.ts` and focused helpers like `src/lib/books.ts`.
 - Scope every book read/write by authenticated user ownership; auth checks usually follow `const session = await auth()` and return `401` JSON when absent.
-- Do not bypass `assertEpubFile()`, `validateEpubArchive()`, or `resolveStoredUploadFilePath()`.
+- Do not bypass `assertEpubFile()`, `validateEpubArchive()`, R2 storage helpers, or ownership-aware helpers.
+- Keep R2 object cleanup paired with database mutations for book and cover deletes.
+- Activity recording should remain best-effort; reading and flashcard flows should not fail only because streak/activity recording failed.
+- The AI explain endpoint is rate-limited per user; preserve `429` responses with `Retry-After` when changing rate-limit behavior.
 
 ## Error Handling
 
@@ -117,6 +137,7 @@ pnpm exec prettier --write src/lib/utils.ts
 - Keep smoke scripts deterministic with explicit assertions on status and error messages.
 - There is no per-file typecheck command; use `pnpm typecheck` for type verification.
 - Smoke test against a running local app with `$env:READLINGO_BASE_URL = "http://localhost:3000"` and `pnpm phase1:smoke`.
+- Add or update deterministic `scripts/*.test.mjs` coverage for shared helpers before relying on manual testing.
 
 ## Agent Workflow
 
@@ -127,15 +148,21 @@ pnpm exec prettier --write src/lib/utils.ts
 - Prefer the local PostgreSQL instance referenced by `DATABASE_URL`; do not assume Docker is required.
 - Beads is available via `bd` for persistent multi-step task tracking when work spans multiple sessions or agents; keep the repo in stealth mode and do not commit `.beads/` state.
 - Do not commit `.env`, uploaded EPUBs, `.next/`, local logs, or other generated/runtime artifacts.
+- Every changed line should trace directly to the user's request. Mention unrelated issues you discover instead of fixing them opportunistically.
 
 ## High-Value Reference Files
 
 - `package.json` - canonical scripts and `lint-staged` config
 - `eslint.config.mjs` and `tsconfig.json` - lint, strict typing, and `@/*` alias behavior
 - `prisma/schema.prisma` - source of truth for models and indexes
+- `HANDOFF.md` - latest phase status, design language, and recently completed work
+- `SPEC-phase7-10.md` and `SPEC-phase8-redesign.md` - planned and revised Phase 7-10 behavior; confirm against implemented code and `TASKS.md` before treating as current truth
 - `src/auth.ts` - current NextAuth configuration pattern
 - `src/app/api/books/route.ts` and `src/app/api/books/[bookId]/progress/route.ts` - route validation and error-handling patterns
 - `src/lib/books.ts` - owned-resource Prisma helper pattern
+- `src/lib/book-storage.ts`, `src/lib/r2.ts`, and `src/lib/cover-extraction.ts` - EPUB and cover storage patterns
+- `src/lib/dashboard.ts`, `src/lib/learning-activity.ts`, `src/lib/streak.ts`, and `src/lib/vocabulary-query.ts` - current dashboard, streak, and vocabulary status/query patterns
+- `next.config.ts` - security response headers and remote image configuration
 
 <!-- gitnexus:start -->
 
