@@ -18,9 +18,9 @@
 
 - ReadLingo is an AI-powered EPUB reader for language learning: upload books, read in-browser, ask AI for contextual explanations, save vocabulary, and review via SRS flashcards.
 - Phases 0-8 are implemented: auth, library, reader, AI explanations, vocabulary, flashcards, R2 storage, Google OAuth, reader customization, dashboard, streaks, vocabulary filtering, security headers, and AI rate limiting.
-- Phase 9 is next: public landing page, onboarding, native-language AI configuration, vocabulary export, account management, E2E tests, responsive audit, analytics, and error boundaries.
-- Phase 10 remains production hardening: remote PostgreSQL, Vercel deployment, PWA work, production smoke tests, security audit, backups, and Lighthouse targets.
-- `TASKS.md` is the most granular progress tracker. `HANDOFF.md` contains the latest session-level project state. `PLANNING.md` is useful for architecture context but may lag completed Phase 7-8 work.
+- Phase 8.5 is next: performance optimization, book collections, library search, error boundaries, testing infrastructure, and accessibility audit.
+- Phases 9-12 follow: AI conversational context, pronunciation, TTS, analytics, real-time sync, offline support, landing page, i18n, and production deployment.
+- `TASKS.md` is the most granular progress tracker. `HANDOFF.md` contains the latest session-level project state. `docs/architecture.md` has the full architecture overview. `docs/specs/phase-8.5-12.md` is the active roadmap spec.
 
 ## Stack Snapshot
 
@@ -81,7 +81,8 @@ pnpm exec prettier --write src/lib/utils.ts
 - `prisma/schema.prisma` - database schema and indexes
 - `scripts/*.test.mjs` - Node regression tests
 - `uploads/` and `.next/` - generated runtime data; do not treat as source
-- `HANDOFF.md`, `PLANNING.md`, and `TASKS.md` - keep visible and consistent if work changes planning or handoff state
+- `docs/` - architecture overview, active specs, and archived phase specs
+- `HANDOFF.md` and `TASKS.md` - keep visible and consistent if work changes planning or handoff state
 
 ## Imports, Formatting, And Naming
 
@@ -156,7 +157,9 @@ pnpm exec prettier --write src/lib/utils.ts
 - `eslint.config.mjs` and `tsconfig.json` - lint, strict typing, and `@/*` alias behavior
 - `prisma/schema.prisma` - source of truth for models and indexes
 - `HANDOFF.md` - latest phase status, design language, and recently completed work
-- `SPEC-phase7-10.md` and `SPEC-phase8-redesign.md` - planned and revised Phase 7-10 behavior; confirm against implemented code and `TASKS.md` before treating as current truth
+- `docs/architecture.md` - full architecture overview, project structure, and data flows
+- `docs/specs/phase-8.5-12.md` - active roadmap spec for Phase 8.5 through 12
+- `docs/specs/archive/` - completed phase specs (Phase 0-6, Phase 7-8) and deferred features
 - `src/auth.ts` - current NextAuth configuration pattern
 - `src/app/api/books/route.ts` and `src/app/api/books/[bookId]/progress/route.ts` - route validation and error-handling patterns
 - `src/lib/books.ts` - owned-resource Prisma helper pattern
