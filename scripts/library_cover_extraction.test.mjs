@@ -31,8 +31,8 @@ async function createEpubBytes({ opfPath, opfContent, extraFiles }) {
 async function createTestImageBuffer() {
   return sharp({
     create: {
-      width: 12,
-      height: 18,
+      width: 1200,
+      height: 1800,
       channels: 3,
       background: "#336699",
     },
@@ -69,8 +69,7 @@ test("extractEpubInfo reads EPUB2 cover metadata with reordered attributes", asy
 
   const metadata = await sharp(result.cover).metadata();
   assert.equal(metadata.format, "jpeg");
-  assert.ok((metadata.width ?? 0) > 0);
-  assert.ok((metadata.width ?? 0) <= 400);
+  assert.equal(metadata.width, 800);
 });
 
 test("extractEpubInfo reads EPUB3 cover-image manifest entries", async () => {

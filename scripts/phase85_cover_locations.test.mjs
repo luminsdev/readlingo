@@ -11,8 +11,8 @@ test("cover persistence creates thumbnail and blur variants", async () => {
   const source = await readWorkspaceFile("src/lib/cover-extraction.ts");
 
   assert.match(source, /coverBlurDataUrl/);
-  assert.match(source, /resize\(\{ width: 200, withoutEnlargement: true \}\)/);
-  assert.match(source, /jpeg\(\{ quality: 70 \}\)/);
+  assert.match(source, /resize\(\{ width: 360, withoutEnlargement: true \}\)/);
+  assert.match(source, /jpeg\(\{ quality: 85 \}\)/);
   assert.match(source, /resize\(\{ width: 10, withoutEnlargement: true \}\)/);
   assert.match(source, /jpeg\(\{ quality: 20 \}\)/);
   assert.match(source, /`covers\/\$\{bookId\}-thumb\.jpg`/);

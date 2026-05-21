@@ -239,8 +239,8 @@ export async function extractEpubInfo(
       const imageBuffer = await coverEntry.async("nodebuffer");
 
       cover = await sharp(imageBuffer)
-        .resize({ width: 400, withoutEnlargement: true })
-        .jpeg({ quality: 80 })
+        .resize({ width: 800, withoutEnlargement: true })
+        .jpeg({ quality: 85 })
         .toBuffer();
     } catch (error) {
       console.error("Cover extraction failed:", error);
@@ -257,8 +257,8 @@ export async function persistBookCover(bookId: string, imageBuffer: Buffer) {
   const key = `covers/${bookId}.jpg`;
   const thumbnailKey = `covers/${bookId}-thumb.jpg`;
   const thumbnailBuffer = await sharp(imageBuffer)
-    .resize({ width: 200, withoutEnlargement: true })
-    .jpeg({ quality: 70 })
+    .resize({ width: 360, withoutEnlargement: true })
+    .jpeg({ quality: 85 })
     .toBuffer();
   const blurBuffer = await sharp(imageBuffer)
     .resize({ width: 10, withoutEnlargement: true })
