@@ -17,18 +17,26 @@ test("library book card and progress ring present the hover overlay reading UI",
 
   assert.match(bookCardSource, /export function BookCard\(/);
   assert.match(bookCardSource, /progressPercentage: number \| null;/);
+  assert.match(bookCardSource, /hasCover: boolean;/);
+  assert.match(bookCardSource, /coverBlurDataUrl: string \| null;/);
   assert.match(
     bookCardSource,
     /import \{ ProgressRing \} from "@\/components\/library\/progress-ring"/,
   );
+  assert.doesNotMatch(bookCardSource, /next\/image/);
+  assert.match(bookCardSource, /<img/);
+  assert.match(bookCardSource, /src=\{`\/api\/covers\/\$\{id\}\?size=thumb`\}/);
+  assert.match(bookCardSource, /loading="lazy"/);
+  assert.match(bookCardSource, /decoding="async"/);
+  assert.match(
+    bookCardSource,
+    /backgroundImage: `url\(\$\{coverBlurDataUrl\}\)`/,
+  );
   assert.match(bookCardSource, /DeleteBookButton/);
   assert.match(bookCardSource, /group-hover:pointer-events-auto/);
-  assert.match(bookCardSource, /group-hover:visible/);
   assert.match(bookCardSource, /group-hover:opacity-100/);
   assert.match(bookCardSource, /\[@media\(hover:none\)\]:pointer-events-auto/);
-  assert.match(bookCardSource, /\[@media\(hover:none\)\]:visible/);
   assert.match(bookCardSource, /\[@media\(hover:none\)\]:opacity-100/);
-  assert.match(bookCardSource, /bg-black\/50/);
   assert.match(bookCardSource, /Continue · /);
   assert.match(bookCardSource, /const actionLabel =/);
   assert.match(bookCardSource, /hasStartedReading = false/);
@@ -38,45 +46,37 @@ test("library book card and progress ring present the hover overlay reading UI",
   );
   assert.match(bookCardSource, /:\s*"Continue"/);
   assert.match(bookCardSource, /Math\.round\(progressPercentage \* 100\)/);
-  assert.match(
-    bookCardSource,
-    /<ProgressRing[\s\S]*percentage=\{progressPercentage \* 100\}[\s\S]*size=\{featured \? 36 : 28\}/,
-  );
+  assert.match(bookCardSource, /percentage=\{progressPercentage \* 100\}/);
+  assert.match(bookCardSource, /size=\{24\}/);
   assert.match(bookCardSource, /iconOnly/);
   assert.match(bookCardSource, /aspect-\[3\/4\]/);
   assert.doesNotMatch(bookCardSource, /CardFooter/);
-  assert.doesNotMatch(bookCardSource, /<img\b/);
 
   assert.match(progressRingSource, /export function ProgressRing\(/);
   assert.match(progressRingSource, /size = 28/);
   assert.match(progressRingSource, /strokeDasharray=\{circumference\}/);
   assert.match(progressRingSource, /strokeDashoffset=\{offset\}/);
   assert.match(progressRingSource, /rotate\(-90/);
-  assert.match(progressRingSource, /bg-black\/40 backdrop-blur-sm/);
   assert.match(progressRingSource, /Math\.round\(percentage\)/);
 
   assert.match(deleteButtonSource, /iconOnly = false/);
   assert.match(deleteButtonSource, /const handleDelete = \(\) => \{/);
   assert.match(deleteButtonSource, /variant="danger"/);
-  assert.match(deleteButtonSource, /bg-black\/40/);
   assert.match(deleteButtonSource, /hover:bg-red-500\/80/);
 });
 
-test("library helpers resolve signed cover URLs without continue-reading helper", async () => {
+test("library helpers no longer resolve signed cover URLs", async () => {
   const booksSource = await readWorkspaceFile("src/lib/books.ts");
 
   assert.doesNotMatch(
     booksSource,
     /export async function getContinueReadingBook\(/,
   );
-  assert.match(booksSource, /export async function resolveBookCoverUrl\(/);
-  assert.match(
-    booksSource,
-    /getR2SignedUrl\(getCoverR2Key\(coverUrl\), 60 \* 60 \* 24\)/,
-  );
+  assert.doesNotMatch(booksSource, /resolveBookCoverUrl/);
+  assert.doesNotMatch(booksSource, /getR2SignedUrl\(getCoverR2Key/);
 });
 
-test("library page uses per-card progress, responsive cover grid, and updated upload copy", async () => {
+test("library page uses proxy covers, responsive cover grid, and updated upload copy", async () => {
   const [nextConfigSource, pageSource, uploadDialogSource, uploadFormSource] =
     await Promise.all([
       readWorkspaceFile("next.config.ts"),
@@ -85,17 +85,18 @@ test("library page uses per-card progress, responsive cover grid, and updated up
       readWorkspaceFile("src/components/library/upload-book-form.tsx"),
     ]);
 
-  assert.match(nextConfigSource, /remotePatterns/);
-  assert.match(nextConfigSource, /R2_ENDPOINT/);
-  assert.match(nextConfigSource, /R2_BUCKET_NAME/);
+  assert.doesNotMatch(nextConfigSource, /remotePatterns/);
+  assert.doesNotMatch(nextConfigSource, /R2_ENDPOINT/);
+  assert.doesNotMatch(nextConfigSource, /R2_BUCKET_NAME/);
+  assert.doesNotMatch(nextConfigSource, /images:/);
 
   assert.match(pageSource, /from "@\/components\/library\/book-card"/);
-  assert.match(pageSource, /resolveBookCoverUrl/);
+  assert.doesNotMatch(pageSource, /resolveBookCoverUrl/);
+  assert.match(pageSource, /coverBlurDataUrl: true/);
   assert.match(pageSource, /readingProgress:\s*\{[\s\S]*percentage: true/);
   assert.match(pageSource, /updatedAt: true/);
-  assert.match(pageSource, /Promise\.all\(/);
-  assert.match(pageSource, /const featuredBookId =/);
-  assert.match(pageSource, /const sortedBooks = featuredBookId/);
+  assert.match(pageSource, /hasCover=\{!!book\.coverUrl\}/);
+  assert.match(pageSource, /coverBlurDataUrl=\{book\.coverBlurDataUrl\}/);
   assert.match(
     pageSource,
     /progressPercentage=\{book\.readingProgress\?\.percentage \?\? null\}/,
@@ -106,7 +107,7 @@ test("library page uses per-card progress, responsive cover grid, and updated up
   );
   assert.match(
     pageSource,
-    /grid-cols-2[\s\S]*sm:grid-cols-3[\s\S]*lg:grid-cols-4[\s\S]*xl:grid-cols-5/,
+    /grid-cols-2[\s\S]*sm:grid-cols-2[\s\S]*md:grid-cols-3[\s\S]*lg:grid-cols-4[\s\S]*xl:grid-cols-5/,
   );
   assert.match(pageSource, /Your Library/);
   assert.match(uploadDialogSource, /Add a new EPUB/);

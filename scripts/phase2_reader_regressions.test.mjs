@@ -173,7 +173,7 @@ test("reader EPUB view generates locations in the background and renders a progr
     epubViewSource,
     /await\s+book\.locations\.generate\(1024\)/,
   );
-  assert.equal(locationLengthGuards.length, 2);
+  assert.equal(locationLengthGuards.length, 3);
   assert.match(
     epubViewSource,
     /progressPercentage = Math\.round\(pct \* 100\);/,

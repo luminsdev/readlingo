@@ -12,6 +12,7 @@ test("books upload route persists extracted covers and cleans them up on rollbac
 
   assert.match(routeSource, /from "@\/lib\/cover-extraction"/);
   assert.match(routeSource, /let coverUrl: string \| null = null;/);
+  assert.match(routeSource, /let coverBlurDataUrl: string \| null = null;/);
   assert.match(
     routeSource,
     /const extractedInfo = await extractEpubInfo\(validatedFileBytes\);/,
@@ -27,9 +28,12 @@ test("books upload route persists extracted covers and cleans them up on rollbac
   );
   assert.match(
     routeSource,
-    /if \(extractedInfo\.cover\) \{\s*coverUrl = await persistBookCover\(\s*provisionalBook\.id,\s*extractedInfo\.cover,?\s*\);/s,
+    /if \(extractedInfo\.cover\) \{\s*\(\{ coverBlurDataUrl, coverUrl \} = await persistBookCover\(\s*provisionalBook\.id,\s*extractedInfo\.cover,?\s*\)\);/s,
   );
-  assert.match(routeSource, /data: \{ filePath, coverUrl \},/);
+  assert.match(
+    routeSource,
+    /data: \{ coverBlurDataUrl, coverUrl, filePath \},/,
+  );
   assert.match(
     routeSource,
     /if \(coverUrl\) \{\s*await removeBookCover\(coverUrl\);/s,

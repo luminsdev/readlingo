@@ -13,6 +13,7 @@ test("books delete route removes stored covers after deleting EPUB files", async
   );
 
   assert.match(routeSource, /from "@\/lib\/cover-extraction"/);
+  assert.match(routeSource, /from "@\/lib\/locations-cache"/);
   assert.match(
     routeSource,
     /await removeBookFileBestEffort\(book\.filePath, \{/,
@@ -20,5 +21,9 @@ test("books delete route removes stored covers after deleting EPUB files", async
   assert.match(
     routeSource,
     /if \(book\.coverUrl\) \{\s*await removeBookCover\(book\.coverUrl\);/s,
+  );
+  assert.match(
+    routeSource,
+    /await deleteLocationsFromR2\(session\.user\.id, book\.id\);/,
   );
 });
