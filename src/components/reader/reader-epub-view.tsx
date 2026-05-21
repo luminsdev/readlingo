@@ -565,12 +565,56 @@ export const ReaderEpubView = forwardRef<
 
         setIsReady(true);
         callbacksRef.current.onStateChange({ isReady: true });
+
+        let locationsLoaded = false;
+
+        try {
+          const locRes = await fetch(`/api/books/${initialBookId}/locations`);
+
+          if (locRes.ok) {
+            const locData = (await locRes.json()) as {
+              locationsJson?: string | null;
+            };
+
+            if (locData.locationsJson) {
+              book.locations.load(locData.locationsJson);
+              locationsLoaded = true;
+            }
+          }
+        } catch (error) {
+          console.error("Failed to load cached locations:", error);
+        }
+
+        if (locationsLoaded) {
+          const currentCfi = getReaderCfi(
+            rendition?.location as EpubLocation | undefined,
+          );
+
+          if (currentCfi && book.locations && book.locations.length() > 0) {
+            const pct = book.locations.percentageFromCfi(currentCfi);
+
+            callbacksRef.current.onStateChange({
+              progressPercentage: Math.round(pct * 100),
+            });
+          }
+
+          return;
+        }
+
         void book.locations
           .generate(1024)
           .then(() => {
             if (cancelled || !book) {
               return;
             }
+
+            void fetch(`/api/books/${initialBookId}/locations`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ locationsJson: book.locations.save() }),
+            }).catch((error) => {
+              console.error("Failed to save cached locations:", error);
+            });
 
             const currentCfi = getReaderCfi(
               rendition?.location as EpubLocation | undefined,
