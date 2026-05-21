@@ -255,10 +255,23 @@ export async function extractEpubInfo(
 
 export async function persistBookCover(bookId: string, imageBuffer: Buffer) {
   const key = `covers/${bookId}.jpg`;
+  const thumbnailKey = `covers/${bookId}-thumb.jpg`;
+  const thumbnailBuffer = await sharp(imageBuffer)
+    .resize({ width: 200, withoutEnlargement: true })
+    .jpeg({ quality: 70 })
+    .toBuffer();
+  const blurBuffer = await sharp(imageBuffer)
+    .resize({ width: 10, withoutEnlargement: true })
+    .jpeg({ quality: 20 })
+    .toBuffer();
+  const coverBlurDataUrl = `data:image/jpeg;base64,${blurBuffer.toString("base64")}`;
 
-  await uploadToR2(key, imageBuffer, "image/jpeg");
+  await Promise.all([
+    uploadToR2(key, imageBuffer, "image/jpeg"),
+    uploadToR2(thumbnailKey, thumbnailBuffer, "image/jpeg"),
+  ]);
 
-  return `${R2_FILE_PATH_PREFIX}${key}`;
+  return { coverBlurDataUrl, coverUrl: `${R2_FILE_PATH_PREFIX}${key}` };
 }
 
 export function getCoverR2Key(coverUrl: string) {
@@ -275,10 +288,21 @@ export function getCoverR2Key(coverUrl: string) {
   return key;
 }
 
+export function getCoverThumbnailR2Key(coverUrl: string) {
+  const key = getCoverR2Key(coverUrl);
+
+  return key.replace(/\.jpg$/u, "-thumb.jpg");
+}
+
 export async function removeBookCover(coverUrl: string) {
-  try {
-    await deleteFromR2(getCoverR2Key(coverUrl));
-  } catch (error) {
-    console.error("Cover cleanup failed:", error);
+  for (const key of [
+    getCoverR2Key(coverUrl),
+    getCoverThumbnailR2Key(coverUrl),
+  ]) {
+    try {
+      await deleteFromR2(key);
+    } catch (error) {
+      console.error("Cover cleanup failed:", error);
+    }
   }
 }

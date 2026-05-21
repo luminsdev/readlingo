@@ -1,5 +1,4 @@
 import { getDueCardCount } from "@/lib/flashcards";
-import { resolveBookCoverUrl } from "@/lib/books";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateUserPreferences } from "@/lib/user-preferences";
 
@@ -23,7 +22,8 @@ export type DashboardData = {
     title: string;
     author: string | null;
     percentage: number | null;
-    coverImageUrl: string | null;
+    hasCover: boolean;
+    coverBlurDataUrl: string | null;
   } | null;
   activityHeatmap: Array<{ date: Date; count: number }>;
 };
@@ -100,6 +100,7 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
         title: true,
         author: true,
         coverUrl: true,
+        coverBlurDataUrl: true,
         readingProgress: { select: { percentage: true } },
       },
     }),
@@ -110,10 +111,6 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
       orderBy: { date: "asc" },
     }),
   ]);
-
-  const continueReadingCover = lastReadBook
-    ? await resolveBookCoverUrl(lastReadBook.coverUrl)
-    : null;
 
   return {
     preferences,
@@ -129,7 +126,8 @@ export async function getDashboardData(userId: string): Promise<DashboardData> {
           title: lastReadBook.title,
           author: lastReadBook.author,
           percentage: lastReadBook.readingProgress?.percentage ?? null,
-          coverImageUrl: continueReadingCover,
+          hasCover: !!lastReadBook.coverUrl,
+          coverBlurDataUrl: lastReadBook.coverBlurDataUrl,
         }
       : null,
     activityHeatmap: activityRaw.map((row) => ({

@@ -78,6 +78,7 @@ export async function POST(request: Request) {
       title: extractedInfo.metadata.title || createBookTitle(file.name),
       author: extractedInfo.metadata.author,
       coverUrl: null,
+      coverBlurDataUrl: null,
       filePath: "pending",
       language: extractedInfo.metadata.language || "und",
       userId: session.user.id,
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
 
   let filePath: string | null = null;
   let coverUrl: string | null = null;
+  let coverBlurDataUrl: string | null = null;
 
   try {
     filePath = await persistBookFile({
@@ -97,10 +99,10 @@ export async function POST(request: Request) {
 
     try {
       if (extractedInfo.cover) {
-        coverUrl = await persistBookCover(
+        ({ coverBlurDataUrl, coverUrl } = await persistBookCover(
           provisionalBook.id,
           extractedInfo.cover,
-        );
+        ));
       }
     } catch (error) {
       console.error("Cover persistence failed during upload:", error);
@@ -108,7 +110,7 @@ export async function POST(request: Request) {
 
     const savedBook = await prisma.book.update({
       where: { id: provisionalBook.id },
-      data: { filePath, coverUrl },
+      data: { coverBlurDataUrl, coverUrl, filePath },
     });
 
     return NextResponse.json({ book: savedBook }, { status: 201 });

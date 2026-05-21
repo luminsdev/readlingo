@@ -7,11 +7,10 @@ import {
   R2_FILE_PATH_PREFIX,
   resolveStoredUploadFilePath,
 } from "@/lib/book-storage";
-import { getCoverR2Key } from "@/lib/cover-extraction";
 import type { BookMetadataInput } from "@/lib/book-validation";
 import { recordLearningActivity } from "@/lib/learning-activity";
 import { prisma } from "@/lib/prisma";
-import { downloadFromR2, getR2SignedUrl } from "@/lib/r2";
+import { downloadFromR2 } from "@/lib/r2";
 
 const readerBookSelect = {
   id: true,
@@ -116,19 +115,6 @@ export async function upsertOwnedReadingProgress(
   });
 
   return progress;
-}
-
-export async function resolveBookCoverUrl(coverUrl: string | null) {
-  if (!coverUrl) {
-    return null;
-  }
-
-  try {
-    return await getR2SignedUrl(getCoverR2Key(coverUrl), 60 * 60 * 24);
-  } catch (error) {
-    console.error("Cover URL signing failed:", error);
-    return null;
-  }
 }
 
 export async function readStoredBookFile(filePath: string) {

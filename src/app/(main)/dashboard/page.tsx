@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -111,16 +110,21 @@ function ContinueReadingCard({
   return (
     <div className="border-line bg-surface rounded-[24px] border p-4">
       <div className="flex gap-4">
-        <div className="bg-surface-strong border-border/50 relative aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-[10px] border shadow-[0_12px_28px_var(--paper-shadow)]">
-          {book.coverImageUrl ? (
-            <Image
+        <div
+          className="bg-surface-strong border-border/50 relative aspect-[3/4] w-20 shrink-0 overflow-hidden rounded-[10px] border bg-cover bg-center shadow-[0_12px_28px_var(--paper-shadow)]"
+          style={
+            book.coverBlurDataUrl
+              ? { backgroundImage: `url(${book.coverBlurDataUrl})` }
+              : undefined
+          }
+        >
+          {book.hasCover ? (
+            <img
               alt={book.title}
               className="h-full w-full object-cover"
-              height={320}
-              sizes="80px"
-              src={book.coverImageUrl}
-              unoptimized
-              width={240}
+              decoding="async"
+              loading="lazy"
+              src={`/api/covers/${book.bookId}?size=thumb`}
             />
           ) : (
             <div className="flex h-full w-full items-end bg-[linear-gradient(145deg,var(--surface-strong),var(--surface))] p-3">

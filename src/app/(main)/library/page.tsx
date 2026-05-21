@@ -12,7 +12,6 @@ import {
   PaginationItem,
   PaginationLink,
 } from "@/components/ui/pagination";
-import { resolveBookCoverUrl } from "@/lib/books";
 import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/utils";
 
@@ -139,6 +138,7 @@ export default async function LibraryPage({
         title: true,
         author: true,
         coverUrl: true,
+        coverBlurDataUrl: true,
         readingProgress: {
           select: {
             percentage: true,
@@ -157,13 +157,6 @@ export default async function LibraryPage({
   if (currentPage > totalPages && totalPages > 0) {
     redirect(`/library?page=${totalPages}`);
   }
-
-  const booksWithCovers = await Promise.all(
-    books.map(async (book) => ({
-      ...book,
-      coverImageUrl: await resolveBookCoverUrl(book.coverUrl),
-    })),
-  );
 
   return (
     <div className="library-grain animate-content-in relative flex flex-col gap-8">
@@ -203,13 +196,14 @@ export default async function LibraryPage({
         <div className="bg-line-strong h-px" />
       </header>
 
-      {booksWithCovers.length ? (
+      {books.length ? (
         <>
           <div className="z-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {booksWithCovers.map((book) => (
+            {books.map((book) => (
               <BookCard
                 author={book.author}
-                coverImageUrl={book.coverImageUrl}
+                coverBlurDataUrl={book.coverBlurDataUrl}
+                hasCover={!!book.coverUrl}
                 hasStartedReading={book.readingProgress != null}
                 id={book.id}
                 key={book.id}

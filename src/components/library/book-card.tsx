@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { DeleteBookButton } from "@/components/library/delete-book-button";
@@ -15,7 +14,8 @@ const FALLBACK_COLORS = [
 
 type BookCardProps = {
   author: string | null;
-  coverImageUrl: string | null;
+  coverBlurDataUrl: string | null;
+  hasCover: boolean;
   hasStartedReading?: boolean;
   id: string;
   progressPercentage: number | null;
@@ -35,24 +35,35 @@ function getTitleColor(title: string) {
 
 function BookCardCover({
   authorLabel,
-  coverImageUrl,
+  coverBlurDataUrl,
+  hasCover,
+  id,
   title,
 }: {
   authorLabel: string;
-  coverImageUrl: string | null;
+  coverBlurDataUrl: string | null;
+  hasCover: boolean;
+  id: string;
   title: string;
 }) {
-  if (coverImageUrl) {
+  if (hasCover) {
     return (
-      <Image
-        alt={title}
-        className="h-full w-full object-cover"
-        height={800}
-        sizes="(min-width: 1280px) 18vw, (min-width: 1024px) 22vw, (min-width: 640px) 30vw, 45vw"
-        src={coverImageUrl}
-        unoptimized
-        width={600}
-      />
+      <div
+        className="h-full w-full bg-cover bg-center"
+        style={
+          coverBlurDataUrl
+            ? { backgroundImage: `url(${coverBlurDataUrl})` }
+            : undefined
+        }
+      >
+        <img
+          alt={title}
+          className="h-full w-full object-cover"
+          decoding="async"
+          loading="lazy"
+          src={`/api/covers/${id}?size=thumb`}
+        />
+      </div>
     );
   }
 
@@ -88,7 +99,8 @@ function BookCardCover({
 
 export function BookCard({
   author,
-  coverImageUrl,
+  coverBlurDataUrl,
+  hasCover,
   hasStartedReading = false,
   id,
   progressPercentage,
@@ -112,7 +124,9 @@ export function BookCard({
         <div className="bg-surface-strong border-border/40 relative aspect-[3/4] w-full overflow-hidden rounded-[8px] border shadow-[0_4px_18px_var(--paper-shadow)] transition-all duration-300 ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-[1.015] group-hover:shadow-[0_20px_45px_var(--paper-shadow)]">
           <BookCardCover
             authorLabel={authorLabel}
-            coverImageUrl={coverImageUrl}
+            coverBlurDataUrl={coverBlurDataUrl}
+            hasCover={hasCover}
+            id={id}
             title={title}
           />
 

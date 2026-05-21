@@ -5,6 +5,7 @@ import { bookMetadataSchema } from "@/lib/book-validation";
 import { getOwnedReaderBook, updateOwnedBookMetadata } from "@/lib/books";
 import { removeBookFileBestEffort } from "@/lib/book-storage";
 import { removeBookCover } from "@/lib/cover-extraction";
+import { deleteLocationsFromR2 } from "@/lib/locations-cache";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -75,6 +76,15 @@ export async function DELETE(
 
   if (book.coverUrl) {
     await removeBookCover(book.coverUrl);
+  }
+
+  try {
+    await deleteLocationsFromR2(session.user.id, book.id);
+  } catch (error) {
+    console.error(
+      `Failed to delete cached locations for book ${book.id}`,
+      error,
+    );
   }
 
   return new NextResponse(null, { status: 204 });

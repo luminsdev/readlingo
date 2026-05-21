@@ -52,17 +52,18 @@ model Account {
 }
 
 model Book {
-  id              String           @id @default(cuid())
-  title           String
-  author          String?
-  coverUrl        String?
-  filePath        String
-  language        String
-  createdAt       DateTime         @default(now())
-  userId          String
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  readingProgress ReadingProgress?
-  vocabularies    Vocabulary[]
+  id               String           @id @default(cuid())
+  title            String
+  author           String?
+  coverUrl         String?
+  coverBlurDataUrl String?
+  filePath         String
+  language         String
+  createdAt        DateTime         @default(now())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readingProgress  ReadingProgress?
+  vocabularies     Vocabulary[]
 
   @@index([userId, createdAt])
 }
