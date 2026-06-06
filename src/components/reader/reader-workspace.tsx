@@ -34,6 +34,7 @@ import type {
 import { ZenModeControls } from "@/components/reader/reader-zen-controls";
 import { getReaderInitialLocationLabel } from "@/components/reader/reader-workspace-utils";
 import type { ReaderMetadata } from "@/lib/reader";
+import { getLocalStorageProgress } from "@/lib/reader-progress";
 import {
   normalizeReaderFontSize,
   READER_FONT_SIZE_MAX,
@@ -72,6 +73,7 @@ function ReaderWorkspaceContent({
   fontSize,
   hasPopoverOpen,
   initialBook,
+  initialProgressCfi,
   isAiSidebarOpen,
   isZenMode,
   isTocOpen,
@@ -100,6 +102,7 @@ function ReaderWorkspaceContent({
   epubViewRef: RefObject<null | ReaderEpubViewHandle>;
   fontSize: number;
   initialBook: ReaderBookSnapshot;
+  initialProgressCfi: string | null;
   isZenMode: boolean;
   isTocOpen: boolean;
   metadata: ReaderMetadata;
@@ -377,7 +380,7 @@ function ReaderWorkspaceContent({
           <div className="border-line bg-surface flex flex-col gap-6 border p-6 xl:h-full xl:min-h-0 xl:overflow-y-auto">
             {panel}
             <ReaderProgressSync
-              initialProgressCfi={initialBook.progressCfi}
+              initialProgressCfi={initialProgressCfi}
               isReady={readerState.isReady}
               locationLabel={readerState.locationLabel}
               progressPercentage={readerState.progressPercentage}
@@ -422,9 +425,52 @@ export function ReaderWorkspace({
   const [readerState, setReaderState] = useState<ReaderViewState>(
     getInitialReaderState(initialBook),
   );
+  const [restoredProgress, setRestoredProgress] = useState<{
+    cfi: string | null;
+    updatedAt: string | null;
+  }>(() => ({
+    cfi: initialBook.progressCfi,
+    updatedAt: initialBook.progressUpdatedAt,
+  }));
   const [isZenMode, setIsZenMode] = useState(false);
   const [isTocOpen, setIsTocOpen] = useState(false);
   const [tocItems, setTocItems] = useState<ReaderTocItem[]>([]);
+
+  useEffect(() => {
+    const cached = getLocalStorageProgress(initialBook.id);
+    const serverTime = initialBook.progressUpdatedAt
+      ? new Date(initialBook.progressUpdatedAt).getTime()
+      : 0;
+
+    if (cached?.cfi && cached.timestamp > serverTime) {
+      const updatedAt = new Date(cached.timestamp).toISOString();
+
+      setRestoredProgress({
+        cfi: cached.cfi,
+        updatedAt,
+      });
+      setReaderState((prev) => ({
+        ...prev,
+        activeCfi: cached.cfi,
+        locationLabel: getReaderInitialLocationLabel(cached.cfi),
+      }));
+      return;
+    }
+
+    setRestoredProgress({
+      cfi: initialBook.progressCfi,
+      updatedAt: initialBook.progressUpdatedAt,
+    });
+  }, [initialBook.id, initialBook.progressCfi, initialBook.progressUpdatedAt]);
+
+  const readerBook = useMemo(
+    () => ({
+      ...initialBook,
+      progressCfi: restoredProgress.cfi,
+      progressUpdatedAt: restoredProgress.updatedAt,
+    }),
+    [initialBook, restoredProgress.cfi, restoredProgress.updatedAt],
+  );
 
   const { handleRestoreFailure, saveState, saveStatusLabel } =
     useReaderProgressSync({
@@ -575,7 +621,8 @@ export function ReaderWorkspace({
           {...selectionProps}
           epubViewRef={epubViewRef}
           fontSize={fontSize}
-          initialBook={initialBook}
+          initialBook={readerBook}
+          initialProgressCfi={restoredProgress.cfi}
           isZenMode={isZenMode}
           isTocOpen={isTocOpen}
           metadata={metadata}

@@ -54,6 +54,22 @@ function createStyleTarget() {
   };
 }
 
+function createMemoryStorage() {
+  const values = new Map();
+
+  return {
+    getItem(key) {
+      return values.get(key) ?? null;
+    },
+    removeItem(key) {
+      values.delete(key);
+    },
+    setItem(key, value) {
+      values.set(key, String(value));
+    },
+  };
+}
+
 async function readWorkspaceFile(relativePath) {
   return readFile(path.resolve(process.cwd(), relativePath), "utf8");
 }
@@ -133,6 +149,180 @@ test("reader progress sync sends normalized percentage values to the API", async
   assert.match(
     progressSyncSource,
     /JSON\.stringify\(\{[\s\S]*cfi,[\s\S]*percentage: progressPercentageRef\.current \/ 100[\s\S]*\}\)/,
+  );
+});
+
+test("reader progress localStorage helpers cache, read, and clear progress", async () => {
+  const previousWindow = globalThis.window;
+  const previousStorage = globalThis.localStorage;
+  const previousDateNow = Date.now;
+  const storage = createMemoryStorage();
+  const timestamp = 1_718_000_000_000;
+
+  globalThis.window = {};
+  globalThis.localStorage = storage;
+  Date.now = () => timestamp;
+
+  try {
+    const readerProgress = await import("../src/lib/reader-progress.ts");
+
+    assert.equal(typeof readerProgress.setLocalStorageProgress, "function");
+    assert.equal(typeof readerProgress.getLocalStorageProgress, "function");
+    assert.equal(typeof readerProgress.clearLocalStorageProgress, "function");
+
+    readerProgress.setLocalStorageProgress(
+      "book-1",
+      "epubcfi(/6/2[chapter]!/4/2/8)",
+      42,
+    );
+
+    assert.deepEqual(readerProgress.getLocalStorageProgress("book-1"), {
+      cfi: "epubcfi(/6/2[chapter]!/4/2/8)",
+      percentage: 42,
+      timestamp,
+    });
+
+    readerProgress.clearLocalStorageProgress("book-1");
+
+    assert.equal(readerProgress.getLocalStorageProgress("book-1"), null);
+  } finally {
+    Date.now = previousDateNow;
+    if (previousWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = previousWindow;
+    }
+    if (previousStorage === undefined) {
+      delete globalThis.localStorage;
+    } else {
+      globalThis.localStorage = previousStorage;
+    }
+  }
+});
+
+test("reader progress sync caches pending progress and clears it after persistence", async () => {
+  const progressSyncSource = await readWorkspaceFile(
+    "src/components/reader/reader-progress-sync.tsx",
+  );
+
+  assert.match(
+    progressSyncSource,
+    /import \{[\s\S]*clearLocalStorageProgress,[\s\S]*setLocalStorageProgress,[\s\S]*\} from "@\/lib\/reader-progress";/,
+  );
+  assert.match(
+    progressSyncSource,
+    /setLocalStorageProgress\([\s\S]*bookId,[\s\S]*cfi,[\s\S]*progressPercentageRef\.current,?\s*\);/,
+  );
+  assert.match(
+    progressSyncSource,
+    /lastPersistedCfiRef\.current = payload\.progress\.cfi;[\s\S]*clearLocalStorageProgress\(bookId\);/,
+  );
+});
+
+test("reader progress sync keepalive flushes active progress when the tab is hidden", async () => {
+  const progressSyncSource = await readWorkspaceFile(
+    "src/components/reader/reader-progress-sync.tsx",
+  );
+
+  assert.match(
+    progressSyncSource,
+    /else if \(document\.visibilityState === "hidden"\) \{[\s\S]*activeCfiRef\.current[\s\S]*activeCfi !== lastPersistedCfiRef\.current[\s\S]*saveProgress\(activeCfi, true\)/,
+  );
+});
+
+test("reader progress sync does not drop keepalive flushes behind in-flight saves", async () => {
+  const progressSyncSource = await readWorkspaceFile(
+    "src/components/reader/reader-progress-sync.tsx",
+  );
+
+  assert.match(
+    progressSyncSource,
+    /if \(isSavingRef\.current\) \{[\s\S]*if \(!keepalive\) \{[\s\S]*return;[\s\S]*\}[\s\S]*\}/,
+  );
+});
+
+test("reader progress sync retries queued progress only after a successful save", async () => {
+  const progressSyncSource = await readWorkspaceFile(
+    "src/components/reader/reader-progress-sync.tsx",
+  );
+
+  const didSaveDeclarationIndex = progressSyncSource.indexOf(
+    "let didSaveProgress = false;",
+  );
+  const didSaveAssignmentIndex = progressSyncSource.indexOf(
+    "didSaveProgress = true;",
+  );
+  const didSaveGuardIndex = progressSyncSource.indexOf(
+    "if (didSaveProgress) {",
+  );
+  const savingClearedIndex = progressSyncSource.indexOf(
+    "isSavingRef.current = false;",
+  );
+  const nextCfiIndex = progressSyncSource.indexOf(
+    "const nextCfi = pendingSaveCfiRef.current;",
+  );
+
+  assert.notEqual(didSaveDeclarationIndex, -1);
+  assert.notEqual(didSaveAssignmentIndex, -1);
+  assert.notEqual(didSaveGuardIndex, -1);
+  assert.notEqual(savingClearedIndex, -1);
+  assert.notEqual(nextCfiIndex, -1);
+  assert.ok(
+    didSaveDeclarationIndex < didSaveAssignmentIndex &&
+      didSaveAssignmentIndex < didSaveGuardIndex,
+    "queued progress retry should be guarded by a successful save flag",
+  );
+  assert.ok(
+    savingClearedIndex < nextCfiIndex,
+    "queued progress retry should run after the current save is no longer in-flight",
+  );
+});
+
+test("reader progress sync throttles duplicate focus recovery retries", async () => {
+  const progressSyncSource = await readWorkspaceFile(
+    "src/components/reader/reader-progress-sync.tsx",
+  );
+
+  assert.match(progressSyncSource, /FOCUS_RETRY_COOLDOWN_MS/);
+  assert.match(progressSyncSource, /lastFocusRetryRef = useRef/);
+  assert.match(
+    progressSyncSource,
+    /retryPendingProgress = useCallback\(\s*\([\s\S]*source\?: "focus"[\s\S]*Date\.now\(\)[\s\S]*lastFocusRetryRef\.current\.cfi === pendingCfi[\s\S]*return;/,
+  );
+  assert.match(
+    progressSyncSource,
+    /const handleWindowFocus = \(\) => \{[\s\S]*retryPendingProgress\("focus"\);[\s\S]*\};/,
+  );
+});
+
+test("reader workspace restores newer cached progress before syncing", async () => {
+  const workspaceSource = await readWorkspaceFile(
+    "src/components/reader/reader-workspace.tsx",
+  );
+
+  assert.match(
+    workspaceSource,
+    /import \{ getLocalStorageProgress \} from "@\/lib\/reader-progress";/,
+  );
+  assert.match(
+    workspaceSource,
+    /const \[restoredProgress, setRestoredProgress\]/,
+  );
+  assert.match(
+    workspaceSource,
+    /const cached = getLocalStorageProgress\(initialBook\.id\);[\s\S]*const serverTime = initialBook\.progressUpdatedAt[\s\S]*cached\.timestamp > serverTime[\s\S]*activeCfi: cached\.cfi[\s\S]*locationLabel: getReaderInitialLocationLabel\(cached\.cfi\)/,
+  );
+  assert.match(
+    workspaceSource,
+    /const readerBook = useMemo\([\s\S]*progressCfi: restoredProgress\.cfi,[\s\S]*progressUpdatedAt: restoredProgress\.updatedAt,[\s\S]*\)/,
+  );
+  assert.match(
+    workspaceSource,
+    /useReaderProgressSync\([\s\S]*initialCfi: initialBook\.progressCfi,[\s\S]*initialUpdatedAt: initialBook\.progressUpdatedAt,[\s\S]*\)/,
+  );
+  assert.match(
+    workspaceSource,
+    /<ReaderProgressSync[\s\S]*initialProgressCfi=\{restoredProgress\.cfi\}/,
   );
 });
 

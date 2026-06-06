@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { createReaderPagehideFlushHandler } from "@/lib/reader-progress";
+import {
+  clearLocalStorageProgress,
+  createReaderPagehideFlushHandler,
+  setLocalStorageProgress,
+} from "@/lib/reader-progress";
 
 import type { SaveState } from "@/components/reader/reader-workspace-types";
 import {
   formatSavedTimestamp,
   SAVE_DEBOUNCE_MS,
 } from "@/components/reader/reader-workspace-utils";
+
+const FOCUS_RETRY_COOLDOWN_MS = 1500;
 
 type UseReaderProgressSyncProps = {
   activeCfi: string | null;
@@ -43,6 +49,11 @@ export function useReaderProgressSync({
   const progressPercentageRef = useRef(progressPercentage);
   const saveAbortControllerRef = useRef<AbortController | null>(null);
   const isSavingRef = useRef(false);
+  const lastFocusRetryRef = useRef({
+    attemptedAt: 0,
+    cfi: null as string | null,
+  });
+  const saveRequestIdRef = useRef(0);
 
   const [saveState, setSaveState] = useState<SaveState>(
     initialCfi ? "saved" : "idle",
@@ -78,18 +89,26 @@ export function useReaderProgressSync({
         return;
       }
 
+      setLocalStorageProgress(bookId, cfi, progressPercentageRef.current);
+
       if (isSavingRef.current) {
         pendingSaveCfiRef.current = cfi;
         saveAbortControllerRef.current?.abort();
-        return;
+
+        if (!keepalive) {
+          return;
+        }
       }
 
       pendingSaveCfiRef.current = cfi;
       isSavingRef.current = true;
+      const saveRequestId = saveRequestIdRef.current + 1;
+      saveRequestIdRef.current = saveRequestId;
       setSaveState("saving");
 
       const abortController = new AbortController();
       saveAbortControllerRef.current = abortController;
+      let didSaveProgress = false;
 
       try {
         const response = await fetch(`/api/books/${bookId}/progress`, {
@@ -125,9 +144,11 @@ export function useReaderProgressSync({
         if (pendingSaveCfiRef.current === payload.progress.cfi) {
           pendingSaveCfiRef.current = null;
         }
+        clearLocalStorageProgress(bookId);
 
         setLastSavedAt(payload.progress.updatedAt);
         setSaveState("saved");
+        didSaveProgress = true;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
@@ -137,26 +158,47 @@ export function useReaderProgressSync({
         if (saveAbortControllerRef.current === abortController) {
           saveAbortControllerRef.current = null;
         }
-        isSavingRef.current = false;
+        if (saveRequestIdRef.current === saveRequestId) {
+          isSavingRef.current = false;
+        }
       }
 
-      const nextCfi = pendingSaveCfiRef.current;
-      if (nextCfi && nextCfi !== lastPersistedCfiRef.current) {
-        void saveProgress(nextCfi, false);
+      // Failed saves are recovered by online/focus/visibilitychange handlers.
+      if (didSaveProgress) {
+        const nextCfi = pendingSaveCfiRef.current;
+        if (nextCfi && nextCfi !== lastPersistedCfiRef.current) {
+          void saveProgress(nextCfi, false);
+        }
       }
     },
     [bookId],
   );
 
-  const retryPendingProgress = useCallback(() => {
-    const pendingCfi = pendingSaveCfiRef.current;
+  const retryPendingProgress = useCallback(
+    (source?: "focus") => {
+      const pendingCfi = pendingSaveCfiRef.current;
 
-    if (!pendingCfi || pendingCfi === lastPersistedCfiRef.current) {
-      return;
-    }
+      if (!pendingCfi || pendingCfi === lastPersistedCfiRef.current) {
+        return;
+      }
 
-    void saveProgress(pendingCfi);
-  }, [saveProgress]);
+      if (source === "focus") {
+        const now = Date.now();
+
+        if (
+          lastFocusRetryRef.current.cfi === pendingCfi &&
+          now - lastFocusRetryRef.current.attemptedAt < FOCUS_RETRY_COOLDOWN_MS
+        ) {
+          return;
+        }
+
+        lastFocusRetryRef.current = { attemptedAt: now, cfi: pendingCfi };
+      }
+
+      void saveProgress(pendingCfi);
+    },
+    [saveProgress],
+  );
 
   useEffect(() => {
     if (!isReady || !activeCfi) {
@@ -196,11 +238,17 @@ export function useReaderProgressSync({
       retryPendingProgress();
     };
     const handleWindowFocus = () => {
-      retryPendingProgress();
+      retryPendingProgress("focus");
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         retryPendingProgress();
+      } else if (document.visibilityState === "hidden") {
+        const activeCfi = activeCfiRef.current;
+
+        if (activeCfi && activeCfi !== lastPersistedCfiRef.current) {
+          void saveProgress(activeCfi, true);
+        }
       }
     };
 
@@ -213,7 +261,7 @@ export function useReaderProgressSync({
       window.removeEventListener("focus", handleWindowFocus);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [isReady, retryPendingProgress]);
+  }, [isReady, retryPendingProgress, saveProgress]);
 
   const handleRestoreFailure = useCallback(() => {
     lastPersistedCfiRef.current = null;
