@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -115,7 +116,7 @@ function LibraryPagination({
 export default async function LibraryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string; collection?: string }>;
 }) {
   const session = await auth();
 
@@ -123,13 +124,30 @@ export default async function LibraryPage({
     redirect("/login");
   }
 
-  const { page: pageParam } = await searchParams;
+  const {
+    page: pageParam,
+    q: searchQuery,
+    collection: collectionId,
+  } = await searchParams;
   const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const PAGE_SIZE = 20;
+  const trimmedQuery = searchQuery?.trim() || "";
+  const where: Prisma.BookWhereInput = {
+    userId: session.user.id,
+    ...(trimmedQuery
+      ? {
+          OR: [
+            { title: { contains: trimmedQuery, mode: "insensitive" } },
+            { author: { contains: trimmedQuery, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+    ...(collectionId ? { collections: { some: { collectionId } } } : {}),
+  };
 
   const [books, totalCount] = await Promise.all([
     prisma.book.findMany({
-      where: { userId: session.user.id },
+      where,
       orderBy: { createdAt: "desc" },
       skip: (currentPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -148,7 +166,7 @@ export default async function LibraryPage({
       },
     }),
     prisma.book.count({
-      where: { userId: session.user.id },
+      where,
     }),
   ]);
 

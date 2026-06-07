@@ -17,6 +17,7 @@ model User {
   createdAt          DateTime           @default(now())
   accounts           Account[]
   books              Book[]
+  collections        Collection[]
   learningActivities LearningActivity[]
   preferences        UserPreferences?
   vocabularies       Vocabulary[]
@@ -63,9 +64,35 @@ model Book {
   userId           String
   user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   readingProgress  ReadingProgress?
+  collections      BookCollection[]
   vocabularies     Vocabulary[]
 
   @@index([userId, createdAt])
+}
+
+model Collection {
+  id             String           @id @default(cuid())
+  displayName    String
+  normalizedName String
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order          Int              @default(0)
+  createdAt      DateTime         @default(now())
+  books          BookCollection[]
+
+  @@unique([userId, normalizedName])
+  @@index([userId, order])
+}
+
+model BookCollection {
+  bookId       String
+  collectionId String
+  order        Int        @default(0)
+  book         Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, collectionId])
+  @@index([collectionId, order])
 }
 
 model ReadingProgress {
