@@ -8,12 +8,17 @@ async function readWorkspaceFile(relativePath) {
 }
 
 test("library book card and progress ring present the hover overlay reading UI", async () => {
-  const [bookCardSource, progressRingSource, deleteButtonSource] =
-    await Promise.all([
-      readWorkspaceFile("src/components/library/book-card.tsx"),
-      readWorkspaceFile("src/components/library/progress-ring.tsx"),
-      readWorkspaceFile("src/components/library/delete-book-button.tsx"),
-    ]);
+  const [
+    bookCardSource,
+    progressRingSource,
+    deleteButtonSource,
+    bookCardActionsSource,
+  ] = await Promise.all([
+    readWorkspaceFile("src/components/library/book-card.tsx"),
+    readWorkspaceFile("src/components/library/progress-ring.tsx"),
+    readWorkspaceFile("src/components/library/delete-book-button.tsx"),
+    readWorkspaceFile("src/components/library/book-card-actions.tsx"),
+  ]);
 
   assert.match(bookCardSource, /export function BookCard\(/);
   assert.match(bookCardSource, /progressPercentage: number \| null;/);
@@ -32,7 +37,7 @@ test("library book card and progress ring present the hover overlay reading UI",
     bookCardSource,
     /backgroundImage: `url\(\$\{coverBlurDataUrl\}\)`/,
   );
-  assert.match(bookCardSource, /DeleteBookButton/);
+  assert.match(bookCardSource, /BookCardActions/);
   assert.match(bookCardSource, /group-hover:pointer-events-auto/);
   assert.match(bookCardSource, /group-hover:opacity-100/);
   assert.match(bookCardSource, /\[@media\(hover:none\)\]:pointer-events-auto/);
@@ -48,7 +53,8 @@ test("library book card and progress ring present the hover overlay reading UI",
   assert.match(bookCardSource, /Math\.round\(progressPercentage \* 100\)/);
   assert.match(bookCardSource, /percentage=\{progressPercentage \* 100\}/);
   assert.match(bookCardSource, /size=\{24\}/);
-  assert.match(bookCardSource, /iconOnly/);
+  assert.match(bookCardActionsSource, /DeleteBookButton/);
+  assert.match(bookCardActionsSource, /iconOnly/);
   assert.match(bookCardSource, /aspect-\[3\/4\]/);
   assert.doesNotMatch(bookCardSource, /CardFooter/);
 

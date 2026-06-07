@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { DeleteBookButton } from "@/components/library/delete-book-button";
+import { BookCardActions } from "@/components/library/book-card-actions";
 import { ProgressRing } from "@/components/library/progress-ring";
 
 const FALLBACK_COLORS = [
@@ -15,6 +15,7 @@ const FALLBACK_COLORS = [
 type BookCardProps = {
   author: string | null;
   coverBlurDataUrl: string | null;
+  collections?: Array<{ id: string; displayName: string; hasBook: boolean }>;
   hasCover: boolean;
   hasStartedReading?: boolean;
   id: string;
@@ -100,6 +101,7 @@ function BookCardCover({
 export function BookCard({
   author,
   coverBlurDataUrl,
+  collections,
   hasCover,
   hasStartedReading = false,
   id,
@@ -137,11 +139,13 @@ export function BookCard({
           ) : null}
         </div>
 
-        {/* Keep the delete action above the full-card link, outside the transformed cover. */}
+        {/* Keep card actions above the full-card link, outside the transformed cover. */}
         <div className="pointer-events-none absolute top-2 right-2 z-20 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
-          <div className="bg-surface-strong/70 border-line-strong hover:bg-surface-strong/90 overflow-hidden rounded-full border shadow-sm backdrop-blur-md transition-colors">
-            <DeleteBookButton bookId={id} iconOnly title={title} />
-          </div>
+          <BookCardActions
+            bookId={id}
+            collections={collections}
+            title={title}
+          />
         </div>
       </div>
 

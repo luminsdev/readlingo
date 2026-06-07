@@ -5,6 +5,8 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { auth } from "@/auth";
 import { BookCard } from "@/components/library/book-card";
+import { CollectionPills } from "@/components/library/collection-pills";
+import { LibrarySearch } from "@/components/library/library-search";
 import { UploadBookDialog } from "@/components/library/upload-book-dialog";
 import {
   Pagination,
@@ -13,6 +15,8 @@ import {
   PaginationItem,
   PaginationLink,
 } from "@/components/ui/pagination";
+import { getUserCollections } from "@/lib/collections";
+import { getLibraryHref } from "@/lib/library-url";
 import { prisma } from "@/lib/prisma";
 import { cn } from "@/lib/utils";
 
@@ -43,9 +47,11 @@ function getPaginationPages(currentPage: number, totalPages: number) {
 
 function LibraryPagination({
   currentPage,
+  filters,
   totalPages,
 }: {
   currentPage: number;
+  filters: { collection: string | undefined; q: string };
   totalPages: number;
 }) {
   const paginationPages = getPaginationPages(currentPage, totalPages);
@@ -63,7 +69,11 @@ function LibraryPagination({
             )}
             aria-disabled={currentPage === 1}
           >
-            <Link href={`/library?page=${Math.max(1, currentPage - 1)}`}>
+            <Link
+              href={getLibraryHref(filters, {
+                page: Math.max(1, currentPage - 1),
+              })}
+            >
               <ChevronLeft className="size-4" />
               <span>Previous</span>
             </Link>
@@ -82,7 +92,7 @@ function LibraryPagination({
                     : "text-ink-soft",
                 )}
               >
-                <Link href={`/library?page=${page}`}>{page}</Link>
+                <Link href={getLibraryHref(filters, { page })}>{page}</Link>
               </PaginationLink>
             ) : (
               <PaginationEllipsis className="text-ink-soft" />
@@ -101,7 +111,9 @@ function LibraryPagination({
             aria-disabled={currentPage === totalPages}
           >
             <Link
-              href={`/library?page=${Math.min(totalPages, currentPage + 1)}`}
+              href={getLibraryHref(filters, {
+                page: Math.min(totalPages, currentPage + 1),
+              })}
             >
               <span>Next</span>
               <ChevronRight className="size-4" />
@@ -145,7 +157,7 @@ export default async function LibraryPage({
     ...(collectionId ? { collections: { some: { collectionId } } } : {}),
   };
 
-  const [books, totalCount] = await Promise.all([
+  const [books, totalCount, allCollections] = await Promise.all([
     prisma.book.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -157,6 +169,11 @@ export default async function LibraryPage({
         author: true,
         coverUrl: true,
         coverBlurDataUrl: true,
+        collections: {
+          select: {
+            collectionId: true,
+          },
+        },
         readingProgress: {
           select: {
             percentage: true,
@@ -168,12 +185,18 @@ export default async function LibraryPage({
     prisma.book.count({
       where,
     }),
+    getUserCollections(session.user.id),
   ]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   if (currentPage > totalPages && totalPages > 0) {
-    redirect(`/library?page=${totalPages}`);
+    redirect(
+      getLibraryHref(
+        { collection: collectionId, q: trimmedQuery },
+        { page: totalPages },
+      ),
+    );
   }
 
   return (
@@ -205,14 +228,20 @@ export default async function LibraryPage({
             </p>
           </div>
 
-          {/* Right: Actions */}
-          <div className="z-10 mb-1 shrink-0">
+          {/* Right: Search and actions */}
+          <div className="z-10 mb-1 flex w-full shrink-0 flex-col gap-3 sm:w-80 sm:items-end">
+            <LibrarySearch className="w-full" />
             <UploadBookDialog />
           </div>
         </div>
 
         <div className="bg-line-strong h-px" />
       </header>
+
+      <CollectionPills
+        activeCollectionId={collectionId}
+        collections={allCollections}
+      />
 
       {books.length ? (
         <>
@@ -227,12 +256,21 @@ export default async function LibraryPage({
                 key={book.id}
                 progressPercentage={book.readingProgress?.percentage ?? null}
                 title={book.title}
+                collections={allCollections.map((collection) => ({
+                  id: collection.id,
+                  displayName: collection.displayName,
+                  hasBook: book.collections.some(
+                    (bookCollection) =>
+                      bookCollection.collectionId === collection.id,
+                  ),
+                }))}
               />
             ))}
           </div>
           {totalPages > 1 ? (
             <LibraryPagination
               currentPage={currentPage}
+              filters={{ q: trimmedQuery, collection: collectionId }}
               totalPages={totalPages}
             />
           ) : null}
