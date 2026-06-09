@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
-import { renameCollectionSchema } from "@/lib/collection-validation";
+import { updateCollectionSchema } from "@/lib/collection-validation";
 import {
   deleteCollection,
   getUserCollections,
-  renameCollection,
+  updateCollection,
 } from "@/lib/collections";
 
 export async function PATCH(
@@ -19,50 +19,48 @@ export async function PATCH(
   }
 
   const body = await request.json().catch(() => null);
-  const parsedPayload = renameCollectionSchema.safeParse(body);
+  const parsedPayload = updateCollectionSchema.safeParse(body);
 
   if (!parsedPayload.success) {
     return NextResponse.json(
       {
         error:
-          parsedPayload.error.issues[0]?.message ??
-          "A valid collection name is required.",
+          parsedPayload.error.issues[0]?.message ?? "Invalid request body.",
       },
       { status: 400 },
     );
   }
 
   const { id } = await params;
-  const collections = await getUserCollections(session.user.id);
-  const currentCollection = collections.find(
-    (collection) => collection.id === id,
-  );
+  const { name, coverBookId } = parsedPayload.data;
 
-  if (!currentCollection) {
-    return NextResponse.json(
-      { error: "Collection not found." },
-      { status: 404 },
+  if (name !== undefined) {
+    const collections = await getUserCollections(session.user.id);
+    const normalizedName = name.toLowerCase();
+    const conflictingCollection = collections.find(
+      (collection) =>
+        collection.normalizedName === normalizedName && collection.id !== id,
     );
+
+    if (conflictingCollection) {
+      return NextResponse.json(
+        { error: "A collection with this name already exists" },
+        { status: 409 },
+      );
+    }
   }
 
-  const normalizedName = parsedPayload.data.name.toLowerCase();
-  const conflictingCollection = collections.find(
-    (collection) =>
-      collection.normalizedName === normalizedName && collection.id !== id,
-  );
+  const collection = await updateCollection(session.user.id, id, {
+    name,
+    coverBookId,
+  });
 
-  if (conflictingCollection) {
+  if (collection === "invalid-cover") {
     return NextResponse.json(
-      { error: "A collection with this name already exists" },
-      { status: 409 },
+      { error: "The selected book is not in this collection." },
+      { status: 400 },
     );
   }
-
-  const collection = await renameCollection(
-    session.user.id,
-    id,
-    parsedPayload.data.name,
-  );
 
   if (!collection) {
     const collectionStillExists = (

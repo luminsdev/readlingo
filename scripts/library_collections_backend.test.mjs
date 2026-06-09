@@ -9,14 +9,23 @@ async function readOptionalWorkspaceFile(relativePath) {
   );
 }
 
-test("Prisma schema defines user-owned collections with explicit book membership", async () => {
+test("Prisma schema defines shelves with custom cover relation and membership timestamps", async () => {
   const schemaSource = await readOptionalWorkspaceFile("prisma/schema.prisma");
 
   assert.match(schemaSource, /collections\s+Collection\[\]/);
   assert.match(schemaSource, /collections\s+BookCollection\[\]/);
+  assert.match(
+    schemaSource,
+    /coverForCollections\s+Collection\[\]\s+@relation\("collectionCover"\)/,
+  );
   assert.match(schemaSource, /model Collection \{/);
   assert.match(schemaSource, /displayName\s+String/);
   assert.match(schemaSource, /normalizedName\s+String/);
+  assert.match(schemaSource, /coverBookId\s+String\?/);
+  assert.match(
+    schemaSource,
+    /coverBook\s+Book\?\s+@relation\("collectionCover", fields: \[coverBookId\], references: \[id\], onDelete: SetNull\)/,
+  );
   assert.match(
     schemaSource,
     /user\s+User\s+@relation\(fields: \[userId\], references: \[id\], onDelete: Cascade\)/,
@@ -24,11 +33,13 @@ test("Prisma schema defines user-owned collections with explicit book membership
   assert.match(schemaSource, /@@unique\(\[userId, normalizedName\]\)/);
   assert.match(schemaSource, /@@index\(\[userId, order\]\)/);
   assert.match(schemaSource, /model BookCollection \{/);
+  assert.match(schemaSource, /createdAt\s+DateTime\s+@default\(now\(\)\)/);
   assert.match(schemaSource, /@@id\(\[bookId, collectionId\]\)/);
   assert.match(schemaSource, /@@index\(\[collectionId, order\]\)/);
+  assert.match(schemaSource, /@@index\(\[collectionId, createdAt\]\)/);
 });
 
-test("collection validation schemas trim bounded names and require book ids", async () => {
+test("collection validation schemas support name and cover updates while rejecting empty updates", async () => {
   const validationSource = await readOptionalWorkspaceFile(
     "src/lib/collection-validation.ts",
   );
@@ -40,19 +51,25 @@ test("collection validation schemas trim bounded names and require book ids", as
   );
   assert.match(
     validationSource,
-    /export const createCollectionSchema = z\.object/,
+    /export const createCollectionSchema = z\s*\.object/,
   );
   assert.match(
     validationSource,
-    /export const renameCollectionSchema = z\.object/,
+    /export const updateCollectionSchema = z\s*\.object/,
   );
+  assert.match(validationSource, /name:\s*collectionNameSchema\.optional\(\)/);
+  assert.match(
+    validationSource,
+    /coverBookId:[\s\S]*?\.nullable\(\)[\s\S]*?\.optional\(\)/,
+  );
+  assert.match(validationSource, /\.refine\(/);
   assert.match(
     validationSource,
     /export const addBookToCollectionSchema = z\.object\(\{\s*bookId: z\.string\(\)\.min\(1\),\s*\}\);/s,
   );
 });
 
-test("collection helpers centralize ownership checks and duplicate handling", async () => {
+test("collection helpers centralize ownership, detail queries, cover membership, and duplicate handling", async () => {
   const helpersSource = await readOptionalWorkspaceFile(
     "src/lib/collections.ts",
   );
@@ -60,10 +77,12 @@ test("collection helpers centralize ownership checks and duplicate handling", as
   for (const functionName of [
     "getUserCollections",
     "createCollection",
-    "renameCollection",
+    "updateCollection",
     "deleteCollection",
     "addBookToCollection",
     "removeBookFromCollection",
+    "getCollectionDetail",
+    "getCollectionBooks",
   ]) {
     assert.match(
       helpersSource,
@@ -88,6 +107,15 @@ test("collection helpers centralize ownership checks and duplicate handling", as
   assert.match(helpersSource, /return "exists";/);
   assert.match(helpersSource, /prisma\.bookCollection\.create/);
   assert.match(helpersSource, /prisma\.bookCollection\.delete/);
+  assert.match(
+    helpersSource,
+    /coverBook:\s*\{\s*select:\s*\{[\s\S]*?coverUrl:\s*true[\s\S]*?coverBlurDataUrl:\s*true/s,
+  );
+  assert.match(helpersSource, /coverUrl:\s*\{\s*not:\s*null\s*\}/);
+  assert.match(helpersSource, /orderBy:\s*\{\s*createdAt:\s*"desc"\s*\}/);
+  assert.match(helpersSource, /prisma\.\$transaction/);
+  assert.match(helpersSource, /coverBookId:\s*bookId/);
+  assert.match(helpersSource, /coverBookId:\s*null/);
 });
 
 test("collection helpers convert unique constraint races into conflict results", async () => {
@@ -135,13 +163,16 @@ test("collection routes require auth, validate JSON, and return safe REST status
 
   assert.match(itemRoute, /export async function PATCH\(/);
   assert.match(itemRoute, /export async function DELETE\(/);
-  assert.match(itemRoute, /renameCollectionSchema\.safeParse\(body\)/);
+  assert.match(itemRoute, /updateCollectionSchema\.safeParse\(body\)/);
+  assert.match(itemRoute, /updateCollection\(/);
   assert.match(
     itemRoute,
     /\{ params \}: \{ params: Promise<\{ id: string \}> \}/,
   );
   assert.match(itemRoute, /\{ status: 404 \}/);
   assert.match(itemRoute, /\{ status: 409 \}/);
+  assert.match(itemRoute, /"invalid-cover"/);
+  assert.match(itemRoute, /\{ status: 400 \}/);
   assert.match(itemRoute, /new NextResponse\(null, \{ status: 204 \}\)/);
 
   assert.match(booksRoute, /export async function POST\(/);
@@ -155,6 +186,7 @@ test("collection routes require auth, validate JSON, and return safe REST status
     membershipRoute,
     /\{ params \}: \{ params: Promise<\{ id: string; bookId: string \}> \}/,
   );
+  assert.match(membershipRoute, /removeBookFromCollection\(/);
   assert.match(membershipRoute, /\{ status: 404 \}/);
   assert.match(membershipRoute, /new NextResponse\(null, \{ status: 204 \}\)/);
 
@@ -172,35 +204,47 @@ test("collection routes require auth, validate JSON, and return safe REST status
   }
 });
 
-test("library page accepts q and collection filters in the Prisma where clause", async () => {
-  const pageSource = await readOptionalWorkspaceFile(
-    "src/app/(main)/library/page.tsx",
-  );
+test("library and collection pages keep all-books search separate from shelf search", async () => {
+  const [libraryPageSource, collectionPageSource] = await Promise.all([
+    readOptionalWorkspaceFile("src/app/(main)/library/page.tsx"),
+    readOptionalWorkspaceFile(
+      "src/app/(main)/library/collections/[id]/page.tsx",
+    ),
+  ]);
 
-  assert.match(pageSource, /import type \{ Prisma \} from "@prisma\/client";/);
   assert.match(
-    pageSource,
-    /searchParams:\s*Promise<\{\s*page\?: string;\s*q\?: string;\s*collection\?: string\s*\}>;/s,
+    libraryPageSource,
+    /searchParams:\s*Promise<\{\s*page\?: string;\s*q\?: string;?\s*\}>;/s,
   );
+  assert.match(libraryPageSource, /const where: Prisma\.BookWhereInput = \{/);
   assert.match(
-    pageSource,
-    /const \{\s*page: pageParam,\s*q: searchQuery,\s*collection: collectionId,?\s*\} = await searchParams;/s,
-  );
-  assert.match(
-    pageSource,
-    /const trimmedQuery = searchQuery\?\.trim\(\) \|\| "";/,
-  );
-  assert.match(pageSource, /const where: Prisma\.BookWhereInput = \{/);
-  assert.match(
-    pageSource,
+    libraryPageSource,
     /title:\s*\{ contains: trimmedQuery, mode: "insensitive" \}/,
   );
   assert.match(
-    pageSource,
+    libraryPageSource,
     /author:\s*\{ contains: trimmedQuery, mode: "insensitive" \}/,
   );
-  assert.match(pageSource, /collections:\s*\{ some:\s*\{ collectionId \} \}/);
-  assert.match(pageSource, /findMany\(\{\s*where,/s);
-  assert.match(pageSource, /count\(\{\s*where,\s*\}\)/s);
-  assert.match(pageSource, /const PAGE_SIZE = 20;/);
+  assert.match(libraryPageSource, /<CollectionShelvesRow/);
+  assert.match(libraryPageSource, /<LibrarySearch/);
+  assert.match(libraryPageSource, /const PAGE_SIZE = 20;/);
+
+  assert.match(
+    collectionPageSource,
+    /params:\s*Promise<\{\s*id: string\s*\}>/s,
+  );
+  assert.match(
+    collectionPageSource,
+    /searchParams:\s*Promise<\{\s*page\?: string;\s*q\?: string;?\s*\}>;/s,
+  );
+  assert.match(
+    collectionPageSource,
+    /getCollectionDetail\(session\.user\.id,\s*id\)/,
+  );
+  assert.match(
+    collectionPageSource,
+    /getCollectionBooks\(session\.user\.id,\s*id,/,
+  );
+  assert.match(collectionPageSource, /notFound\(\)/);
+  assert.match(collectionPageSource, /<LibrarySearch/);
 });

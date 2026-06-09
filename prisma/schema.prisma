@@ -53,19 +53,20 @@ model Account {
 }
 
 model Book {
-  id               String           @id @default(cuid())
-  title            String
-  author           String?
-  coverUrl         String?
-  coverBlurDataUrl String?
-  filePath         String
-  language         String
-  createdAt        DateTime         @default(now())
-  userId           String
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  readingProgress  ReadingProgress?
-  collections      BookCollection[]
-  vocabularies     Vocabulary[]
+  id                  String           @id @default(cuid())
+  title               String
+  author              String?
+  coverUrl            String?
+  coverBlurDataUrl    String?
+  filePath            String
+  language            String
+  createdAt           DateTime         @default(now())
+  userId              String
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readingProgress     ReadingProgress?
+  collections         BookCollection[]
+  coverForCollections Collection[]     @relation("collectionCover")
+  vocabularies        Vocabulary[]
 
   @@index([userId, createdAt])
 }
@@ -79,6 +80,8 @@ model Collection {
   order          Int              @default(0)
   createdAt      DateTime         @default(now())
   books          BookCollection[]
+  coverBookId    String?
+  coverBook      Book?            @relation("collectionCover", fields: [coverBookId], references: [id], onDelete: SetNull)
 
   @@unique([userId, normalizedName])
   @@index([userId, order])
@@ -88,11 +91,13 @@ model BookCollection {
   bookId       String
   collectionId String
   order        Int        @default(0)
+  createdAt    DateTime   @default(now())
   book         Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
   collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
 
   @@id([bookId, collectionId])
   @@index([collectionId, order])
+  @@index([collectionId, createdAt])
 }
 
 model ReadingProgress {
