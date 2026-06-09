@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
-import { getLibraryHref } from "@/lib/library-url";
+import { getFilteredPageHref } from "@/lib/library-url";
 import { cn } from "@/lib/utils";
 
 type LibrarySearchProps = {
@@ -13,6 +13,7 @@ type LibrarySearchProps = {
 };
 
 export function LibrarySearch({ className }: LibrarySearchProps) {
+  const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [query, setQuery] = useState(searchParams.get("q") ?? "");
@@ -31,9 +32,9 @@ export function LibrarySearch({ className }: LibrarySearchProps) {
       }
 
       router.push(
-        getLibraryHref(
+        getFilteredPageHref(
+          pathname,
           {
-            collection: searchParams.get("collection"),
             page: searchParams.get("page"),
             q: currentQuery,
           },
@@ -43,7 +44,7 @@ export function LibrarySearch({ className }: LibrarySearchProps) {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [query, router, searchParams]);
+  }, [pathname, query, router, searchParams]);
 
   return (
     <div className={cn("relative", className)}>

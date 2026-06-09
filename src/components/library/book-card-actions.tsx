@@ -10,18 +10,22 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
 type BookCardActionsProps = {
   bookId: string;
+  collectionContext?: { collectionId: string };
   collections?: Array<{ id: string; displayName: string; hasBook: boolean }>;
   title: string;
 };
 
 export function BookCardActions({
   bookId,
+  collectionContext,
   collections = [],
   title,
 }: BookCardActionsProps) {
@@ -30,6 +34,9 @@ export function BookCardActions({
   const [pendingCollectionId, setPendingCollectionId] = useState<string | null>(
     null,
   );
+  const [pendingContextAction, setPendingContextAction] = useState<
+    "cover" | "remove" | null
+  >(null);
   const [isPending, startTransition] = useTransition();
 
   const updateCollectionMembership = (
@@ -40,32 +47,104 @@ export function BookCardActions({
     setPendingCollectionId(collection.id);
 
     startTransition(async () => {
-      const response = await fetch(
-        isChecked
-          ? `/api/collections/${collection.id}/books/${bookId}`
-          : `/api/collections/${collection.id}/books`,
-        {
-          method: isChecked ? "DELETE" : "POST",
-          ...(isChecked
-            ? {}
-            : {
-                body: JSON.stringify({ bookId }),
-                headers: { "Content-Type": "application/json" },
-              }),
-        },
-      );
+      try {
+        const response = await fetch(
+          isChecked
+            ? `/api/collections/${collection.id}/books/${bookId}`
+            : `/api/collections/${collection.id}/books`,
+          {
+            method: isChecked ? "DELETE" : "POST",
+            ...(isChecked
+              ? {}
+              : {
+                  body: JSON.stringify({ bookId }),
+                  headers: { "Content-Type": "application/json" },
+                }),
+          },
+        );
 
-      setPendingCollectionId(null);
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          setError(payload?.error ?? "The collection could not be updated.");
+          return;
+        }
 
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        setError(payload?.error ?? "The collection could not be updated.");
-        return;
+        router.refresh();
+      } catch {
+        setError("The collection could not be updated.");
+      } finally {
+        setPendingCollectionId(null);
       }
+    });
+  };
 
-      router.refresh();
+  const setAsShelfCover = () => {
+    if (!collectionContext) {
+      return;
+    }
+
+    setError(null);
+    setPendingContextAction("cover");
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(
+          `/api/collections/${collectionContext.collectionId}`,
+          {
+            body: JSON.stringify({ coverBookId: bookId }),
+            headers: { "Content-Type": "application/json" },
+            method: "PATCH",
+          },
+        );
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          setError(payload?.error ?? "The shelf cover could not be updated.");
+          return;
+        }
+
+        router.refresh();
+      } catch {
+        setError("The shelf cover could not be updated.");
+      } finally {
+        setPendingContextAction(null);
+      }
+    });
+  };
+
+  const removeFromShelf = () => {
+    if (!collectionContext) {
+      return;
+    }
+
+    setError(null);
+    setPendingContextAction("remove");
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(
+          `/api/collections/${collectionContext.collectionId}/books/${bookId}`,
+          { method: "DELETE" },
+        );
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          setError(payload?.error ?? "The book could not be removed.");
+          return;
+        }
+
+        router.refresh();
+      } catch {
+        setError("The book could not be removed.");
+      } finally {
+        setPendingContextAction(null);
+      }
     });
   };
 
@@ -92,6 +171,30 @@ export function BookCardActions({
           align="end"
           className="bg-surface border-line min-w-48 rounded-xl"
         >
+          {collectionContext ? (
+            <>
+              <DropdownMenuItem
+                disabled={pendingContextAction === "cover"}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  setAsShelfCover();
+                }}
+              >
+                Set as Shelf Cover
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-danger focus:text-danger"
+                disabled={pendingContextAction === "remove"}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  removeFromShelf();
+                }}
+              >
+                Remove from Shelf
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
           {collections.length ? (
             collections.map((collection) => (
               <DropdownMenuCheckboxItem

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { BookCardActions } from "@/components/library/book-card-actions";
 import { ProgressRing } from "@/components/library/progress-ring";
 
+/* eslint-disable @next/next/no-img-element -- Cover images are served through an auth-protected API route. */
+
 const FALLBACK_COLORS = [
   "var(--ink-soft)",
   "var(--quote)",
@@ -14,6 +16,7 @@ const FALLBACK_COLORS = [
 
 type BookCardProps = {
   author: string | null;
+  collectionContext?: { collectionId: string };
   coverBlurDataUrl: string | null;
   collections?: Array<{ id: string; displayName: string; hasBook: boolean }>;
   hasCover: boolean;
@@ -100,6 +103,7 @@ function BookCardCover({
 
 export function BookCard({
   author,
+  collectionContext,
   coverBlurDataUrl,
   collections,
   hasCover,
@@ -143,6 +147,7 @@ export function BookCard({
         <div className="pointer-events-none absolute top-2 right-2 z-20 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
           <BookCardActions
             bookId={id}
+            collectionContext={collectionContext}
             collections={collections}
             title={title}
           />

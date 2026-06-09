@@ -1,5 +1,4 @@
 type LibraryUrlState = {
-  collection?: string | null;
   page?: number | string | null;
   q?: string | null;
 };
@@ -20,22 +19,18 @@ function normalizePage(value: number | string | null | undefined) {
   return Math.floor(page);
 }
 
-export function getLibraryHref(
+export function getFilteredPageHref(
+  basePath: string,
   filters: LibraryUrlState,
   updates: LibraryUrlState = {},
 ) {
   const nextState = { ...filters, ...updates };
   const params = new URLSearchParams();
   const query = normalizeSearchValue(nextState.q);
-  const collection = normalizeSearchValue(nextState.collection);
   const page = normalizePage(nextState.page);
 
   if (query) {
     params.set("q", query);
-  }
-
-  if (collection) {
-    params.set("collection", collection);
   }
 
   if (page) {
@@ -44,5 +39,5 @@ export function getLibraryHref(
 
   const search = params.toString();
 
-  return search ? `/library?${search}` : "/library";
+  return search ? `${basePath}?${search}` : basePath;
 }
