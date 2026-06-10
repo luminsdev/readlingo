@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { BookCard } from "@/components/library/book-card";
-import { CollectionPills } from "@/components/library/collection-pills";
+
 import { CollectionShelvesRow } from "@/components/library/collection-shelves-row";
 import { LibraryPagination } from "@/components/library/library-pagination";
 import { LibrarySearch } from "@/components/library/library-search";
@@ -122,7 +122,6 @@ export default async function LibraryPage({
       </header>
 
       <CollectionShelvesRow collections={allCollections} />
-      <CollectionPills collections={allCollections} />
 
       {books.length ? (
         <>

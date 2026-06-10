@@ -169,11 +169,12 @@ export function BookCardActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
-          className="bg-surface border-line min-w-48 rounded-xl"
+          className="bg-surface-strong text-foreground border-line-strong min-w-52 rounded-2xl p-1.5 shadow-[0_24px_50px_var(--paper-shadow)] backdrop-blur-2xl"
         >
           {collectionContext ? (
             <>
               <DropdownMenuItem
+                className="focus:text-foreground cursor-pointer rounded-xl px-3 py-2.5 transition-all focus:bg-black/5 dark:focus:bg-white/10"
                 disabled={pendingContextAction === "cover"}
                 onSelect={(event) => {
                   event.preventDefault();
@@ -183,7 +184,7 @@ export function BookCardActions({
                 Set as Shelf Cover
               </DropdownMenuItem>
               <DropdownMenuItem
-                className="text-danger focus:text-danger"
+                className="text-danger focus:bg-danger/10 focus:text-danger cursor-pointer rounded-xl px-3 py-2.5 transition-all"
                 disabled={pendingContextAction === "remove"}
                 onSelect={(event) => {
                   event.preventDefault();
@@ -192,12 +193,13 @@ export function BookCardActions({
               >
                 Remove from Shelf
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              <DropdownMenuSeparator className="my-1.5 opacity-50" />
             </>
           ) : null}
           {collections.length ? (
             collections.map((collection) => (
               <DropdownMenuCheckboxItem
+                className="focus:text-foreground cursor-pointer rounded-xl py-2.5 pr-3 pl-10 transition-all focus:bg-black/5 dark:focus:bg-white/10 [&>span]:top-1/2 [&>span]:left-3 [&>span]:-translate-y-1/2"
                 checked={collection.hasBook}
                 disabled={pendingCollectionId === collection.id}
                 key={collection.id}
@@ -209,7 +211,7 @@ export function BookCardActions({
               </DropdownMenuCheckboxItem>
             ))
           ) : (
-            <DropdownMenuLabel className="text-ink-soft text-xs font-medium">
+            <DropdownMenuLabel className="text-ink-soft px-3 py-2.5 text-xs font-medium">
               No collections yet
             </DropdownMenuLabel>
           )}

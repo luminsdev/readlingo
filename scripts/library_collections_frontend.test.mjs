@@ -82,7 +82,7 @@ test("shelf row, card, and create dialog split server rendering from client muta
   assert.match(cardSource, /coverBook/);
   assert.match(cardSource, /coverUrl/);
   assert.match(cardSource, /coverBlurDataUrl/);
-  assert.match(cardSource, /STACK_LAYER_STYLES/);
+
   assert.match(cardSource, /stackedCovers/);
   assert.match(cardSource, /FallbackCover/);
   assert.match(cardSource, /paper-shadow/);
@@ -115,7 +115,6 @@ test("collection header keeps client-only shelf management actions", async () =>
   assert.match(headerSource, /method: "DELETE"/);
   assert.match(headerSource, /saveName/);
   assert.match(headerSource, /coverBookId: null/);
-  assert.match(headerSource, /STACK_LAYER_STYLES/);
 });
 
 test("book card actions provide library membership controls and shelf-detail cover controls", async () => {
@@ -217,10 +216,7 @@ test("library page wires search, shelves, memberships, and all-books pagination 
   );
   assert.match(pageSource, /<LibrarySearch/);
   assert.match(pageSource, /<CollectionShelvesRow/);
-  assert.match(
-    pageSource,
-    /<CollectionPills collections=\{allCollections\} \/>/,
-  );
+
   assert.match(pageSource, /hasBook: book\.collections\.some/);
 });
 

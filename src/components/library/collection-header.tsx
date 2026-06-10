@@ -1,7 +1,9 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- Cover images are served through an auth-protected API route. */
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Edit2 } from "lucide-react";
 
 import {
   AlertDialog,
@@ -25,12 +27,6 @@ const FALLBACK_COLORS = [
   "var(--accent)",
   "var(--ink-muted)",
   "var(--muted-foreground)",
-];
-
-const STACK_LAYER_STYLES = [
-  { opacity: 0.6, transform: "translate(8px, 8px) scale(0.95)" },
-  { opacity: 0.8, transform: "translate(4px, 4px) scale(0.975)" },
-  { opacity: 1, transform: "translate(0, 0) scale(1)" },
 ];
 
 type CoverBook = {
@@ -154,8 +150,7 @@ function CollectionCover({
 
   const visibleCovers = stackedCovers
     .filter((cover) => cover.coverUrl)
-    .slice(0, 3)
-    .reverse();
+    .slice(0, 4);
 
   if (!visibleCovers.length) {
     return (
@@ -169,27 +164,80 @@ function CollectionCover({
     );
   }
 
-  const styleOffset = STACK_LAYER_STYLES.length - visibleCovers.length;
-
   return (
     <div className="relative aspect-[3/4] w-32 sm:w-36">
       <div
         aria-hidden="true"
         className="absolute inset-x-4 -bottom-3 h-8 rounded-full bg-[radial-gradient(ellipse_at_center,var(--paper-shadow),transparent_70%)] opacity-90 blur-md"
       />
-      {visibleCovers.map((cover, index) => (
-        <div
-          className="absolute inset-0 origin-bottom-left transition-transform duration-300"
-          key={cover.id}
-          style={STACK_LAYER_STYLES[styleOffset + index]}
-        >
-          <CoverImage
-            blurDataUrl={cover.coverBlurDataUrl}
-            id={cover.id}
-            title={`${displayName} shelf cover preview`}
-          />
+      {visibleCovers.length === 1 ? (
+        <CoverImage
+          blurDataUrl={visibleCovers[0].coverBlurDataUrl}
+          id={visibleCovers[0].id}
+          title={`${displayName} shelf cover preview`}
+        />
+      ) : visibleCovers.length === 2 ? (
+        <div className="bg-surface-strong grid h-full w-full grid-cols-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
+          <div className="relative h-full w-full">
+            <CoverImage
+              blurDataUrl={visibleCovers[0].coverBlurDataUrl}
+              id={visibleCovers[0].id}
+              title={`${displayName} shelf cover preview`}
+              className="rounded-none border-none shadow-none"
+            />
+          </div>
+          <div className="relative h-full w-full">
+            <CoverImage
+              blurDataUrl={visibleCovers[1].coverBlurDataUrl}
+              id={visibleCovers[1].id}
+              title={`${displayName} shelf cover preview`}
+              className="rounded-none border-none shadow-none"
+            />
+          </div>
         </div>
-      ))}
+      ) : visibleCovers.length === 3 ? (
+        <div className="bg-surface-strong grid h-full w-full grid-cols-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
+          <div className="relative h-full w-full">
+            <CoverImage
+              blurDataUrl={visibleCovers[0].coverBlurDataUrl}
+              id={visibleCovers[0].id}
+              title={`${displayName} shelf cover preview`}
+              className="rounded-none border-none shadow-none"
+            />
+          </div>
+          <div className="grid grid-rows-2 gap-[2px]">
+            <div className="relative h-full w-full">
+              <CoverImage
+                blurDataUrl={visibleCovers[1].coverBlurDataUrl}
+                id={visibleCovers[1].id}
+                title={`${displayName} shelf cover preview`}
+                className="rounded-none border-none shadow-none"
+              />
+            </div>
+            <div className="relative h-full w-full">
+              <CoverImage
+                blurDataUrl={visibleCovers[2].coverBlurDataUrl}
+                id={visibleCovers[2].id}
+                title={`${displayName} shelf cover preview`}
+                className="rounded-none border-none shadow-none"
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-surface-strong grid h-full w-full grid-cols-2 grid-rows-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
+          {visibleCovers.map((cover) => (
+            <div key={cover.id} className="relative h-full w-full">
+              <CoverImage
+                blurDataUrl={cover.coverBlurDataUrl}
+                id={cover.id}
+                title={`${displayName} shelf cover preview`}
+                className="rounded-none border-none shadow-none"
+              />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -361,6 +409,15 @@ export function CollectionHeader({
                 className="border-line bg-surface-strong h-auto max-w-2xl rounded-2xl px-4 py-3 font-serif text-3xl tracking-tight sm:text-5xl"
                 disabled={pendingAction === "rename"}
                 maxLength={100}
+                onBlur={() => {
+                  if (!draftName.trim()) {
+                    setDraftName(displayName);
+                    setError(null);
+                    setIsEditing(false);
+                  } else {
+                    void saveName();
+                  }
+                }}
                 onChange={(event) => setDraftName(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
@@ -380,7 +437,7 @@ export function CollectionHeader({
             ) : (
               <h1 className="text-foreground font-serif text-4xl leading-tight tracking-tight sm:text-5xl">
                 <button
-                  className="hover:text-accent focus-visible:ring-ring rounded-xl text-left transition-colors focus-visible:ring-4 focus-visible:outline-none"
+                  className="group hover:bg-surface-strong focus-visible:ring-ring -ml-2 flex items-center gap-3 rounded-2xl px-2 py-1 text-left transition-colors focus-visible:ring-4 focus-visible:outline-none"
                   onClick={() => {
                     setDraftName(displayName);
                     setError(null);
@@ -388,7 +445,11 @@ export function CollectionHeader({
                   }}
                   type="button"
                 >
-                  {displayName}
+                  <span>{displayName}</span>
+                  <Edit2
+                    aria-hidden="true"
+                    className="text-ink-soft size-6 opacity-0 transition-opacity group-hover:opacity-100"
+                  />
                 </button>
               </h1>
             )}

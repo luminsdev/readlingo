@@ -81,15 +81,28 @@ export function CreateCollectionDialog() {
       <DialogTrigger asChild>
         <button
           aria-label="Create shelf"
-          className="border-line text-ink-soft hover:bg-surface focus-visible:ring-ring flex aspect-[3/4] w-36 shrink-0 flex-col items-center justify-center gap-3 rounded-[14px] border border-dashed bg-transparent transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_36px_var(--paper-shadow)] focus-visible:ring-2 focus-visible:outline-none sm:w-40"
+          className="group focus-visible:ring-ring block w-36 shrink-0 rounded-[14px] text-left focus-visible:ring-2 focus-visible:outline-none sm:w-40"
           type="button"
         >
-          <span className="border-line bg-surface flex size-10 items-center justify-center rounded-full border">
-            <Plus aria-hidden="true" className="size-4" />
-          </span>
-          <span className="text-foreground font-serif text-base">
-            Create Shelf
-          </span>
+          <div className="relative">
+            <div
+              aria-hidden="true"
+              className="absolute inset-x-3 -bottom-2 h-5 rounded-full bg-[radial-gradient(ellipse_at_center,var(--paper-shadow),transparent_70%)] opacity-80 blur-md transition-all duration-300 group-hover:-bottom-3 group-hover:opacity-100"
+            />
+            <div className="border-line text-ink-soft hover:bg-surface relative flex aspect-[3/4] w-full flex-col items-center justify-center gap-3 rounded-[10px] border border-dashed bg-transparent transition-all duration-300 ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-[1.015] group-hover:shadow-[0_20px_45px_var(--paper-shadow)]">
+              <span className="border-line bg-surface flex size-10 items-center justify-center rounded-full border">
+                <Plus aria-hidden="true" className="size-4" />
+              </span>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-0.5 px-0.5">
+            <p className="text-foreground truncate font-serif text-[1.02rem] leading-snug tracking-tight transition-transform duration-300 ease-out group-hover:-translate-y-1">
+              Create Shelf
+            </p>
+            <p className="text-muted-foreground text-xs transition-transform duration-300 ease-out group-hover:-translate-y-1">
+              New collection
+            </p>
+          </div>
         </button>
       </DialogTrigger>
       <DialogContent>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 /* eslint-disable @next/next/no-img-element -- Cover images are served through an auth-protected API route. */
 
@@ -9,12 +10,6 @@ const FALLBACK_COLORS = [
   "var(--accent)",
   "var(--ink-muted)",
   "var(--muted-foreground)",
-];
-
-const STACK_LAYER_STYLES = [
-  { opacity: 0.6, transform: "translate(8px, 8px) scale(0.95)" },
-  { opacity: 0.8, transform: "translate(4px, 4px) scale(0.975)" },
-  { opacity: 1, transform: "translate(0, 0) scale(1)" },
 ];
 
 type CoverBook = {
@@ -71,10 +66,21 @@ function FallbackCover({ title }: { title: string }) {
   );
 }
 
-function CoverImage({ book, title }: { book: CoverBook; title: string }) {
+function CoverImage({
+  book,
+  title,
+  className,
+}: {
+  book: CoverBook;
+  title: string;
+  className?: string;
+}) {
   return (
     <div
-      className="bg-surface-strong h-full w-full overflow-hidden rounded-[10px] border border-black/10 bg-cover bg-center shadow-[0_16px_38px_var(--paper-shadow)]"
+      className={cn(
+        "bg-surface-strong h-full w-full overflow-hidden rounded-[10px] border border-black/10 bg-cover bg-center shadow-[0_16px_38px_var(--paper-shadow)]",
+        className,
+      )}
       style={
         book.coverBlurDataUrl
           ? { backgroundImage: `url(${book.coverBlurDataUrl})` }
@@ -102,28 +108,78 @@ function CollectionCover({ collection }: CollectionCardProps) {
   const stackedCovers = collection.books
     .map(({ book }) => book)
     .filter((book) => book.coverUrl)
-    .slice(0, 3)
-    .reverse();
+    .slice(0, 4);
 
   if (!stackedCovers.length) {
     return <FallbackCover title={displayName} />;
   }
 
-  return (
-    <div className="relative h-full w-full">
-      {stackedCovers.map((book, index) => {
-        const style = STACK_LAYER_STYLES[index + (3 - stackedCovers.length)];
+  if (stackedCovers.length === 1) {
+    return <CoverImage book={stackedCovers[0]} title={displayName} />;
+  }
 
-        return (
-          <div
-            className="absolute inset-0"
-            key={book.id}
-            style={{ opacity: style.opacity, transform: style.transform }}
-          >
-            <CoverImage book={book} title={displayName} />
+  if (stackedCovers.length === 2) {
+    return (
+      <div className="bg-surface-strong grid h-full w-full grid-cols-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
+        <div className="relative h-full w-full">
+          <CoverImage
+            book={stackedCovers[0]}
+            title={displayName}
+            className="rounded-none border-none shadow-none"
+          />
+        </div>
+        <div className="relative h-full w-full">
+          <CoverImage
+            book={stackedCovers[1]}
+            title={displayName}
+            className="rounded-none border-none shadow-none"
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (stackedCovers.length === 3) {
+    return (
+      <div className="bg-surface-strong grid h-full w-full grid-cols-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
+        <div className="relative h-full w-full">
+          <CoverImage
+            book={stackedCovers[0]}
+            title={displayName}
+            className="rounded-none border-none shadow-none"
+          />
+        </div>
+        <div className="grid grid-rows-2 gap-[2px]">
+          <div className="relative h-full w-full">
+            <CoverImage
+              book={stackedCovers[1]}
+              title={displayName}
+              className="rounded-none border-none shadow-none"
+            />
           </div>
-        );
-      })}
+          <div className="relative h-full w-full">
+            <CoverImage
+              book={stackedCovers[2]}
+              title={displayName}
+              className="rounded-none border-none shadow-none"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-surface-strong grid h-full w-full grid-cols-2 grid-rows-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
+      {stackedCovers.map((book) => (
+        <div key={book.id} className="relative h-full w-full">
+          <CoverImage
+            book={book}
+            title={displayName}
+            className="rounded-none border-none shadow-none"
+          />
+        </div>
+      ))}
     </div>
   );
 }
