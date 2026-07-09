@@ -6,11 +6,13 @@ import {
   getOwnedReaderBook,
   readStoredBookFile,
 } from "@/lib/books";
+import { generateRequestId, logServerError } from "@/lib/logger";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ bookId: string }> },
 ) {
+  const requestId = generateRequestId();
   const session = await auth();
 
   if (!session?.user) {
@@ -43,8 +45,15 @@ export async function GET(
       );
     }
 
+    logServerError("BOOK_FILE_SERVE_FAILED", "Failed to serve book file", {
+      requestId,
+      userId: session.user.id,
+      bookId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     return NextResponse.json(
-      { error: "Unable to open this EPUB file." },
+      { error: "Unable to open this EPUB file.", requestId },
       { status: 500 },
     );
   }

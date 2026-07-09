@@ -3,6 +3,7 @@ import { after, NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { generateMnemonic } from "@/lib/ai-mnemonic";
+import { generateRequestId, logServerError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import {
   saveVocabularySchema,
@@ -102,15 +103,21 @@ function queueVocabularyMnemonicGeneration({
         },
       });
     } catch (error) {
-      console.error(
-        `Failed to generate mnemonic for vocabulary ${vocabularyId}`,
-        error,
+      logServerError(
+        "MNEMONIC_GENERATION_FAILED",
+        "Failed to generate mnemonic",
+        {
+          userId,
+          vocabularyId,
+          error: error instanceof Error ? error.message : String(error),
+        },
       );
     }
   });
 }
 
 export async function GET(request: Request) {
+  const requestId = generateRequestId();
   const session = await auth();
 
   if (!session?.user) {
@@ -164,15 +171,22 @@ export async function GET(request: Request) {
         totalPages: Math.max(1, Math.ceil(total / limit)),
       },
     });
-  } catch {
+  } catch (error) {
+    logServerError("VOCABULARY_FETCH_FAILED", "Failed to fetch vocabulary", {
+      requestId,
+      userId: session.user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     return NextResponse.json(
-      { error: "Unable to load vocabulary items." },
+      { error: "Unable to load vocabulary items.", requestId },
       { status: 500 },
     );
   }
 }
 
 export async function POST(request: Request) {
+  const requestId = generateRequestId();
   const session = await auth();
 
   if (!session?.user) {
@@ -315,8 +329,15 @@ export async function POST(request: Request) {
       }
     }
 
+    logServerError("VOCABULARY_SAVE_FAILED", "Failed to save vocabulary", {
+      requestId,
+      userId: session.user.id,
+      bookId: parsedPayload.data.bookId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     return NextResponse.json(
-      { error: "Unable to save this vocabulary item." },
+      { error: "Unable to save this vocabulary item.", requestId },
       { status: 500 },
     );
   }

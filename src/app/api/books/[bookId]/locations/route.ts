@@ -7,6 +7,7 @@ import {
   locationsPayloadSchema,
   uploadLocationsToR2,
 } from "@/lib/locations-cache";
+import { generateRequestId, logServerError } from "@/lib/logger";
 
 const MAX_LOCATIONS_PAYLOAD_BYTES = 2_000_000;
 
@@ -36,6 +37,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ bookId: string }> },
 ) {
+  const requestId = generateRequestId();
   const session = await auth();
 
   if (!session?.user) {
@@ -61,9 +63,18 @@ export async function GET(
       return NextResponse.json({ locationsJson: null });
     }
 
-    console.error("Locations cache download failed:", error);
+    logServerError(
+      "LOCATIONS_CACHE_FAILED",
+      "Locations cache download failed",
+      {
+        requestId,
+        userId: session.user.id,
+        bookId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
     return NextResponse.json(
-      { error: "Locations cache unavailable." },
+      { error: "Locations cache unavailable.", requestId },
       { status: 500 },
     );
   }

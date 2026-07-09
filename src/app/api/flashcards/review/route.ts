@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { submitReview } from "@/lib/flashcards";
+import { generateRequestId, logServerError } from "@/lib/logger";
 import { reviewSubmitSchema } from "@/lib/srs-validation";
 
 export async function POST(request: Request) {
+  const requestId = generateRequestId();
   const session = await auth();
 
   if (!session?.user) {
@@ -40,9 +42,20 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ srsData });
-  } catch {
+  } catch (error) {
+    logServerError(
+      "FLASHCARD_REVIEW_FAILED",
+      "Failed to submit flashcard review",
+      {
+        requestId,
+        userId: session.user.id,
+        vocabularyId: parsedPayload.data.vocabularyId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    );
+
     return NextResponse.json(
-      { error: "Unable to submit this flashcard review." },
+      { error: "Unable to submit this flashcard review.", requestId },
       { status: 500 },
     );
   }

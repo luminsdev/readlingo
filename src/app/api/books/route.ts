@@ -13,6 +13,7 @@ import {
   persistBookCover,
   removeBookCover,
 } from "@/lib/cover-extraction";
+import { generateRequestId, logServerError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -31,6 +32,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const requestId = generateRequestId();
   const session = await auth();
 
   if (!session?.user) {
@@ -105,7 +107,15 @@ export async function POST(request: Request) {
         ));
       }
     } catch (error) {
-      console.error("Cover persistence failed during upload:", error);
+      logServerError(
+        "COVER_PERSIST_FAILED",
+        "Cover persistence failed during upload",
+        {
+          requestId,
+          bookId: provisionalBook.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
     }
 
     const savedBook = await prisma.book.update({
@@ -125,8 +135,18 @@ export async function POST(request: Request) {
 
     await prisma.book.delete({ where: { id: provisionalBook.id } });
 
+    logServerError("BOOK_UPLOAD_FAILED", "Book upload failed", {
+      requestId,
+      userId: session.user.id,
+      bookId: provisionalBook.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Upload failed." },
+      {
+        error: error instanceof Error ? error.message : "Upload failed.",
+        requestId,
+      },
       { status: 500 },
     );
   }

@@ -6,6 +6,7 @@ import { getOwnedReaderBook, updateOwnedBookMetadata } from "@/lib/books";
 import { removeBookFileBestEffort } from "@/lib/book-storage";
 import { removeBookCover } from "@/lib/cover-extraction";
 import { deleteLocationsFromR2 } from "@/lib/locations-cache";
+import { generateRequestId, logServerError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -50,6 +51,7 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ bookId: string }> },
 ) {
+  const requestId = generateRequestId();
   const session = await auth();
 
   if (!session?.user) {
@@ -67,9 +69,15 @@ export async function DELETE(
   await prisma.book.delete({ where: { id: book.id } });
   await removeBookFileBestEffort(book.filePath, {
     onError(error) {
-      console.error(
-        `Failed to delete stored EPUB file for book ${book.id}`,
-        error,
+      logServerError(
+        "EPUB_DELETE_FAILED",
+        "Failed to delete stored EPUB file",
+        {
+          requestId,
+          userId: session.user.id,
+          bookId: book.id,
+          error: error instanceof Error ? error.message : String(error),
+        },
       );
     },
   });
@@ -81,9 +89,15 @@ export async function DELETE(
   try {
     await deleteLocationsFromR2(session.user.id, book.id);
   } catch (error) {
-    console.error(
-      `Failed to delete cached locations for book ${book.id}`,
-      error,
+    logServerError(
+      "LOCATIONS_DELETE_FAILED",
+      "Failed to delete cached locations",
+      {
+        requestId,
+        userId: session.user.id,
+        bookId: book.id,
+        error: error instanceof Error ? error.message : String(error),
+      },
     );
   }
 

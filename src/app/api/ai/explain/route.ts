@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getAiErrorMessage, streamExplanation } from "@/lib/ai";
 import { explainSelectionSchema } from "@/lib/ai-validation";
+import { generateRequestId, logServerError } from "@/lib/logger";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 30;
@@ -11,6 +12,7 @@ const AI_RATE_LIMIT = 30;
 const AI_RATE_WINDOW_MS = 60_000;
 
 export async function POST(request: Request) {
+  const requestId = generateRequestId();
   const session = await auth();
 
   if (!session?.user) {
@@ -58,9 +60,16 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
+    logServerError("AI_EXPLAIN_FAILED", "Failed to stream AI explanation", {
+      requestId,
+      userId: session.user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     return NextResponse.json(
       {
         error: getAiErrorMessage(error),
+        requestId,
       },
       { status: 500 },
     );

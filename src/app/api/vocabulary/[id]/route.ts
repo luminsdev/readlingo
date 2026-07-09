@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
+import { generateRequestId, logServerError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { vocabularyIdSchema } from "@/lib/vocabulary-validation";
 
@@ -8,6 +9,7 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const requestId = generateRequestId();
   const session = await auth();
 
   if (!session?.user) {
@@ -43,9 +45,16 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    logServerError("VOCABULARY_DELETE_FAILED", "Failed to delete vocabulary", {
+      requestId,
+      userId: session.user.id,
+      vocabularyId: parsedId.data,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     return NextResponse.json(
-      { error: "Unable to delete vocabulary item." },
+      { error: "Unable to delete vocabulary item.", requestId },
       { status: 500 },
     );
   }
