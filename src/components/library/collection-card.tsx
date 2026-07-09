@@ -78,18 +78,14 @@ function CoverImage({
   return (
     <div
       className={cn(
-        "bg-surface-strong h-full w-full overflow-hidden rounded-[10px] border border-black/10 bg-cover bg-center shadow-[0_16px_38px_var(--paper-shadow)]",
+        "bg-surface-strong/40 relative h-full w-full overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]",
+        "before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/40 before:to-transparent dark:before:via-white/10",
         className,
       )}
-      style={
-        book.coverBlurDataUrl
-          ? { backgroundImage: `url(${book.coverBlurDataUrl})` }
-          : undefined
-      }
     >
       <img
         alt={title}
-        className="h-full w-full object-cover"
+        className="relative z-10 h-full w-full object-cover"
         decoding="async"
         loading="lazy"
         src={`/api/covers/${book.id}?size=thumb`}
@@ -108,7 +104,7 @@ function CollectionCover({ collection }: CollectionCardProps) {
   const stackedCovers = collection.books
     .map(({ book }) => book)
     .filter((book) => book.coverUrl)
-    .slice(0, 4);
+    .slice(0, 3);
 
   if (!stackedCovers.length) {
     return <FallbackCover title={displayName} />;
@@ -118,68 +114,38 @@ function CollectionCover({ collection }: CollectionCardProps) {
     return <CoverImage book={stackedCovers[0]} title={displayName} />;
   }
 
-  if (stackedCovers.length === 2) {
-    return (
-      <div className="bg-surface-strong grid h-full w-full grid-cols-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
-        <div className="relative h-full w-full">
-          <CoverImage
-            book={stackedCovers[0]}
-            title={displayName}
-            className="rounded-none border-none shadow-none"
-          />
-        </div>
-        <div className="relative h-full w-full">
-          <CoverImage
-            book={stackedCovers[1]}
-            title={displayName}
-            className="rounded-none border-none shadow-none"
-          />
-        </div>
-      </div>
-    );
-  }
-
-  if (stackedCovers.length === 3) {
-    return (
-      <div className="bg-surface-strong grid h-full w-full grid-cols-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
-        <div className="relative h-full w-full">
-          <CoverImage
-            book={stackedCovers[0]}
-            title={displayName}
-            className="rounded-none border-none shadow-none"
-          />
-        </div>
-        <div className="grid grid-rows-2 gap-[2px]">
-          <div className="relative h-full w-full">
-            <CoverImage
-              book={stackedCovers[1]}
-              title={displayName}
-              className="rounded-none border-none shadow-none"
-            />
-          </div>
-          <div className="relative h-full w-full">
-            <CoverImage
-              book={stackedCovers[2]}
-              title={displayName}
-              className="rounded-none border-none shadow-none"
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-surface-strong grid h-full w-full grid-cols-2 grid-rows-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
-      {stackedCovers.map((book) => (
-        <div key={book.id} className="relative h-full w-full">
-          <CoverImage
-            book={book}
-            title={displayName}
-            className="rounded-none border-none shadow-none"
-          />
-        </div>
-      ))}
+    <div className="relative h-full w-full [perspective:1000px]">
+      {[...stackedCovers].reverse().map((book, reversedIndex) => {
+        const index = stackedCovers.length - 1 - reversedIndex;
+
+        return (
+          <div
+            key={book.id}
+            className={cn(
+              "absolute inset-0 transition-all duration-300 ease-out",
+              index === 0 && "z-30 translate-y-0 scale-100",
+              index === 1 &&
+                "z-20 -translate-y-3 scale-[0.92] group-hover:-translate-y-6 group-hover:scale-[0.94]",
+              index === 2 &&
+                "z-10 -translate-y-6 scale-[0.84] group-hover:-translate-y-12 group-hover:scale-[0.88]",
+            )}
+            style={{ transformOrigin: "top center" }}
+          >
+            <CoverImage
+              book={book}
+              title={displayName}
+              className={cn(
+                index === 0
+                  ? "shadow-[0_8px_30px_rgba(0,0,0,0.22)]"
+                  : "shadow-[0_4px_20px_rgba(0,0,0,0.15)]",
+                index > 0 && "brightness-[0.85]",
+                index > 1 && "brightness-[0.70]",
+              )}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -190,7 +156,7 @@ export function CollectionCard({ collection }: CollectionCardProps) {
   return (
     <Link
       aria-label={`Open ${collection.displayName} shelf`}
-      className="group focus-visible:ring-ring block w-36 shrink-0 rounded-[14px] focus-visible:ring-2 focus-visible:outline-none sm:w-40"
+      className="group focus-visible:ring-ring block w-full shrink-0 rounded-[14px] focus-visible:ring-2 focus-visible:outline-none"
       href={`/library/collections/${collection.id}`}
     >
       <div className="relative">

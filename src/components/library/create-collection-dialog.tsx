@@ -81,7 +81,7 @@ export function CreateCollectionDialog() {
       <DialogTrigger asChild>
         <button
           aria-label="Create shelf"
-          className="group focus-visible:ring-ring block w-36 shrink-0 rounded-[14px] text-left focus-visible:ring-2 focus-visible:outline-none sm:w-40"
+          className="group focus-visible:ring-ring block w-full shrink-0 rounded-[14px] text-left focus-visible:ring-2 focus-visible:outline-none"
           type="button"
         >
           <div className="relative">

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FolderPlus } from "lucide-react";
+import { FolderPlus, MoreHorizontal } from "lucide-react";
 
 import { DeleteBookButton } from "@/components/library/delete-book-button";
 import { Button } from "@/components/ui/button";
@@ -164,7 +164,11 @@ export function BookCardActions({
               event.stopPropagation();
             }}
           >
-            <FolderPlus aria-hidden="true" className="size-3.5" />
+            {collectionContext ? (
+              <MoreHorizontal aria-hidden="true" className="size-3.5" />
+            ) : (
+              <FolderPlus aria-hidden="true" className="size-3.5" />
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent

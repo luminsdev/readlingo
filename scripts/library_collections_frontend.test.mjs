@@ -49,32 +49,29 @@ test("collection pills are server-rendered shelf links, not inline library filte
   assert.doesNotMatch(pillsSource, /Create collection/);
 });
 
-test("shelf row, card, and create dialog split server rendering from client mutation", async () => {
-  const [rowSource, cardSource, dialogSource] = await Promise.all([
-    readOptionalWorkspaceFile(
-      "src/components/library/collection-shelves-row.tsx",
-    ),
+test("shelves view, card, and create dialog split server rendering from client mutation", async () => {
+  const [pageSource, cardSource, dialogSource] = await Promise.all([
+    readOptionalWorkspaceFile("src/app/(main)/library/page.tsx"),
     readOptionalWorkspaceFile("src/components/library/collection-card.tsx"),
     readOptionalWorkspaceFile(
       "src/components/library/create-collection-dialog.tsx",
     ),
   ]);
 
-  assert.match(rowSource, /CollectionShelvesRow/);
+  assert.match(pageSource, /view === "shelves"/);
   assert.match(
-    rowSource,
+    pageSource,
     /import \{ CollectionCard \} from "@\/components\/library\/collection-card";/,
   );
   assert.match(
-    rowSource,
+    pageSource,
     /import \{ CreateCollectionDialog \} from "@\/components\/library\/create-collection-dialog";/,
   );
-  assert.match(rowSource, /collections\.map/);
-  assert.match(rowSource, /Your Shelves/);
-  assert.match(rowSource, /overflow-x-auto/);
-  assert.match(rowSource, /scrollbarWidth:\s*"none"/);
-  assert.match(rowSource, /<CreateCollectionDialog/);
-  assert.doesNotMatch(rowSource, /"use client";/);
+  assert.match(pageSource, /allCollections\.map/);
+  assert.match(pageSource, /<CollectionCard/);
+  assert.match(pageSource, /<CreateCollectionDialog/);
+  assert.doesNotMatch(pageSource, /CollectionShelvesRow/);
+  assert.doesNotMatch(pageSource, /"use client";/);
 
   assert.match(cardSource, /CollectionCard/);
   assert.match(cardSource, /from "next\/link"/);
@@ -191,7 +188,15 @@ test("library page wires search, shelves, memberships, and all-books pagination 
 
   assert.match(
     pageSource,
-    /import \{ CollectionShelvesRow \} from "@\/components\/library\/collection-shelves-row";/,
+    /import \{ CollectionCard \} from "@\/components\/library\/collection-card";/,
+  );
+  assert.match(
+    pageSource,
+    /import \{ CreateCollectionDialog \} from "@\/components\/library\/create-collection-dialog";/,
+  );
+  assert.match(
+    pageSource,
+    /import \{ AnimatedTabs \} from "@\/components\/ui\/animated-tabs";/,
   );
   assert.match(
     pageSource,
@@ -207,15 +212,20 @@ test("library page wires search, shelves, memberships, and all-books pagination 
   );
   assert.match(
     pageSource,
-    /searchParams:\s*Promise<\{\s*page\?: string;\s*q\?: string;?\s*\}>;/s,
+    /searchParams:\s*Promise<\{\s*page\?: string;\s*q\?: string;\s*view\?: string;?\s*\}>;/s,
   );
+  assert.match(pageSource, /const view = viewParam === "shelves"/);
   assert.match(pageSource, /getUserCollections\(session\.user\.id\)/);
   assert.match(
     pageSource,
     /collections:\s*\{\s*select:\s*\{\s*collectionId: true/s,
   );
+  assert.match(pageSource, /<AnimatedTabs/);
   assert.match(pageSource, /<LibrarySearch/);
-  assert.match(pageSource, /<CollectionShelvesRow/);
+  assert.match(pageSource, /<CollectionCard/);
+  assert.match(pageSource, /<CreateCollectionDialog/);
+  assert.match(pageSource, /view === "books" && currentPage > totalPages/);
+  assert.doesNotMatch(pageSource, /CollectionShelvesRow/);
 
   assert.match(pageSource, /hasBook: book\.collections\.some/);
 });

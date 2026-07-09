@@ -4,10 +4,14 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { BookCard } from "@/components/library/book-card";
 
-import { CollectionShelvesRow } from "@/components/library/collection-shelves-row";
+import { FolderHeart, Library } from "lucide-react";
+
+import { CollectionCard } from "@/components/library/collection-card";
+import { CreateCollectionDialog } from "@/components/library/create-collection-dialog";
 import { LibraryPagination } from "@/components/library/library-pagination";
 import { LibrarySearch } from "@/components/library/library-search";
 import { UploadBookDialog } from "@/components/library/upload-book-dialog";
+import { AnimatedTabs } from "@/components/ui/animated-tabs";
 import { getUserCollections } from "@/lib/collections";
 import { getFilteredPageHref } from "@/lib/library-url";
 import { prisma } from "@/lib/prisma";
@@ -15,7 +19,7 @@ import { prisma } from "@/lib/prisma";
 export default async function LibraryPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{ page?: string; q?: string; view?: string }>;
 }) {
   const session = await auth();
 
@@ -23,7 +27,12 @@ export default async function LibraryPage({
     redirect("/login");
   }
 
-  const { page: pageParam, q: searchQuery } = await searchParams;
+  const {
+    page: pageParam,
+    q: searchQuery,
+    view: viewParam,
+  } = await searchParams;
+  const view = viewParam === "shelves" ? "shelves" : "books";
   const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const PAGE_SIZE = 20;
   const trimmedQuery = searchQuery?.trim() || "";
@@ -50,7 +59,6 @@ export default async function LibraryPage({
         title: true,
         author: true,
         coverUrl: true,
-        coverBlurDataUrl: true,
         collections: {
           select: {
             collectionId: true,
@@ -72,7 +80,7 @@ export default async function LibraryPage({
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  if (currentPage > totalPages && totalPages > 0) {
+  if (view === "books" && currentPage > totalPages && totalPages > 0) {
     redirect(
       getFilteredPageHref(
         "/library",
@@ -91,11 +99,34 @@ export default async function LibraryPage({
         <div className="relative mt-2 flex flex-wrap items-end justify-between gap-6 pt-2 pb-4">
           {/* Left: Titles */}
           <div className="flex shrink-0 flex-col gap-1.5">
-            <p className="text-ink-kicker text-[0.65rem] font-bold tracking-[0.3em] uppercase">
-              Your Library
-            </p>
+            <AnimatedTabs
+              activeTab={view}
+              className="mb-1 self-start"
+              tabs={[
+                {
+                  id: "books",
+                  label: (
+                    <>
+                      <Library className="h-4 w-4" /> Books
+                    </>
+                  ),
+                  href: "/library?view=books",
+                },
+                {
+                  id: "shelves",
+                  label: (
+                    <>
+                      <FolderHeart className="h-4 w-4" /> Shelves
+                    </>
+                  ),
+                  href: "/library?view=shelves",
+                },
+              ]}
+            />
             <h1 className="text-foreground font-serif text-4xl tracking-tight sm:text-5xl">
-              {totalCount} {totalCount === 1 ? "book" : "books"}
+              {view === "shelves"
+                ? `${allCollections.length} ${allCollections.length === 1 ? "shelf" : "shelves"}`
+                : `${totalCount} ${totalCount === 1 ? "book" : "books"}`}
             </h1>
           </div>
 
@@ -111,25 +142,33 @@ export default async function LibraryPage({
             </p>
           </div>
 
-          {/* Right: Search and actions */}
+          {/* Right: Search and actions (Always rendered to prevent layout shift) */}
           <div className="z-10 mb-1 flex w-full shrink-0 flex-col gap-3 sm:w-80 sm:items-end">
-            <LibrarySearch className="w-full" />
-            <UploadBookDialog />
+            {view === "books" ? (
+              <>
+                <LibrarySearch className="w-full" />
+                <UploadBookDialog />
+              </>
+            ) : null}
           </div>
         </div>
 
         <div className="bg-line-strong h-px" />
       </header>
 
-      <CollectionShelvesRow collections={allCollections} />
-
-      {books.length ? (
+      {view === "shelves" ? (
+        <div className="z-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          {allCollections.map((collection) => (
+            <CollectionCard key={collection.id} collection={collection} />
+          ))}
+          <CreateCollectionDialog />
+        </div>
+      ) : books.length ? (
         <>
           <div className="z-10 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {books.map((book) => (
               <BookCard
                 author={book.author}
-                coverBlurDataUrl={book.coverBlurDataUrl}
                 hasCover={!!book.coverUrl}
                 hasStartedReading={book.readingProgress != null}
                 id={book.id}

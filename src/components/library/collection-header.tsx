@@ -92,12 +92,10 @@ function FallbackCover({ title }: { title: string }) {
 }
 
 function CoverImage({
-  blurDataUrl,
   className,
   id,
   title,
 }: {
-  blurDataUrl: string | null;
   className?: string;
   id: string;
   title: string;
@@ -105,16 +103,14 @@ function CoverImage({
   return (
     <div
       className={cn(
-        "bg-surface-strong h-full w-full overflow-hidden rounded-[10px] border border-black/10 bg-cover bg-center shadow-[0_16px_38px_var(--paper-shadow)]",
+        "bg-surface-strong/40 relative h-full w-full overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]",
+        "before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/40 before:to-transparent dark:before:via-white/10",
         className,
       )}
-      style={
-        blurDataUrl ? { backgroundImage: `url(${blurDataUrl})` } : undefined
-      }
     >
       <img
         alt={title}
-        className="h-full w-full object-cover"
+        className="relative z-10 h-full w-full object-cover"
         decoding="async"
         loading="lazy"
         src={`/api/covers/${id}?size=thumb`}
@@ -139,18 +135,14 @@ function CollectionCover({
           aria-hidden="true"
           className="absolute inset-x-4 -bottom-3 h-8 rounded-full bg-[radial-gradient(ellipse_at_center,var(--paper-shadow),transparent_70%)] opacity-90 blur-md"
         />
-        <CoverImage
-          blurDataUrl={coverBook.coverBlurDataUrl}
-          id={coverBookId}
-          title={`${displayName} shelf cover`}
-        />
+        <CoverImage id={coverBookId} title={`${displayName} shelf cover`} />
       </div>
     );
   }
 
   const visibleCovers = stackedCovers
     .filter((cover) => cover.coverUrl)
-    .slice(0, 4);
+    .slice(0, 3);
 
   if (!visibleCovers.length) {
     return (
@@ -164,80 +156,59 @@ function CollectionCover({
     );
   }
 
+  if (visibleCovers.length === 1) {
+    return (
+      <div className="relative aspect-[3/4] w-32 sm:w-36">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-4 -bottom-3 h-8 rounded-full bg-[radial-gradient(ellipse_at_center,var(--paper-shadow),transparent_70%)] opacity-90 blur-md"
+        />
+        <CoverImage
+          id={visibleCovers[0].id}
+          title={`${displayName} shelf cover preview`}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="relative aspect-[3/4] w-32 sm:w-36">
       <div
         aria-hidden="true"
-        className="absolute inset-x-4 -bottom-3 h-8 rounded-full bg-[radial-gradient(ellipse_at_center,var(--paper-shadow),transparent_70%)] opacity-90 blur-md"
+        className="absolute inset-x-4 -bottom-3 h-8 rounded-full bg-[radial-gradient(ellipse_at_center,var(--paper-shadow),transparent_70%)] opacity-90 blur-md transition-all duration-300 group-hover:-bottom-4 group-hover:opacity-100"
       />
-      {visibleCovers.length === 1 ? (
-        <CoverImage
-          blurDataUrl={visibleCovers[0].coverBlurDataUrl}
-          id={visibleCovers[0].id}
-          title={`${displayName} shelf cover preview`}
-        />
-      ) : visibleCovers.length === 2 ? (
-        <div className="bg-surface-strong grid h-full w-full grid-cols-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
-          <div className="relative h-full w-full">
-            <CoverImage
-              blurDataUrl={visibleCovers[0].coverBlurDataUrl}
-              id={visibleCovers[0].id}
-              title={`${displayName} shelf cover preview`}
-              className="rounded-none border-none shadow-none"
-            />
-          </div>
-          <div className="relative h-full w-full">
-            <CoverImage
-              blurDataUrl={visibleCovers[1].coverBlurDataUrl}
-              id={visibleCovers[1].id}
-              title={`${displayName} shelf cover preview`}
-              className="rounded-none border-none shadow-none"
-            />
-          </div>
-        </div>
-      ) : visibleCovers.length === 3 ? (
-        <div className="bg-surface-strong grid h-full w-full grid-cols-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
-          <div className="relative h-full w-full">
-            <CoverImage
-              blurDataUrl={visibleCovers[0].coverBlurDataUrl}
-              id={visibleCovers[0].id}
-              title={`${displayName} shelf cover preview`}
-              className="rounded-none border-none shadow-none"
-            />
-          </div>
-          <div className="grid grid-rows-2 gap-[2px]">
-            <div className="relative h-full w-full">
+      <div className="relative h-full w-full [perspective:1000px]">
+        {[...visibleCovers].reverse().map((cover, reversedIndex) => {
+          const index = visibleCovers.length - 1 - reversedIndex;
+
+          return (
+            <div
+              key={cover.id}
+              className={cn(
+                "absolute inset-0 transition-all duration-300 ease-out",
+                index === 0 && "z-30 translate-y-0 scale-100",
+                index === 1 &&
+                  "z-20 -translate-y-3 scale-[0.92] group-hover:-translate-y-6 group-hover:scale-[0.94]",
+                index === 2 &&
+                  "z-10 -translate-y-6 scale-[0.84] group-hover:-translate-y-12 group-hover:scale-[0.88]",
+              )}
+              style={{ transformOrigin: "top center" }}
+            >
               <CoverImage
-                blurDataUrl={visibleCovers[1].coverBlurDataUrl}
-                id={visibleCovers[1].id}
-                title={`${displayName} shelf cover preview`}
-                className="rounded-none border-none shadow-none"
-              />
-            </div>
-            <div className="relative h-full w-full">
-              <CoverImage
-                blurDataUrl={visibleCovers[2].coverBlurDataUrl}
-                id={visibleCovers[2].id}
-                title={`${displayName} shelf cover preview`}
-                className="rounded-none border-none shadow-none"
-              />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-surface-strong grid h-full w-full grid-cols-2 grid-rows-2 gap-[2px] overflow-hidden rounded-[10px] border border-black/10 shadow-[0_16px_38px_var(--paper-shadow)]">
-          {visibleCovers.map((cover) => (
-            <div key={cover.id} className="relative h-full w-full">
-              <CoverImage
-                blurDataUrl={cover.coverBlurDataUrl}
                 id={cover.id}
                 title={`${displayName} shelf cover preview`}
-                className="rounded-none border-none shadow-none"
+                className={cn(
+                  index === 0
+                    ? "shadow-[0_8px_30px_rgba(0,0,0,0.22)]"
+                    : "shadow-[0_4px_20px_rgba(0,0,0,0.15)]",
+                  index > 0 && "brightness-[0.85]",
+                  index > 1 && "brightness-[0.70]",
+                )}
               />
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </div>
   );
 }

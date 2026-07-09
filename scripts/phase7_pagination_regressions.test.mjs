@@ -12,20 +12,18 @@ test("library page uses URL-backed server-side pagination", async () => {
 
   assert.match(
     source,
-    /searchParams:\s*Promise<\{ page\?: string; q\?: string; collection\?: string \}>/,
+    /searchParams:\s*Promise<\{\s*page\?: string;\s*q\?: string;\s*view\?: string;?\s*\}>/s,
   );
   assert.match(source, /const PAGE_SIZE = 20;/);
   assert.match(source, /Promise\.all\(\[/);
   assert.match(source, /prisma\.book\.count\(/);
   assert.match(source, /skip:\s*\(currentPage - 1\) \* PAGE_SIZE/);
   assert.match(source, /take:\s*PAGE_SIZE/);
-  assert.match(source, /redirect\(\s*getLibraryHref\(/);
+  assert.match(source, /view === "books" && currentPage > totalPages/);
+  assert.match(source, /redirect\(\s*getFilteredPageHref\(/);
   assert.match(source, /<LibraryPagination/);
-  assert.match(
-    source,
-    /filters=\{\{ q: trimmedQuery, collection: collectionId \}\}/,
-  );
-  assert.match(source, /getLibraryHref\(filters, \{\s*page/s);
+  assert.match(source, /filters=\{\{ q: trimmedQuery \}\}/);
+  assert.match(source, /getFilteredPageHref\([\s\S]*\{\s*page: totalPages/s);
   assert.doesNotMatch(source, /href=\{`\/library\?page=/);
 });
 

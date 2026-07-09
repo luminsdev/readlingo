@@ -214,7 +214,7 @@ test("library and collection pages keep all-books search separate from shelf sea
 
   assert.match(
     libraryPageSource,
-    /searchParams:\s*Promise<\{\s*page\?: string;\s*q\?: string;?\s*\}>;/s,
+    /searchParams:\s*Promise<\{\s*page\?: string;\s*q\?: string;\s*view\?: string;?\s*\}>;/s,
   );
   assert.match(libraryPageSource, /const where: Prisma\.BookWhereInput = \{/);
   assert.match(
@@ -225,8 +225,15 @@ test("library and collection pages keep all-books search separate from shelf sea
     libraryPageSource,
     /author:\s*\{ contains: trimmedQuery, mode: "insensitive" \}/,
   );
-  assert.match(libraryPageSource, /<CollectionShelvesRow/);
+  assert.match(libraryPageSource, /const view = viewParam === "shelves"/);
+  assert.match(
+    libraryPageSource,
+    /view === "books" && currentPage > totalPages/,
+  );
+  assert.match(libraryPageSource, /<CollectionCard/);
+  assert.match(libraryPageSource, /<CreateCollectionDialog/);
   assert.match(libraryPageSource, /<LibrarySearch/);
+  assert.doesNotMatch(libraryPageSource, /CollectionShelvesRow/);
   assert.match(libraryPageSource, /const PAGE_SIZE = 20;/);
 
   assert.match(

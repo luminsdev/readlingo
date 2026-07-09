@@ -136,7 +136,6 @@ export default async function CollectionDetailPage({
               <BookCard
                 author={book.author}
                 collectionContext={{ collectionId: id }}
-                coverBlurDataUrl={book.coverBlurDataUrl}
                 hasCover={!!book.coverUrl}
                 hasStartedReading={book.readingProgress != null}
                 id={book.id}

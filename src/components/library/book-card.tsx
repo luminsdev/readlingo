@@ -17,7 +17,6 @@ const FALLBACK_COLORS = [
 type BookCardProps = {
   author: string | null;
   collectionContext?: { collectionId: string };
-  coverBlurDataUrl: string | null;
   collections?: Array<{ id: string; displayName: string; hasBook: boolean }>;
   hasCover: boolean;
   hasStartedReading?: boolean;
@@ -39,30 +38,21 @@ function getTitleColor(title: string) {
 
 function BookCardCover({
   authorLabel,
-  coverBlurDataUrl,
   hasCover,
   id,
   title,
 }: {
   authorLabel: string;
-  coverBlurDataUrl: string | null;
   hasCover: boolean;
   id: string;
   title: string;
 }) {
   if (hasCover) {
     return (
-      <div
-        className="h-full w-full bg-cover bg-center"
-        style={
-          coverBlurDataUrl
-            ? { backgroundImage: `url(${coverBlurDataUrl})` }
-            : undefined
-        }
-      >
+      <div className="bg-surface-strong/40 relative h-full w-full overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/40 before:to-transparent dark:before:via-white/10">
         <img
           alt={title}
-          className="h-full w-full object-cover"
+          className="relative z-10 h-full w-full object-cover"
           decoding="async"
           loading="lazy"
           src={`/api/covers/${id}?size=thumb`}
@@ -104,7 +94,6 @@ function BookCardCover({
 export function BookCard({
   author,
   collectionContext,
-  coverBlurDataUrl,
   collections,
   hasCover,
   hasStartedReading = false,
@@ -130,7 +119,6 @@ export function BookCard({
         <div className="bg-surface-strong border-border/40 relative aspect-[3/4] w-full overflow-hidden rounded-[8px] border shadow-[0_4px_18px_var(--paper-shadow)] transition-all duration-300 ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-[1.015] group-hover:shadow-[0_20px_45px_var(--paper-shadow)]">
           <BookCardCover
             authorLabel={authorLabel}
-            coverBlurDataUrl={coverBlurDataUrl}
             hasCover={hasCover}
             id={id}
             title={title}
