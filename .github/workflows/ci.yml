@@ -20,7 +20,6 @@ jobs:
       - run: pnpm build
   legacy:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -32,3 +31,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: node --test scripts/*.test.mjs
+        continue-on-error: true
