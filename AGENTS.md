@@ -68,6 +68,8 @@ pnpm exec prettier --write src/lib/utils.ts
 - Dashboard, streak, learning activity, or daily-goal changes: run `node --test scripts/phase8_engagement_regressions.test.mjs`.
 - Vocabulary filtering, sorting, status, or pagination changes: run `node --test scripts/phase8_vocabulary_query.test.mjs` and, for UI expectations, `node --test scripts/phase8_vocabulary_ui.test.mjs`.
 - Security headers, AI rate limiting, dashboard structure, or hardening changes: run `node --test scripts/phase8_hardening.test.mjs`.
+- Pure helper changes (SRS, streak, rate-limit, vocabulary-query, validation schemas): run `pnpm test`.
+- `pnpm test` runs Vitest co-located tests; `node --test scripts/*.test.mjs` runs legacy regression tests. Both are valid during migration.
 - Do not run `pnpm typecheck` in parallel with `pnpm build`; `.next/types/**/*.ts` can be regenerated during builds and cause transient TS6053 errors.
 
 ## Project Map
