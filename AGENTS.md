@@ -18,7 +18,8 @@
 
 - ReadLingo is an AI-powered EPUB reader for language learning: upload books, read in-browser, ask AI for contextual explanations, save vocabulary, and review via SRS flashcards.
 - Phases 0-8 are implemented: auth, library, reader, AI explanations, vocabulary, flashcards, R2 storage, Google OAuth, reader customization, dashboard, streaks, vocabulary filtering, security headers, and AI rate limiting.
-- Phase 8.5 is next: performance optimization, book collections, library search, error boundaries, testing infrastructure, and accessibility audit.
+- Phase 8.5a-8.5c are implemented: private cover proxy, cover thumbnails/blur metadata, EPUB locations caching, progress save hardening, collections/shelves, library search, shelf detail pages, custom shelf covers, and scoped shelf pagination/search.
+- Phase 8.5d is next: error boundaries and structured logging. Phase 8.5e-8.5f remain planned for test infrastructure and accessibility audit.
 - Phases 9-12 follow: AI conversational context, pronunciation, TTS, analytics, real-time sync, offline support, landing page, i18n, and production deployment.
 - `TASKS.md` is the most granular progress tracker. `HANDOFF.md` contains the latest session-level project state. `docs/architecture.md` has the full architecture overview. `docs/specs/phase-8.5-12.md` is the active roadmap spec.
 
@@ -60,11 +61,13 @@ pnpm exec prettier --write src/lib/utils.ts
 - Substantial TypeScript or shared-helper changes: run `pnpm typecheck`.
 - Route, auth, Prisma, config, or build-sensitive changes: run `pnpm build` after typecheck-relevant checks.
 - Reader or upload changes: run `node --test scripts/phase2_reader_regressions.test.mjs`.
+- Cover proxy, EPUB locations cache, or cover upload changes: run `node --test scripts/phase85_cover_locations.test.mjs`.
 - AI prompt, model, or response-shaping changes: run `node --test scripts/phase3_ai_regressions.test.mjs`.
 - AI streaming changes: run `node --test scripts/phase6_ai_streaming_regressions.test.mjs`.
 - Flashcard or SRS changes: run `node --test scripts/phase4_srs_regressions.test.mjs`.
 - Reader pagination or library pagination changes: run `node --test scripts/phase7_pagination_regressions.test.mjs`.
 - Library cover/upload/delete changes: run the relevant `scripts/library_*.test.mjs` regression script.
+- Collection, shelf, or library search changes: run `node --test scripts/library_collections_backend.test.mjs` and `node --test scripts/library_collections_frontend.test.mjs`.
 - Dashboard, streak, learning activity, or daily-goal changes: run `node --test scripts/phase8_engagement_regressions.test.mjs`.
 - Vocabulary filtering, sorting, status, or pagination changes: run `node --test scripts/phase8_vocabulary_query.test.mjs` and, for UI expectations, `node --test scripts/phase8_vocabulary_ui.test.mjs`.
 - Security headers, AI rate limiting, dashboard structure, or hardening changes: run `node --test scripts/phase8_hardening.test.mjs`.
@@ -79,6 +82,8 @@ pnpm exec prettier --write src/lib/utils.ts
 - `src/components/` and `src/components/ui/` - feature UI and primitives
 - `src/lib/` - domain helpers, validation, Prisma access, reader logic, AI helpers
 - `src/lib/r2.ts` and `src/lib/book-storage.ts` - R2-backed EPUB and cover storage helpers
+- `src/lib/locations-cache.ts` - R2-backed EPUB locations cache helpers
+- `src/lib/collections.ts` and `src/lib/library-url.ts` - shelf data access and library/shelf URL helpers
 - `src/lib/dashboard.ts`, `src/lib/learning-activity.ts`, `src/lib/streak.ts`, and `src/lib/vocabulary-query.ts` - Phase 8 progress, dashboard, and vocabulary-query helpers
 - `prisma/schema.prisma` - database schema and indexes
 - `scripts/*.test.mjs` - Node regression tests
