@@ -19,7 +19,7 @@
   --line: rgba(96, 71, 48, 0.14);
   --line-strong: rgba(96, 71, 48, 0.22);
   --ink-soft: #433528;
-  --ink-muted: #6f5d4c;
+  --ink-muted: #5c4a39;
   --ink-kicker: #8a745d;
   --quote: #bc6a43;
   --danger: #7f2f1f;
@@ -232,6 +232,17 @@ select {
   mix-blend-mode: soft-light;
   opacity: 0.2;
   z-index: 0;
+}
+
+/* Touch-target expansion — grows the tap area via pseudo-element without changing visual size */
+.touch-target-expand {
+  position: relative;
+}
+
+.touch-target-expand::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
 }
 
 @keyframes content-fade-in {

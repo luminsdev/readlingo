@@ -220,7 +220,7 @@ export function ReaderToolbar({
                     aria-label={`Switch reader theme to ${option.label.toLowerCase()}`}
                     aria-pressed={isActive}
                     className={cn(
-                      "focus-visible:border-ring focus-visible:ring-ring/50 relative rounded-full border border-transparent p-1 transition focus-visible:ring-[3px] focus-visible:outline-none",
+                      "touch-target-expand focus-visible:border-ring focus-visible:ring-ring/50 relative rounded-full border border-transparent p-1 transition focus-visible:ring-[3px] focus-visible:outline-none",
                       isActive
                         ? "border-foreground/20 bg-background"
                         : "hover:bg-background/70",

@@ -149,12 +149,12 @@ export function BookCardActions({
   };
 
   return (
-    <div className="bg-surface-strong/70 border-line-strong hover:bg-surface-strong/90 flex items-center gap-1 overflow-hidden rounded-full border p-1 shadow-sm backdrop-blur-md transition-colors">
+    <div className="bg-surface-strong/70 border-line-strong hover:bg-surface-strong/90 flex items-center gap-1 overflow-visible rounded-full border p-1 shadow-sm backdrop-blur-md transition-colors">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             aria-label={`Manage collections for ${title}`}
-            className="size-7 bg-black/40 p-0 text-white/70 hover:bg-black/55 hover:text-white"
+            className="touch-target-expand size-7 bg-black/40 p-0 text-white/70 hover:bg-black/55 hover:text-white"
             disabled={isPending}
             size="icon"
             type="button"

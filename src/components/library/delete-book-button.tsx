@@ -59,7 +59,7 @@ export function DeleteBookButton({
           {iconOnly ? (
             <button
               aria-label={isPending ? `Removing ${title}` : `Delete ${title}`}
-              className="flex size-7 items-center justify-center rounded-full bg-black/40 text-white/60 transition-colors hover:bg-red-500/80 hover:text-white disabled:pointer-events-none disabled:opacity-50"
+              className="touch-target-expand focus-visible:ring-ring flex size-7 items-center justify-center rounded-full bg-black/40 text-white/60 transition-colors hover:bg-red-500/80 hover:text-white focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
               disabled={isPending}
               type="button"
               onClick={(event) => {

@@ -356,7 +356,11 @@ export function FlashcardSession({
               Reveal only when you have truly tried to recall the meaning, then
               rate the answer with enough honesty for tomorrow&apos;s queue.
             </p>
-            <div className="flex items-center gap-2">
+            <div
+              aria-label={`Daily goal: ${todayProgress} of ${dailyGoal} reviews completed`}
+              className="flex items-center gap-2"
+              role="status"
+            >
               <div
                 className="border-line bg-surface-strong h-1.5 flex-1 overflow-hidden rounded-full border"
                 style={{ minWidth: "80px" }}
@@ -399,6 +403,7 @@ export function FlashcardSession({
         <article
           ref={cardSceneRef}
           aria-label={revealed ? undefined : "Flip flashcard"}
+          aria-live="polite"
           className={cn(
             "flashcard-scene",
             cardTransition === "exiting" && "flashcard-exit",
@@ -572,7 +577,7 @@ export function FlashcardSession({
                         <button
                           key={rating}
                           className={cn(
-                            "rounded-[24px] border px-4 py-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
+                            "focus-visible:ring-ring rounded-[24px] border px-4 py-4 text-left transition focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60",
                             ratingCopy[rating].className,
                             pendingRating === rating &&
                               "scale-[1.02] ring-2 ring-[var(--accent)]",
@@ -596,9 +601,11 @@ export function FlashcardSession({
                     </div>
                   </div>
 
-                  {errorMessage ? (
-                    <p className="text-danger text-sm">{errorMessage}</p>
-                  ) : null}
+                  <div role="status">
+                    {errorMessage ? (
+                      <p className="text-danger text-sm">{errorMessage}</p>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>

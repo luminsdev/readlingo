@@ -83,26 +83,32 @@ export function VocabularyToolbar() {
       <div className="relative max-w-sm flex-1">
         <Search className="text-ink-muted pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <input
+          aria-label="Search vocabulary"
           type="search"
           placeholder="Search words..."
           value={searchValue}
           onChange={(event) => handleSearchChange(event.target.value)}
           className={cn(
             "border-line bg-surface placeholder:text-ink-muted text-foreground w-full rounded-full border py-2 pr-4 pl-9 text-sm outline-none",
-            "focus:border-accent focus:ring-1 focus:ring-[var(--accent)]",
+            "focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-[var(--accent)]",
           )}
         />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-1.5">
+        <div
+          aria-label="Filter by status"
+          className="flex gap-1.5"
+          role="group"
+        >
           {STATUS_OPTIONS.map((option) => (
             <button
+              aria-pressed={currentStatus === option.value}
               key={option.value}
               type="button"
               onClick={() => updateParams({ status: option.value })}
               className={cn(
-                "rounded-full border px-3 py-1.5 text-xs font-medium transition",
+                "focus-visible:ring-ring min-h-11 rounded-full border px-3 py-1.5 text-xs font-medium transition focus-visible:ring-2 focus-visible:outline-none",
                 currentStatus === option.value
                   ? "border-foreground bg-foreground text-background"
                   : "border-line text-ink-muted hover:border-line-strong hover:text-foreground",
@@ -113,14 +119,19 @@ export function VocabularyToolbar() {
           ))}
         </div>
 
-        <div className="border-line flex gap-1 rounded-full border p-0.5">
+        <div
+          aria-label="Sort order"
+          className="border-line flex gap-1 rounded-full border p-0.5"
+          role="group"
+        >
           {SORT_OPTIONS.map((option) => (
             <button
+              aria-pressed={currentSort === option.value}
               key={option.value}
               type="button"
               onClick={() => updateParams({ sort: option.value })}
               className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium transition",
+                "focus-visible:ring-ring min-h-11 rounded-full px-3 py-1 text-xs font-medium transition focus-visible:ring-2 focus-visible:outline-none",
                 currentSort === option.value
                   ? "bg-foreground text-background"
                   : "text-ink-muted hover:text-foreground",

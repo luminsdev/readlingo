@@ -53,7 +53,7 @@ export function LibrarySearch({ className }: LibrarySearchProps) {
         className="text-ink-soft pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
       />
       <Input
-        aria-label="Search library by title or author"
+        aria-label="Search library"
         className="bg-surface border-line text-foreground placeholder:text-ink-soft/70 h-10 rounded-full pr-4 pl-9 shadow-sm"
         onChange={(event) => setQuery(event.target.value)}
         placeholder="Search title or author"

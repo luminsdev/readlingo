@@ -66,17 +66,19 @@ export function UploadBookForm({ onSuccess }: { onSuccess?: () => void } = {}) {
         />
       </div>
 
-      {message ? (
-        <p
-          className={
-            message.tone === "error"
-              ? "text-danger text-sm"
-              : "text-foreground text-sm"
-          }
-        >
-          {message.text}
-        </p>
-      ) : null}
+      <div role="status" aria-live="polite">
+        {message ? (
+          <p
+            className={
+              message.tone === "error"
+                ? "text-danger text-sm"
+                : "text-foreground text-sm"
+            }
+          >
+            {message.text}
+          </p>
+        ) : null}
+      </div>
 
       <Button disabled={isPending} type="submit">
         <Upload className="size-4" />

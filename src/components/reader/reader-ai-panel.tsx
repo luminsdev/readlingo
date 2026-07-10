@@ -212,7 +212,7 @@ export function ReaderAiPanel({
             <button
               type="button"
               onClick={onDismissPopover}
-              className="text-popover-foreground/65 hover:text-popover-foreground mt-0.5 shrink-0 transition-colors"
+              className="text-popover-foreground/65 hover:text-popover-foreground focus-visible:ring-ring mt-0.5 shrink-0 rounded-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
               aria-label="Dismiss selection"
             >
               <X className="size-4" />
@@ -223,7 +223,7 @@ export function ReaderAiPanel({
             <button
               onClick={onExplainSelection}
               type="button"
-              className="text-popover-foreground group flex flex-1 items-center gap-1.5 text-[11px] font-medium tracking-widest uppercase transition-colors hover:opacity-100"
+              className="text-popover-foreground focus-visible:ring-ring group flex flex-1 items-center gap-1.5 rounded-sm text-[11px] font-medium tracking-widest uppercase transition-colors hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none"
             >
               <Sparkles className="text-popover-foreground/65 group-hover:text-popover-foreground size-3.5" />
               Explain
@@ -232,7 +232,7 @@ export function ReaderAiPanel({
             <button
               onClick={onCopySelection}
               type="button"
-              className="text-popover-foreground/65 hover:text-popover-foreground group flex flex-1 items-center gap-1.5 text-[11px] font-medium tracking-widest uppercase transition-colors"
+              className="text-popover-foreground/65 hover:text-popover-foreground focus-visible:ring-ring group flex flex-1 items-center gap-1.5 rounded-sm text-[11px] font-medium tracking-widest uppercase transition-colors focus-visible:ring-2 focus-visible:outline-none"
             >
               <Copy className="text-popover-foreground/55 group-hover:text-popover-foreground/80 size-3.5" />
               Copy
@@ -268,7 +268,10 @@ export function ReaderAiPanel({
           ) : null}
 
           {showLoadingPanel ? (
-            <div className="border-line bg-surface-soft flex items-start gap-4 border p-5">
+            <div
+              className="border-line bg-surface-soft flex items-start gap-4 border p-5"
+              role="status"
+            >
               <LoaderCircle className="text-foreground mt-0.5 size-4 shrink-0 animate-spin" />
               <div className="space-y-1.5">
                 <p className="text-foreground text-sm font-medium">
@@ -283,7 +286,10 @@ export function ReaderAiPanel({
           ) : null}
 
           {showErrorPanel ? (
-            <div className="space-y-4 border border-red-200/50 bg-red-50/50 p-5 dark:border-red-900/30 dark:bg-red-950/20">
+            <div
+              className="space-y-4 border border-red-200/50 bg-red-50/50 p-5 dark:border-red-900/30 dark:bg-red-950/20"
+              role="alert"
+            >
               <p className="flex items-center gap-2 text-sm font-medium text-red-900 dark:text-red-400">
                 <AlertCircle className="size-4" />
                 Analysis interrupted
@@ -294,7 +300,7 @@ export function ReaderAiPanel({
               <button
                 onClick={onRetry}
                 type="button"
-                className="mt-2 inline-block text-[11px] font-medium tracking-wide text-red-900 underline decoration-red-900/30 underline-offset-4 hover:decoration-red-900 dark:text-red-400 dark:decoration-red-400/30 dark:hover:decoration-red-400"
+                className="focus-visible:ring-ring mt-2 inline-block rounded-sm text-[11px] font-medium tracking-wide text-red-900 underline decoration-red-900/30 underline-offset-4 hover:decoration-red-900 focus-visible:ring-2 focus-visible:outline-none dark:text-red-400 dark:decoration-red-400/30 dark:hover:decoration-red-400"
               >
                 RETRY ANALYSIS
               </button>
@@ -329,7 +335,7 @@ export function ReaderAiPanel({
               <button
                 onClick={onOpenSidebar}
                 type="button"
-                className="text-foreground inline-flex items-center gap-1.5 text-xs font-medium tracking-wide transition-transform group-hover:translate-x-1"
+                className="text-foreground focus-visible:ring-ring inline-flex items-center gap-1.5 rounded-sm text-xs font-medium tracking-wide transition-transform group-hover:translate-x-1 focus-visible:ring-2 focus-visible:outline-none"
               >
                 Expand <ChevronRight className="size-3.5" />
               </button>
@@ -339,7 +345,10 @@ export function ReaderAiPanel({
           {isSidebarOpen ? (
             <div className="space-y-8 pb-10">
               {showSidebarLoading ? (
-                <div className="text-ink-muted flex animate-pulse gap-4">
+                <div
+                  className="text-ink-muted flex animate-pulse gap-4"
+                  role="status"
+                >
                   <LoaderCircle className="mt-1 size-4 shrink-0 animate-spin" />
                   <p className="text-sm">
                     Synthesizing comprehensive analysis...
@@ -348,7 +357,10 @@ export function ReaderAiPanel({
               ) : null}
 
               {showSidebarError ? (
-                <div className="space-y-4 border border-red-200/50 bg-red-50/50 p-5 dark:border-red-900/30 dark:bg-red-950/20">
+                <div
+                  className="space-y-4 border border-red-200/50 bg-red-50/50 p-5 dark:border-red-900/30 dark:bg-red-950/20"
+                  role="alert"
+                >
                   <p className="flex items-center gap-2 text-sm font-medium text-red-900 dark:text-red-400">
                     <AlertCircle className="size-4" />
                     Analysis unavailable
@@ -359,7 +371,7 @@ export function ReaderAiPanel({
                   <button
                     onClick={onRetry}
                     type="button"
-                    className="mt-2 inline-block text-[11px] font-medium tracking-wide text-red-900 underline decoration-red-900/30 underline-offset-4 hover:decoration-red-900 dark:text-red-400 dark:decoration-red-400/30 dark:hover:decoration-red-400"
+                    className="focus-visible:ring-ring mt-2 inline-block rounded-sm text-[11px] font-medium tracking-wide text-red-900 underline decoration-red-900/30 underline-offset-4 hover:decoration-red-900 focus-visible:ring-2 focus-visible:outline-none dark:text-red-400 dark:decoration-red-400/30 dark:hover:decoration-red-400"
                   >
                     RETRY
                   </button>
@@ -367,7 +379,11 @@ export function ReaderAiPanel({
               ) : null}
 
               {showSidebarExplanation ? (
-                <div className="animate-in fade-in slide-in-from-bottom-2 space-y-10 duration-500">
+                <div
+                  aria-atomic="false"
+                  aria-live="polite"
+                  className="animate-in fade-in slide-in-from-bottom-2 space-y-10 duration-500"
+                >
                   <div className="space-y-6">
                     {shouldShowReaderAiContext(
                       explanation.selectionType,
@@ -517,7 +533,7 @@ export function ReaderAiPanel({
                         type="button"
                         onClick={onSaveToVocabulary}
                         disabled={isSaveDisabled}
-                        className="border-line hover:bg-surface-soft disabled:border-line group disabled:bg-surface-soft/70 disabled:text-ink-muted flex w-full items-center justify-between border px-4 py-3 transition-colors disabled:cursor-default"
+                        className="border-line hover:bg-surface-soft disabled:border-line group disabled:bg-surface-soft/70 disabled:text-ink-muted focus-visible:ring-ring flex w-full items-center justify-between border px-4 py-3 transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-default"
                       >
                         <span
                           className={`flex items-center gap-2 text-xs font-medium ${saveButtonTextClass}`}
