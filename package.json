@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "phase1:smoke": "node scripts/phase1_smoke_test.mjs",
     "phase2:test": "node --test scripts/phase2_reader_regressions.test.mjs",
     "phase4:test": "node --test scripts/phase4_srs_regressions.test.mjs",
@@ -53,6 +55,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -64,7 +67,8 @@
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs}": [
