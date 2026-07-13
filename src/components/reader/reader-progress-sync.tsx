@@ -5,14 +5,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   clearLocalStorageProgress,
   createReaderPagehideFlushHandler,
+  getProgressSyncBackoffMs,
+  getProgressSyncStateForAttempt,
+  getProgressSyncStatusLabel,
   setLocalStorageProgress,
+  shouldSyncProgress,
 } from "@/lib/reader-progress";
 
 import type { SaveState } from "@/components/reader/reader-workspace-types";
-import {
-  formatSavedTimestamp,
-  SAVE_DEBOUNCE_MS,
-} from "@/components/reader/reader-workspace-utils";
+import { SAVE_DEBOUNCE_MS } from "@/components/reader/reader-workspace-utils";
 
 const FOCUS_RETRY_COOLDOWN_MS = 1500;
 
@@ -44,21 +45,26 @@ export function useReaderProgressSync({
   readerErrorMessage,
 }: UseReaderProgressSyncProps) {
   const activeCfiRef = useRef(activeCfi);
-  const lastPersistedCfiRef = useRef(initialCfi);
+  const lastServerAckedCfiRef = useRef(initialCfi);
+  const lastLocalSavedCfiRef = useRef<string | null>(null);
+  const lastLocalSavedSequenceRef = useRef(0);
   const pendingSaveCfiRef = useRef<string | null>(null);
   const progressPercentageRef = useRef(progressPercentage);
   const saveAbortControllerRef = useRef<AbortController | null>(null);
+  const backoffRetryTimeoutRef = useRef<number | null>(null);
+  const retryAttemptRef = useRef(0);
   const isSavingRef = useRef(false);
   const lastFocusRetryRef = useRef({
     attemptedAt: 0,
     cfi: null as string | null,
   });
+  const saveSequenceRef = useRef(0);
   const saveRequestIdRef = useRef(0);
 
   const [saveState, setSaveState] = useState<SaveState>(
-    initialCfi ? "saved" : "idle",
+    initialCfi ? "synced" : "idle",
   );
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(
     initialUpdatedAt,
   );
 
@@ -71,10 +77,18 @@ export function useReaderProgressSync({
   }, [progressPercentage]);
 
   useEffect(() => {
-    lastPersistedCfiRef.current = initialCfi;
+    lastServerAckedCfiRef.current = initialCfi;
+    lastLocalSavedCfiRef.current = null;
+    lastLocalSavedSequenceRef.current = 0;
     pendingSaveCfiRef.current = null;
-    setSaveState(initialCfi ? "saved" : "idle");
-    setLastSavedAt(initialUpdatedAt);
+    retryAttemptRef.current = 0;
+    saveSequenceRef.current = 0;
+    if (backoffRetryTimeoutRef.current !== null) {
+      window.clearTimeout(backoffRetryTimeoutRef.current);
+      backoffRetryTimeoutRef.current = null;
+    }
+    setSaveState(initialCfi ? "synced" : "idle");
+    setLastSyncedAt(initialUpdatedAt);
   }, [bookId, initialCfi, initialUpdatedAt]);
 
   useEffect(() => {
@@ -84,12 +98,32 @@ export function useReaderProgressSync({
   }, [readerErrorMessage]);
 
   const saveProgress = useCallback(
-    async (cfi: string, keepalive = false) => {
-      if (!cfi || lastPersistedCfiRef.current === cfi) {
+    async (cfi: string, keepalive = false, isRetry = false) => {
+      if (!shouldSyncProgress(cfi, lastServerAckedCfiRef.current)) {
         return;
       }
 
-      setLocalStorageProgress(bookId, cfi, progressPercentageRef.current);
+      if (!keepalive && backoffRetryTimeoutRef.current !== null) {
+        window.clearTimeout(backoffRetryTimeoutRef.current);
+        backoffRetryTimeoutRef.current = null;
+      }
+
+      const saveSequence = saveSequenceRef.current + 1;
+      saveSequenceRef.current = saveSequence;
+
+      const didSaveLocally = setLocalStorageProgress(
+        bookId,
+        cfi,
+        progressPercentageRef.current,
+      );
+      pendingSaveCfiRef.current = cfi;
+
+      if (didSaveLocally) {
+        lastLocalSavedCfiRef.current = cfi;
+        lastLocalSavedSequenceRef.current = saveSequence;
+      }
+
+      setSaveState(getProgressSyncStateForAttempt({ didSaveLocally, isRetry }));
 
       if (isSavingRef.current) {
         pendingSaveCfiRef.current = cfi;
@@ -104,11 +138,11 @@ export function useReaderProgressSync({
       isSavingRef.current = true;
       const saveRequestId = saveRequestIdRef.current + 1;
       saveRequestIdRef.current = saveRequestId;
-      setSaveState("saving");
 
       const abortController = new AbortController();
       saveAbortControllerRef.current = abortController;
       let didSaveProgress = false;
+      let didAbortForNewerProgress = false;
 
       try {
         const response = await fetch(`/api/books/${bookId}/progress`, {
@@ -140,20 +174,73 @@ export function useReaderProgressSync({
           );
         }
 
-        lastPersistedCfiRef.current = payload.progress.cfi;
+        lastServerAckedCfiRef.current = payload.progress.cfi;
+        if (backoffRetryTimeoutRef.current !== null) {
+          window.clearTimeout(backoffRetryTimeoutRef.current);
+          backoffRetryTimeoutRef.current = null;
+        }
         if (pendingSaveCfiRef.current === payload.progress.cfi) {
           pendingSaveCfiRef.current = null;
         }
-        clearLocalStorageProgress(bookId);
+        if (lastLocalSavedCfiRef.current === payload.progress.cfi) {
+          clearLocalStorageProgress(bookId);
+          lastLocalSavedCfiRef.current = null;
+          lastLocalSavedSequenceRef.current = 0;
+        } else if (
+          lastLocalSavedCfiRef.current !== null &&
+          lastLocalSavedSequenceRef.current > saveSequence
+        ) {
+          setLocalStorageProgress(
+            bookId,
+            lastLocalSavedCfiRef.current,
+            progressPercentageRef.current,
+          );
+        } else if (lastLocalSavedCfiRef.current !== null) {
+          clearLocalStorageProgress(bookId);
+          lastLocalSavedCfiRef.current = null;
+          lastLocalSavedSequenceRef.current = 0;
+        }
 
-        setLastSavedAt(payload.progress.updatedAt);
-        setSaveState("saved");
+        retryAttemptRef.current = 0;
+        setLastSyncedAt(payload.progress.updatedAt);
+        setSaveState(
+          shouldSyncProgress(
+            pendingSaveCfiRef.current,
+            lastServerAckedCfiRef.current,
+          )
+            ? "saved_local"
+            : "synced",
+        );
         didSaveProgress = true;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") {
-          return;
+          didAbortForNewerProgress = true;
+        } else {
+          setSaveState("error");
+
+          if (backoffRetryTimeoutRef.current === null) {
+            const retryCfi = pendingSaveCfiRef.current ?? cfi;
+            const retryDelay = getProgressSyncBackoffMs(
+              retryAttemptRef.current,
+            );
+            retryAttemptRef.current += 1;
+
+            backoffRetryTimeoutRef.current = window.setTimeout(() => {
+              backoffRetryTimeoutRef.current = null;
+              const nextCfi =
+                pendingSaveCfiRef.current ??
+                lastLocalSavedCfiRef.current ??
+                retryCfi;
+
+              if (
+                nextCfi &&
+                shouldSyncProgress(nextCfi, lastServerAckedCfiRef.current)
+              ) {
+                void saveProgress(nextCfi, false, true);
+              }
+            }, retryDelay);
+          }
         }
-        setSaveState("error");
       } finally {
         if (saveAbortControllerRef.current === abortController) {
           saveAbortControllerRef.current = null;
@@ -163,10 +250,16 @@ export function useReaderProgressSync({
         }
       }
 
-      // Failed saves are recovered by online/focus/visibilitychange handlers.
-      if (didSaveProgress) {
+      // Successful saves and intentional aborts both unlock the latest queued CFI.
+      if (
+        (didSaveProgress || didAbortForNewerProgress) &&
+        saveRequestIdRef.current === saveRequestId
+      ) {
         const nextCfi = pendingSaveCfiRef.current;
-        if (nextCfi && nextCfi !== lastPersistedCfiRef.current) {
+        if (
+          nextCfi &&
+          shouldSyncProgress(nextCfi, lastServerAckedCfiRef.current)
+        ) {
           void saveProgress(nextCfi, false);
         }
       }
@@ -178,7 +271,10 @@ export function useReaderProgressSync({
     (source?: "focus") => {
       const pendingCfi = pendingSaveCfiRef.current;
 
-      if (!pendingCfi || pendingCfi === lastPersistedCfiRef.current) {
+      if (
+        !pendingCfi ||
+        !shouldSyncProgress(pendingCfi, lastServerAckedCfiRef.current)
+      ) {
         return;
       }
 
@@ -195,7 +291,7 @@ export function useReaderProgressSync({
         lastFocusRetryRef.current = { attemptedAt: now, cfi: pendingCfi };
       }
 
-      void saveProgress(pendingCfi);
+      void saveProgress(pendingCfi, false, true);
     },
     [saveProgress],
   );
@@ -217,7 +313,7 @@ export function useReaderProgressSync({
   useEffect(() => {
     const flushProgress = createReaderPagehideFlushHandler({
       getActiveCfi: () => activeCfiRef.current,
-      getLastPersistedCfi: () => lastPersistedCfiRef.current,
+      getLastServerAckedCfi: () => lastServerAckedCfiRef.current,
       saveProgress,
     });
 
@@ -246,7 +342,10 @@ export function useReaderProgressSync({
       } else if (document.visibilityState === "hidden") {
         const activeCfi = activeCfiRef.current;
 
-        if (activeCfi && activeCfi !== lastPersistedCfiRef.current) {
+        if (
+          activeCfi &&
+          shouldSyncProgress(activeCfi, lastServerAckedCfiRef.current)
+        ) {
           void saveProgress(activeCfi, true);
         }
       }
@@ -264,25 +363,18 @@ export function useReaderProgressSync({
   }, [isReady, retryPendingProgress, saveProgress]);
 
   const handleRestoreFailure = useCallback(() => {
-    lastPersistedCfiRef.current = null;
+    lastServerAckedCfiRef.current = null;
+    lastLocalSavedCfiRef.current = null;
+    lastLocalSavedSequenceRef.current = 0;
     pendingSaveCfiRef.current = null;
   }, []);
 
   const saveStatusLabel = useMemo(() => {
-    if (saveState === "saving") {
-      return "Saving location...";
-    }
-
-    if (saveState === "error") {
-      return "Progress sync paused";
-    }
-
-    if (saveState === "saved") {
-      return formatSavedTimestamp(lastSavedAt);
-    }
-
-    return "Progress tracking starts after your first move";
-  }, [lastSavedAt, saveState]);
+    return getProgressSyncStatusLabel({
+      state: saveState,
+      syncedAt: lastSyncedAt,
+    });
+  }, [lastSyncedAt, saveState]);
 
   return {
     handleRestoreFailure,
@@ -298,21 +390,25 @@ export function ReaderProgressSync({
   progressPercentage,
   saveStatusLabel,
 }: ReaderProgressSyncProps) {
-  const isSaving = saveStatusLabel === "Saving location...";
-  const isPaused = saveStatusLabel === "Progress sync paused";
+  const isSyncing =
+    saveStatusLabel === "Syncing…" || saveStatusLabel === "Retrying sync…";
+  const isSavedLocally = saveStatusLabel === "Saved on this device";
+  const isPaused = saveStatusLabel === "Couldn't sync · will retry";
 
   return (
     <div className="space-y-6 px-1 pt-4">
       <div className="space-y-2">
         <p className="text-ink-kicker flex items-center gap-2 text-[10px] font-medium tracking-[0.2em] uppercase">
           <span className="relative flex size-1.5">
-            {isSaving ? (
+            {isSyncing ? (
               <>
                 <span className="bg-ink-kicker absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
                 <span className="bg-accent relative inline-flex size-1.5 rounded-full"></span>
               </>
             ) : isPaused ? (
               <span className="relative inline-flex size-1.5 rounded-full bg-red-500/50"></span>
+            ) : isSavedLocally ? (
+              <span className="bg-accent/70 relative inline-flex size-1.5 rounded-full"></span>
             ) : (
               <span className="border-line-strong relative inline-flex size-1.5 border"></span>
             )}

@@ -215,7 +215,50 @@ test("reader progress sync caches pending progress and clears it after persisten
   );
   assert.match(
     progressSyncSource,
-    /lastPersistedCfiRef\.current = payload\.progress\.cfi;[\s\S]*clearLocalStorageProgress\(bookId\);/,
+    /lastServerAckedCfiRef\.current = payload\.progress\.cfi;[\s\S]*lastLocalSavedCfiRef\.current === payload\.progress\.cfi[\s\S]*clearLocalStorageProgress\(bookId\);/,
+  );
+  assert.doesNotMatch(progressSyncSource, /lastPersistedCfiRef/);
+});
+
+test("reader progress sync clears stale backoff retries after a server ack", async () => {
+  const progressSyncSource = await readWorkspaceFile(
+    "src/components/reader/reader-progress-sync.tsx",
+  );
+
+  assert.match(
+    progressSyncSource,
+    /lastServerAckedCfiRef\.current = payload\.progress\.cfi;[\s\S]*if \(backoffRetryTimeoutRef\.current !== null\) \{[\s\S]*window\.clearTimeout\(backoffRetryTimeoutRef\.current\);[\s\S]*backoffRetryTimeoutRef\.current = null;[\s\S]*\}/,
+  );
+});
+
+test("reader progress sync refreshes newer local cache after a stale server ack", async () => {
+  const progressSyncSource = await readWorkspaceFile(
+    "src/components/reader/reader-progress-sync.tsx",
+  );
+
+  assert.match(
+    progressSyncSource,
+    /lastLocalSavedCfiRef\.current === payload\.progress\.cfi[\s\S]*clearLocalStorageProgress\(bookId\);[\s\S]*lastLocalSavedCfiRef\.current = null;[\s\S]*else if \([\s\S]*lastLocalSavedCfiRef\.current !== null &&[\s\S]*lastLocalSavedSequenceRef\.current > saveSequence[\s\S]*\) \{[\s\S]*setLocalStorageProgress\([\s\S]*bookId,[\s\S]*lastLocalSavedCfiRef\.current,[\s\S]*progressPercentageRef\.current,?\s*\);[\s\S]*\}/,
+  );
+});
+
+test("reader progress sync does not refresh older local cache after a newer server ack", async () => {
+  const progressSyncSource = await readWorkspaceFile(
+    "src/components/reader/reader-progress-sync.tsx",
+  );
+
+  assert.match(progressSyncSource, /lastLocalSavedSequenceRef = useRef/);
+  assert.match(
+    progressSyncSource,
+    /const saveSequence = saveSequenceRef\.current \+ 1;/,
+  );
+  assert.match(
+    progressSyncSource,
+    /else if \([\s\S]*lastLocalSavedCfiRef\.current !== null &&[\s\S]*lastLocalSavedSequenceRef\.current > saveSequence[\s\S]*\) \{[\s\S]*setLocalStorageProgress\([\s\S]*bookId,[\s\S]*lastLocalSavedCfiRef\.current,[\s\S]*progressPercentageRef\.current,?\s*\);[\s\S]*\}/,
+  );
+  assert.match(
+    progressSyncSource,
+    /else if \(lastLocalSavedCfiRef\.current !== null\) \{[\s\S]*clearLocalStorageProgress\(bookId\);[\s\S]*lastLocalSavedCfiRef\.current = null;[\s\S]*lastLocalSavedSequenceRef\.current = 0;[\s\S]*\}/,
   );
 });
 
@@ -226,7 +269,7 @@ test("reader progress sync keepalive flushes active progress when the tab is hid
 
   assert.match(
     progressSyncSource,
-    /else if \(document\.visibilityState === "hidden"\) \{[\s\S]*activeCfiRef\.current[\s\S]*activeCfi !== lastPersistedCfiRef\.current[\s\S]*saveProgress\(activeCfi, true\)/,
+    /else if \(document\.visibilityState === "hidden"\) \{[\s\S]*activeCfiRef\.current[\s\S]*shouldSyncProgress\(activeCfi, lastServerAckedCfiRef\.current\)[\s\S]*saveProgress\(activeCfi, true\)/,
   );
 });
 
@@ -241,7 +284,7 @@ test("reader progress sync does not drop keepalive flushes behind in-flight save
   );
 });
 
-test("reader progress sync retries queued progress only after a successful save", async () => {
+test("reader progress sync resumes queued progress after the in-flight save clears", async () => {
   const progressSyncSource = await readWorkspaceFile(
     "src/components/reader/reader-progress-sync.tsx",
   );
@@ -252,8 +295,15 @@ test("reader progress sync retries queued progress only after a successful save"
   const didSaveAssignmentIndex = progressSyncSource.indexOf(
     "didSaveProgress = true;",
   );
-  const didSaveGuardIndex = progressSyncSource.indexOf(
-    "if (didSaveProgress) {",
+  const abortAssignmentIndex = progressSyncSource.indexOf(
+    "didAbortForNewerProgress = true;",
+  );
+  const unlockGuardIndex = progressSyncSource.indexOf(
+    "didSaveProgress || didAbortForNewerProgress",
+  );
+  const latestRequestGuardIndex = progressSyncSource.indexOf(
+    "saveRequestIdRef.current === saveRequestId",
+    unlockGuardIndex,
   );
   const savingClearedIndex = progressSyncSource.indexOf(
     "isSavingRef.current = false;",
@@ -264,13 +314,20 @@ test("reader progress sync retries queued progress only after a successful save"
 
   assert.notEqual(didSaveDeclarationIndex, -1);
   assert.notEqual(didSaveAssignmentIndex, -1);
-  assert.notEqual(didSaveGuardIndex, -1);
+  assert.notEqual(abortAssignmentIndex, -1);
+  assert.notEqual(unlockGuardIndex, -1);
+  assert.notEqual(latestRequestGuardIndex, -1);
   assert.notEqual(savingClearedIndex, -1);
   assert.notEqual(nextCfiIndex, -1);
   assert.ok(
     didSaveDeclarationIndex < didSaveAssignmentIndex &&
-      didSaveAssignmentIndex < didSaveGuardIndex,
-    "queued progress retry should be guarded by a successful save flag",
+      didSaveAssignmentIndex < unlockGuardIndex,
+    "queued progress retry should be guarded by a completed save or intentional abort flag",
+  );
+  assert.ok(
+    abortAssignmentIndex < unlockGuardIndex &&
+      unlockGuardIndex < latestRequestGuardIndex,
+    "older aborted requests should not interrupt newer in-flight saves",
   );
   assert.ok(
     savingClearedIndex < nextCfiIndex,
@@ -769,14 +826,14 @@ test("readingProgressSchema validates EPUB CFIs and optional percentage bounds",
   );
 });
 
-test("createReaderPagehideFlushHandler uses the latest CFI and skips persisted positions", async () => {
+test("createReaderPagehideFlushHandler uses the latest CFI and skips server-acked positions", async () => {
   let activeCfi = "epubcfi(/6/2!/4/2/8,/1:0,/1:12)";
-  let lastPersistedCfi = activeCfi;
+  let lastServerAckedCfi = activeCfi;
   const calls = [];
 
   const flushProgress = createReaderPagehideFlushHandler({
     getActiveCfi: () => activeCfi,
-    getLastPersistedCfi: () => lastPersistedCfi,
+    getLastServerAckedCfi: () => lastServerAckedCfi,
     saveProgress: async (cfi, keepalive = false) => {
       calls.push({ cfi, keepalive });
     },
@@ -791,7 +848,7 @@ test("createReaderPagehideFlushHandler uses the latest CFI and skips persisted p
     { cfi: "epubcfi(/6/2!/4/2/10,/1:0,/1:12)", keepalive: true },
   ]);
 
-  lastPersistedCfi = activeCfi;
+  lastServerAckedCfi = activeCfi;
   flushProgress();
   assert.equal(calls.length, 1);
 });

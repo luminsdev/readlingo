@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import type { ReaderTocItem } from "./reader-table-of-contents-utils";
 
 import type { ExplainSelectionInput } from "@/lib/ai-validation";
+import type { ProgressSyncState } from "@/lib/reader-progress";
 
-export type SaveState = "idle" | "saving" | "saved" | "error";
+export type SaveState = ProgressSyncState;
 
 export type AiPanelState = "idle" | "loading" | "ready" | "error";
 

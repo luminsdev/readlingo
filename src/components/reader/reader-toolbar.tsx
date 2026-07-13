@@ -100,6 +100,9 @@ export function ReaderToolbar({
   const canToggleToc = isReady && tocItemCount > 0;
   const canDecreaseFontSize = isReady && fontSize > READER_FONT_SIZE_MIN;
   const canIncreaseFontSize = isReady && fontSize < READER_FONT_SIZE_MAX;
+  const isProgressSyncing = saveState === "syncing" || saveState === "retrying";
+  const isProgressSaved = saveState === "saved_local" || saveState === "synced";
+  const hasProgressError = saveState === "error";
   // prettier-ignore
   const zenModeIcon = isZenMode ? <Minimize className="size-4" /> : <Maximize className="size-4" />;
 
@@ -138,9 +141,16 @@ export function ReaderToolbar({
             Paginated EPUB rendering is live, with resume-by-CFI enabled.
           </div>
 
-          <div className="text-muted-foreground flex items-center gap-2 text-sm">
-            {saveState === "saving" ? (
-              <LoaderCircle className="size-4 animate-spin" />
+          <div
+            className={cn(
+              "text-muted-foreground flex items-center gap-2 text-sm",
+              hasProgressError && "text-destructive",
+            )}
+          >
+            {isProgressSyncing ? (
+              <LoaderCircle className="size-3.5 animate-spin opacity-70" />
+            ) : isProgressSaved ? (
+              <Check className="size-4" />
             ) : (
               <RefreshCcw className="size-4" />
             )}
