@@ -53,6 +53,17 @@ export async function getUserCollections(userId: string) {
   });
 }
 
+export async function getUserCollectionOptions(userId: string) {
+  return prisma.collection.findMany({
+    where: { userId },
+    orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+    select: {
+      id: true,
+      displayName: true,
+    },
+  });
+}
+
 export async function createCollection(userId: string, displayName: string) {
   const normalizedName = displayName.toLowerCase();
   const existingCollection = await prisma.collection.findFirst({

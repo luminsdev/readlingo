@@ -10,7 +10,7 @@ import { LibrarySearch } from "@/components/library/library-search";
 import {
   getCollectionBooks,
   getCollectionDetail,
-  getUserCollections,
+  getUserCollectionOptions,
 } from "@/lib/collections";
 import { getFilteredPageHref } from "@/lib/library-url";
 import { prisma } from "@/lib/prisma";
@@ -63,19 +63,19 @@ export default async function CollectionDetailPage({
   const { page: pageParam, q: searchQuery } = await searchParams;
   const currentPage = Math.max(1, parseInt(pageParam ?? "1", 10) || 1);
   const trimmedQuery = searchQuery?.trim() || "";
-  const [booksResult, allCollections] = await Promise.all([
+  const [booksResult, collectionOptions] = await Promise.all([
     getCollectionBooks(session.user.id, id, {
       page: currentPage,
       query: trimmedQuery,
     }),
-    getUserCollections(session.user.id),
+    getUserCollectionOptions(session.user.id),
   ]);
   const bookCollectionRows = booksResult.books.length
     ? await prisma.bookCollection.findMany({
         where: {
           bookId: { in: booksResult.books.map((book) => book.id) },
           collectionId: {
-            in: allCollections.map((collection) => collection.id),
+            in: collectionOptions.map((collection) => collection.id),
           },
         },
         select: {
@@ -136,13 +136,14 @@ export default async function CollectionDetailPage({
               <BookCard
                 author={book.author}
                 collectionContext={{ collectionId: id }}
+                coverBlurDataUrl={book.coverBlurDataUrl}
                 hasCover={!!book.coverUrl}
                 hasStartedReading={book.readingProgress != null}
                 id={book.id}
                 key={book.id}
                 progressPercentage={book.readingProgress?.percentage ?? null}
                 title={book.title}
-                collections={allCollections.map((collection) => ({
+                collections={collectionOptions.map((collection) => ({
                   id: collection.id,
                   displayName: collection.displayName,
                   hasBook: book.collections.some(

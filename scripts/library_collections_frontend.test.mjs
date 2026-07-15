@@ -204,11 +204,15 @@ test("library page wires search, shelves, memberships, and all-books pagination 
   );
   assert.match(
     pageSource,
-    /import \{ getUserCollections \} from "@\/lib\/collections";/,
+    /import \{[\s\S]*getUserCollectionOptions,[\s\S]*getUserCollections,[\s\S]*\} from "@\/lib\/collections";/,
   );
   assert.match(
     pageSource,
-    /const \[books, totalCount, allCollections\] = await Promise\.all\(\[/,
+    /const allCollections =\s*view === "shelves"\s*\? await getUserCollections\(session\.user\.id\)\s*:\s*\[\];/,
+  );
+  assert.match(
+    pageSource,
+    /const \[books, totalCount, collectionOptions\] =\s*view === "books"\s*\? await Promise\.all\(\[[\s\S]*getUserCollectionOptions\(session\.user\.id\)[\s\S]*\]\)\s*:\s*\(\[\[\], 0, \[\]\] as const\)/,
   );
   assert.match(
     pageSource,
@@ -228,6 +232,7 @@ test("library page wires search, shelves, memberships, and all-books pagination 
   assert.doesNotMatch(pageSource, /CollectionShelvesRow/);
 
   assert.match(pageSource, /hasBook: book\.collections\.some/);
+  assert.match(pageSource, /collections=\{collectionOptions\.map/);
 });
 
 test("collection detail page wires scoped search, header actions, and shelf-only pagination", async () => {
@@ -246,14 +251,16 @@ test("collection detail page wires scoped search, header actions, and shelf-only
   );
   assert.match(pageSource, /getCollectionDetail/);
   assert.match(pageSource, /getCollectionBooks/);
-  assert.match(pageSource, /getUserCollections/);
+  assert.match(pageSource, /getUserCollectionOptions/);
+  assert.doesNotMatch(pageSource, /getUserCollections/);
   assert.match(pageSource, /notFound\(\)/);
   assert.match(pageSource, /<CollectionHeader/);
   assert.match(pageSource, /<LibrarySearch/);
   assert.match(pageSource, /<LibraryPagination/);
   assert.match(pageSource, /<BookCard/);
   assert.match(pageSource, /collectionContext=\{\{ collectionId: id \}\}/);
-  assert.match(pageSource, /collections=\{allCollections\.map/);
+  assert.match(pageSource, /collections=\{collectionOptions\.map/);
   assert.match(pageSource, /hasBook: book\.collections\.some/);
+  assert.match(pageSource, /coverBlurDataUrl=\{book\.coverBlurDataUrl\}/);
   assert.match(pageSource, /\/library\/collections\/\$\{id\}/);
 });

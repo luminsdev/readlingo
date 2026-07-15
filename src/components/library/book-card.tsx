@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 
 import { BookCardActions } from "@/components/library/book-card-actions";
@@ -18,6 +21,7 @@ type BookCardProps = {
   author: string | null;
   collectionContext?: { collectionId: string };
   collections?: Array<{ id: string; displayName: string; hasBook: boolean }>;
+  coverBlurDataUrl: string | null;
   hasCover: boolean;
   hasStartedReading?: boolean;
   id: string;
@@ -38,23 +42,46 @@ function getTitleColor(title: string) {
 
 function BookCardCover({
   authorLabel,
+  coverBlurDataUrl,
   hasCover,
   id,
   title,
 }: {
   authorLabel: string;
+  coverBlurDataUrl: string | null;
   hasCover: boolean;
   id: string;
   title: string;
 }) {
+  const [coverLoadState, setCoverLoadState] = useState<
+    "loading" | "loaded" | "error"
+  >("loading");
+
   if (hasCover) {
     return (
-      <div className="bg-surface-strong/40 relative h-full w-full overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/40 before:to-transparent dark:before:via-white/10">
+      <div className="bg-surface-strong/40 relative h-full w-full overflow-hidden">
+        {coverBlurDataUrl ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 scale-110 bg-cover bg-center opacity-70 blur-md"
+            style={{
+              backgroundImage: `url(${coverBlurDataUrl})`,
+            }}
+          />
+        ) : null}
+        {coverLoadState === "loading" ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 z-[1] -translate-x-full animate-[shimmer_2s_infinite] bg-gradient-to-r from-transparent via-white/40 to-transparent motion-reduce:animate-none dark:via-white/10"
+          />
+        ) : null}
         <img
           alt={title}
-          className="relative z-10 h-full w-full object-cover"
+          className={`relative z-10 h-full w-full object-cover transition-opacity duration-300 ease-out motion-reduce:transition-none ${coverLoadState === "loaded" ? "opacity-100" : "opacity-0"}`}
           decoding="async"
           loading="lazy"
+          onError={() => setCoverLoadState("error")}
+          onLoad={() => setCoverLoadState("loaded")}
           src={`/api/covers/${id}?size=thumb`}
         />
       </div>
@@ -95,6 +122,7 @@ export function BookCard({
   author,
   collectionContext,
   collections,
+  coverBlurDataUrl,
   hasCover,
   hasStartedReading = false,
   id,
@@ -119,6 +147,7 @@ export function BookCard({
         <div className="bg-surface-strong border-border/40 relative aspect-[3/4] w-full overflow-hidden rounded-[8px] border shadow-[0_4px_18px_var(--paper-shadow)] transition-all duration-300 ease-[cubic-bezier(0.2,1,0.2,1)] group-hover:scale-[1.015] group-hover:shadow-[0_20px_45px_var(--paper-shadow)]">
           <BookCardCover
             authorLabel={authorLabel}
+            coverBlurDataUrl={coverBlurDataUrl}
             hasCover={hasCover}
             id={id}
             title={title}

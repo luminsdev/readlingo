@@ -37,6 +37,34 @@ test("library book card and progress ring present the hover overlay reading UI",
     bookCardSource,
     /backgroundImage: `url\(\$\{coverBlurDataUrl\}\)`/,
   );
+  assert.match(bookCardSource, /bg-cover/);
+  assert.match(bookCardSource, /bg-center/);
+  assert.match(bookCardSource, /scale-110/);
+  assert.match(bookCardSource, /blur-md/);
+  assert.match(bookCardSource, /opacity-70/);
+  assert.match(
+    bookCardSource,
+    /const \[coverLoadState, setCoverLoadState\] = useState<[\s\S]*"loading" \| "loaded" \| "error"[\s\S]*>\("loading"\);/,
+  );
+  assert.match(
+    bookCardSource,
+    /\{coverLoadState === "loading" \? \([\s\S]*animate-\[shimmer_2s_infinite\][\s\S]*\) : null\}/,
+  );
+  assert.match(
+    bookCardSource,
+    /onLoad=\{\(\) => setCoverLoadState\("loaded"\)\}/,
+  );
+  assert.match(
+    bookCardSource,
+    /onError=\{\(\) => setCoverLoadState\("error"\)\}/,
+  );
+  assert.match(
+    bookCardSource,
+    /coverLoadState === "loaded" \? "opacity-100" : "opacity-0"/,
+  );
+  assert.match(bookCardSource, /transition-opacity/);
+  assert.match(bookCardSource, /motion-reduce:transition-none/);
+  assert.doesNotMatch(bookCardSource, /before:animate-\[shimmer_2s_infinite\]/);
   assert.match(bookCardSource, /BookCardActions/);
   assert.match(bookCardSource, /group-hover:pointer-events-auto/);
   assert.match(bookCardSource, /group-hover:opacity-100/);
@@ -115,7 +143,7 @@ test("library page uses proxy covers, responsive cover grid, and updated upload 
     pageSource,
     /grid-cols-2[\s\S]*sm:grid-cols-2[\s\S]*md:grid-cols-3[\s\S]*lg:grid-cols-4[\s\S]*xl:grid-cols-5/,
   );
-  assert.match(pageSource, /Your Library/);
+  assert.match(pageSource, /totalCount === 1 \? "book" : "books"/);
   assert.match(uploadDialogSource, /Add a new EPUB/);
   assert.doesNotMatch(pageSource, /ContinueReading/);
   assert.doesNotMatch(pageSource, /Curated reading desk/);

@@ -76,6 +76,7 @@ test("collection helpers centralize ownership, detail queries, cover membership,
 
   for (const functionName of [
     "getUserCollections",
+    "getUserCollectionOptions",
     "createCollection",
     "updateCollection",
     "deleteCollection",
@@ -110,6 +111,10 @@ test("collection helpers centralize ownership, detail queries, cover membership,
   assert.match(
     helpersSource,
     /coverBook:\s*\{\s*select:\s*\{[\s\S]*?coverUrl:\s*true[\s\S]*?coverBlurDataUrl:\s*true/s,
+  );
+  assert.match(
+    helpersSource,
+    /export async function getUserCollectionOptions\(userId: string\) \{\s*return prisma\.collection\.findMany\(\{\s*where: \{ userId \},\s*orderBy: \[\{ order: "asc" \}, \{ createdAt: "asc" \}\],\s*select: \{\s*id: true,\s*displayName: true,\s*\},\s*\}\);\s*\}/s,
   );
   assert.match(helpersSource, /coverUrl:\s*\{\s*not:\s*null\s*\}/);
   assert.match(helpersSource, /orderBy:\s*\{\s*createdAt:\s*"desc"\s*\}/);

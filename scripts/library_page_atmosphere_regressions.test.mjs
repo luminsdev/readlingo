@@ -74,6 +74,25 @@ test("book card supports proxy covers and the existing reading action treatment"
   assert.match(bookCardSource, /<img/);
   assert.match(bookCardSource, /src=\{`\/api\/covers\/\$\{id\}\?size=thumb`\}/);
   assert.match(bookCardSource, /loading="lazy"/);
+  assert.match(bookCardSource, /decoding="async"/);
+  assert.match(
+    bookCardSource,
+    /const \[coverLoadState, setCoverLoadState\] = useState<[\s\S]*"loading" \| "loaded" \| "error"[\s\S]*>\("loading"\);/,
+  );
+  assert.match(bookCardSource, /coverLoadState === "loading"/);
+  assert.match(
+    bookCardSource,
+    /onLoad=\{\(\) => setCoverLoadState\("loaded"\)\}/,
+  );
+  assert.match(
+    bookCardSource,
+    /onError=\{\(\) => setCoverLoadState\("error"\)\}/,
+  );
+  assert.match(
+    bookCardSource,
+    /coverLoadState === "loaded" \? "opacity-100" : "opacity-0"/,
+  );
+  assert.match(bookCardSource, /motion-reduce:transition-none/);
   assert.match(
     bookCardSource,
     /hasStartedReading\s*\?\s*progressPercentage != null/,

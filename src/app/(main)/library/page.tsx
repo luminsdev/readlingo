@@ -12,7 +12,10 @@ import { LibraryPagination } from "@/components/library/library-pagination";
 import { LibrarySearch } from "@/components/library/library-search";
 import { UploadBookDialog } from "@/components/library/upload-book-dialog";
 import { AnimatedTabs } from "@/components/ui/animated-tabs";
-import { getUserCollections } from "@/lib/collections";
+import {
+  getUserCollectionOptions,
+  getUserCollections,
+} from "@/lib/collections";
 import { getFilteredPageHref } from "@/lib/library-url";
 import { prisma } from "@/lib/prisma";
 
@@ -48,35 +51,41 @@ export default async function LibraryPage({
       : {}),
   };
 
-  const [books, totalCount, allCollections] = await Promise.all([
-    prisma.book.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (currentPage - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-      select: {
-        id: true,
-        title: true,
-        author: true,
-        coverUrl: true,
-        collections: {
-          select: {
-            collectionId: true,
-          },
-        },
-        readingProgress: {
-          select: {
-            percentage: true,
-            updatedAt: true,
-          },
-        },
-      },
-    }),
-    prisma.book.count({
-      where,
-    }),
-    getUserCollections(session.user.id),
-  ]);
+  const allCollections =
+    view === "shelves" ? await getUserCollections(session.user.id) : [];
+  const [books, totalCount, collectionOptions] =
+    view === "books"
+      ? await Promise.all([
+          prisma.book.findMany({
+            where,
+            orderBy: { createdAt: "desc" },
+            skip: (currentPage - 1) * PAGE_SIZE,
+            take: PAGE_SIZE,
+            select: {
+              id: true,
+              title: true,
+              author: true,
+              coverUrl: true,
+              coverBlurDataUrl: true,
+              collections: {
+                select: {
+                  collectionId: true,
+                },
+              },
+              readingProgress: {
+                select: {
+                  percentage: true,
+                  updatedAt: true,
+                },
+              },
+            },
+          }),
+          prisma.book.count({
+            where,
+          }),
+          getUserCollectionOptions(session.user.id),
+        ])
+      : ([[], 0, []] as const);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
@@ -169,13 +178,14 @@ export default async function LibraryPage({
             {books.map((book) => (
               <BookCard
                 author={book.author}
+                coverBlurDataUrl={book.coverBlurDataUrl}
                 hasCover={!!book.coverUrl}
                 hasStartedReading={book.readingProgress != null}
                 id={book.id}
                 key={book.id}
                 progressPercentage={book.readingProgress?.percentage ?? null}
                 title={book.title}
-                collections={allCollections.map((collection) => ({
+                collections={collectionOptions.map((collection) => ({
                   id: collection.id,
                   displayName: collection.displayName,
                   hasBook: book.collections.some(
