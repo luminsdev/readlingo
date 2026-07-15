@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 import { BookCardActions } from "@/components/library/book-card-actions";
@@ -53,9 +53,24 @@ function BookCardCover({
   id: string;
   title: string;
 }) {
+  const coverImageRef = useRef<HTMLImageElement | null>(null);
   const [coverLoadState, setCoverLoadState] = useState<
     "loading" | "loaded" | "error"
   >("loading");
+  const syncCoverLoadState = useCallback(() => {
+    const image = coverImageRef.current;
+
+    if (!image?.complete) {
+      return;
+    }
+
+    setCoverLoadState(image.naturalWidth > 0 ? "loaded" : "error");
+  }, []);
+
+  useLayoutEffect(() => {
+    setCoverLoadState("loading");
+    syncCoverLoadState();
+  }, [id, syncCoverLoadState]);
 
   if (hasCover) {
     return (
@@ -82,6 +97,7 @@ function BookCardCover({
           loading="lazy"
           onError={() => setCoverLoadState("error")}
           onLoad={() => setCoverLoadState("loaded")}
+          ref={coverImageRef}
           src={`/api/covers/${id}?size=thumb`}
         />
       </div>

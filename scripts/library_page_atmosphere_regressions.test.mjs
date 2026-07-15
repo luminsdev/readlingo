@@ -79,6 +79,21 @@ test("book card supports proxy covers and the existing reading action treatment"
     bookCardSource,
     /const \[coverLoadState, setCoverLoadState\] = useState<[\s\S]*"loading" \| "loaded" \| "error"[\s\S]*>\("loading"\);/,
   );
+  assert.match(
+    bookCardSource,
+    /const coverImageRef = useRef<HTMLImageElement \| null>\(null\);/,
+  );
+  assert.match(bookCardSource, /const syncCoverLoadState = useCallback\(/);
+  assert.match(bookCardSource, /if \(!image\?\.complete\) \{/);
+  assert.match(
+    bookCardSource,
+    /setCoverLoadState\(image\.naturalWidth > 0 \? "loaded" : "error"\);/,
+  );
+  assert.match(
+    bookCardSource,
+    /useLayoutEffect\(\(\) => \{[\s\S]*setCoverLoadState\("loading"\);[\s\S]*syncCoverLoadState\(\);[\s\S]*\}, \[id, syncCoverLoadState\]\);/,
+  );
+  assert.match(bookCardSource, /ref=\{coverImageRef\}/);
   assert.match(bookCardSource, /coverLoadState === "loading"/);
   assert.match(
     bookCardSource,
