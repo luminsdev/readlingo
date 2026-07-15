@@ -85,15 +85,44 @@ test("reader loads cached locations before generating and posts first generation
   const source = await readWorkspaceFile(
     "src/components/reader/reader-epub-view.tsx",
   );
+  const cachedLoadIndex = source.indexOf(
+    "book.locations.load(locData.locationsJson)",
+  );
+  const generateIndex = source.indexOf(".generate(1024)");
+  const postIndex = source.indexOf('method: "POST"', generateIndex);
+  const saveIndex = source.indexOf("book.locations.save()", postIndex);
+  const locationsFetchIndex = source.indexOf(
+    "fetch(`/api/books/${initialBookId}/locations`)",
+  );
+  const cancellationGuardIndex = source.indexOf(
+    "if (cancelled || !book)",
+    locationsFetchIndex,
+  );
+  const classifyIndex = source.indexOf(
+    "locationsOutcome = classifyLocationsCacheResult",
+    locationsFetchIndex,
+  );
 
   assert.match(
     source,
     /fetch\(`\/api\/books\/\$\{initialBookId\}\/locations`\)/,
   );
   assert.match(source, /book\.locations\.load\(locData\.locationsJson\)/);
-  assert.match(source, /let locationsLoaded = false;/);
-  assert.match(source, /if \(locationsLoaded\) \{/);
+  assert.match(source, /classifyLocationsCacheResult\(/);
+  assert.match(source, /shouldGenerateLocations\(locationsOutcome\)/);
+  assert.match(source, /outcome: locationsOutcome/);
+  assert.match(source, /outcome: "generated"/);
   assert.match(source, /book\.locations\s*\.generate\(1024\)/);
   assert.match(source, /locationsJson: book\.locations\.save\(\)/);
   assert.match(source, /method: "POST"/);
+  assert.ok(cachedLoadIndex >= 0 && cachedLoadIndex < generateIndex);
+  assert.ok(generateIndex < postIndex && postIndex < saveIndex);
+  assert.ok(
+    locationsFetchIndex < cancellationGuardIndex &&
+      cancellationGuardIndex < classifyIndex,
+  );
+  assert.match(
+    source,
+    /Promise\.resolve\(\)[\s\S]*if \(cancelled \|\| !book\) \{[\s\S]*return book\.locations\s*\.generate\(1024\)/,
+  );
 });

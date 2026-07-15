@@ -18,7 +18,11 @@ import type { Location as EpubLocation } from "epubjs/types/rendition";
 import { useTheme } from "next-themes";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { getReaderBookLoadKey } from "@/components/reader/reader-epub-view-utils";
+import {
+  classifyLocationsCacheResult,
+  getReaderBookLoadKey,
+  shouldGenerateLocations,
+} from "@/components/reader/reader-epub-view-utils";
 import { normalizeReaderTocItems } from "@/components/reader/reader-table-of-contents-utils";
 import type { ReaderViewState } from "@/components/reader/reader-workspace-types";
 import {
@@ -104,6 +108,7 @@ export const ReaderEpubView = forwardRef<
   } = initialBook;
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const bookRef = useRef<Book | null>(null);
+  const initialProgressCfiRef = useRef(initialProgressCfi);
   const callbacksRef = useRef({
     onClearPendingSelection,
     onDismissPanels,
@@ -137,10 +142,10 @@ export const ReaderEpubView = forwardRef<
     author: initialAuthor,
     id: initialBookId,
     language: initialLanguage,
-    progressCfi: initialProgressCfi,
     title: initialTitle,
   });
 
+  initialProgressCfiRef.current = initialProgressCfi;
   callbacksRef.current = {
     onClearPendingSelection,
     onDismissPanels,
@@ -401,13 +406,15 @@ export const ReaderEpubView = forwardRef<
       setErrorMessage(null);
       setIsReady(false);
       callbacksRef.current.onStateChange({
-        activeCfi: initialProgressCfi,
+        activeCfi: initialProgressCfiRef.current,
         canGoNext: false,
         canGoPrevious: false,
         chapterHref: null,
         errorMessage: null,
         isReady: false,
-        locationLabel: getReaderInitialLocationLabel(initialProgressCfi),
+        locationLabel: getReaderInitialLocationLabel(
+          initialProgressCfiRef.current,
+        ),
         progressPercentage: null,
       });
       callbacksRef.current.onTocLoaded([]);
@@ -497,6 +504,8 @@ export const ReaderEpubView = forwardRef<
         rendition.on("selected", handleSelected);
         rendition.on("keydown", handleRenditionKeyDown);
 
+        const initialProgressCfi = initialProgressCfiRef.current;
+
         if (initialProgressCfi) {
           try {
             await rendition.display(initialProgressCfi);
@@ -566,26 +575,49 @@ export const ReaderEpubView = forwardRef<
         setIsReady(true);
         callbacksRef.current.onStateChange({ isReady: true });
 
-        let locationsLoaded = false;
+        let locationsOutcome: ReturnType<typeof classifyLocationsCacheResult>;
 
         try {
           const locRes = await fetch(`/api/books/${initialBookId}/locations`);
+          const locData = locRes.ok
+            ? ((await locRes.json()) as {
+                locationsJson?: string | null;
+              })
+            : { locationsJson: null };
 
-          if (locRes.ok) {
-            const locData = (await locRes.json()) as {
-              locationsJson?: string | null;
-            };
-
-            if (locData.locationsJson) {
-              book.locations.load(locData.locationsJson);
-              locationsLoaded = true;
-            }
+          if (cancelled || !book) {
+            return;
           }
-        } catch (error) {
-          console.error("Failed to load cached locations:", error);
+
+          locationsOutcome = classifyLocationsCacheResult({
+            locationsJson: locData.locationsJson,
+            responseOk: locRes.ok,
+          });
+
+          if (locationsOutcome === "cache_hit" && locData.locationsJson) {
+            book.locations.load(locData.locationsJson);
+          }
+        } catch {
+          locationsOutcome = classifyLocationsCacheResult({ didThrow: true });
         }
 
-        if (locationsLoaded) {
+        if (cancelled || !book) {
+          return;
+        }
+
+        if (locationsOutcome === "cache_error") {
+          console.warn("[reader:locations]", {
+            bookId: initialBookId,
+            outcome: locationsOutcome,
+          });
+        } else {
+          console.info("[reader:locations]", {
+            bookId: initialBookId,
+            outcome: locationsOutcome,
+          });
+        }
+
+        if (!shouldGenerateLocations(locationsOutcome)) {
           const currentCfi = getReaderCfi(
             rendition?.location as EpubLocation | undefined,
           );
@@ -601,8 +633,14 @@ export const ReaderEpubView = forwardRef<
           return;
         }
 
-        void book.locations
-          .generate(1024)
+        void Promise.resolve()
+          .then(() => {
+            if (cancelled || !book) {
+              return;
+            }
+
+            return book.locations.generate(1024);
+          })
           .then(() => {
             if (cancelled || !book) {
               return;
@@ -612,8 +650,11 @@ export const ReaderEpubView = forwardRef<
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ locationsJson: book.locations.save() }),
-            }).catch((error) => {
-              console.error("Failed to save cached locations:", error);
+            }).catch(() => undefined);
+
+            console.info("[reader:locations]", {
+              bookId: initialBookId,
+              outcome: "generated",
             });
 
             const currentCfi = getReaderCfi(
@@ -710,7 +751,6 @@ export const ReaderEpubView = forwardRef<
     initialAuthor,
     initialBookId,
     initialLanguage,
-    initialProgressCfi,
     initialTitle,
     styleReaderContents,
     syncMetadata,

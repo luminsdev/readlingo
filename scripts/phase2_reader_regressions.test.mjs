@@ -420,6 +420,20 @@ test("reader EPUB view generates locations in the background and renders a progr
     epubViewSource,
     /await\s+book\.locations\.generate\(1024\)/,
   );
+  assert.match(
+    epubViewSource,
+    /const initialProgressCfiRef = useRef\(initialProgressCfi\)/,
+  );
+  assert.match(
+    epubViewSource,
+    /const initialProgressCfi = initialProgressCfiRef\.current;[\s\S]*await rendition\.display\(initialProgressCfi\);[\s\S]*onRestoreFailure\(\);[\s\S]*await rendition\.display\(\);/,
+  );
+  const openEffectSource = epubViewSource.slice(
+    epubViewSource.indexOf("useEffect(() => {\n    let cancelled = false;"),
+    epubViewSource.indexOf("  const handleReaderAction"),
+  );
+
+  assert.doesNotMatch(openEffectSource, /\n\s+initialProgressCfi,\n/);
   assert.equal(locationLengthGuards.length, 3);
   assert.match(
     epubViewSource,
@@ -650,7 +664,7 @@ test("reader zen mode keeps a single EPUB view instance and threads zen-specific
   assert.match(zenControlsSource, /event\.clientY <= 80/);
 });
 
-test("getReaderBookLoadKey stays stable for the same book snapshot values", () => {
+test("getReaderBookLoadKey ignores restored progress but changes for a different book", () => {
   const initialKey = getReaderBookLoadKey({
     id: "book-123",
     title: "The Reader",
@@ -666,18 +680,18 @@ test("getReaderBookLoadKey stays stable for the same book snapshot values", () =
       title: "The Reader",
       author: "A. Writer",
       language: "en",
-      progressCfi: "epubcfi(/6/2!/4/2/8,/1:0,/1:12)",
+      progressCfi: "epubcfi(/6/2!/4/2/9,/1:0,/1:12)",
     }),
   );
 
   assert.notEqual(
     initialKey,
     getReaderBookLoadKey({
-      id: "book-123",
+      id: "book-456",
       title: "The Reader",
       author: "A. Writer",
       language: "en",
-      progressCfi: "epubcfi(/6/2!/4/2/9,/1:0,/1:12)",
+      progressCfi: "epubcfi(/6/2!/4/2/8,/1:0,/1:12)",
     }),
   );
 });
