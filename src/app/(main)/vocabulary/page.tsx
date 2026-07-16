@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Lightbulb } from "lucide-react";
 
 import { auth } from "@/auth";
 import { DeleteVocabularyButton } from "@/components/vocabulary/delete-vocabulary-button";
+import { VocabularyExportActions } from "@/components/vocabulary/vocabulary-export-actions";
 import { VocabularyToolbar } from "@/components/vocabulary/vocabulary-toolbar";
 import { getHighlightedExampleSegments } from "@/components/reader/reader-workspace-utils";
 import {
@@ -335,6 +336,13 @@ export default async function VocabularyPage({
           <VocabularyToolbar />
         </Suspense>
       </header>
+
+      <VocabularyExportActions
+        matchCount={totalCount}
+        searchQuery={searchQuery}
+        sortBy={sortBy}
+        statusFilter={statusFilter}
+      />
 
       {vocabularyArchiveItems.length ? (
         <>
