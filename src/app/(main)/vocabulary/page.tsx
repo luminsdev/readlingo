@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Lightbulb } from "lucide-react";
 
 import { auth } from "@/auth";
 import { DeleteVocabularyButton } from "@/components/vocabulary/delete-vocabulary-button";
+import { PronounceWordButton } from "@/components/vocabulary/pronounce-word-button";
 import { VocabularyExportActions } from "@/components/vocabulary/vocabulary-export-actions";
 import { VocabularyToolbar } from "@/components/vocabulary/vocabulary-toolbar";
 import { getHighlightedExampleSegments } from "@/components/reader/reader-workspace-utils";
@@ -365,6 +366,7 @@ export default async function VocabularyPage({
                         <h2 className="text-foreground font-serif text-3xl font-light">
                           {item.word}
                         </h2>
+                        <PronounceWordButton word={item.word} />
                         {item.pronunciation ? (
                           <p className="text-ink-muted pb-1 text-sm italic">
                             {item.pronunciation}

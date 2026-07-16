@@ -15,6 +15,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PronounceWordButton } from "@/components/vocabulary/pronounce-word-button";
 import { cn } from "@/lib/utils";
 import type { DueCard } from "@/lib/flashcards";
 import { SRS_RATING_VALUES, type SRSRating } from "@/lib/srs";
@@ -445,9 +446,12 @@ export function FlashcardSession({
                     Front
                   </p>
                   <div className="space-y-4">
-                    <h2 className="text-foreground font-serif text-5xl font-light tracking-tight sm:text-6xl">
-                      {activeCard.word}
-                    </h2>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <h2 className="text-foreground font-serif text-5xl font-light tracking-tight sm:text-6xl">
+                        {activeCard.word}
+                      </h2>
+                      <PronounceWordButton word={activeCard.word} />
+                    </div>
                     <div className="text-ink-muted flex flex-wrap items-center gap-3 text-sm">
                       {activeCard.pronunciation ? (
                         <span className="text-ink-soft font-serif text-base italic">
