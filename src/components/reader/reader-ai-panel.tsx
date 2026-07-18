@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   AlertCircle,
   Check,
@@ -10,14 +11,21 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { Fragment, useEffect } from "react";
+import { Fragment, useEffect, type ReactNode } from "react";
 
 import {
   getReaderAiStreamingCursorTarget,
   shouldShowReaderAiContext,
 } from "@/components/reader/reader-ai-panel-utils";
 import { getHighlightedExampleSegments } from "@/components/reader/reader-workspace-utils";
+import type {
+  DeepActionUiState,
+  DeepActionUiStates,
+  StreamingDeepActionResultByAction,
+} from "@/lib/ai-deep-action-streaming";
 import type { StreamingExplanationPayload } from "@/lib/ai-streaming";
+import type { DeepAction } from "@/lib/ai-validation";
+import { getVocabularyReencounterCue } from "@/lib/vocabulary-match";
 import type { WordExplanationPayload } from "@/types";
 
 type AiPanelState = "idle" | "loading" | "ready" | "error";
@@ -28,6 +36,32 @@ type PopoverPosition = {
 };
 
 type VocabularySaveState = "idle" | "saving" | "saved" | "alreadySaved";
+
+export type ExistingVocabulary = {
+  id: string;
+  word: string;
+  definition: string;
+  explanation: string | null;
+  exampleSentence: string | null;
+  srsData: {
+    interval: number;
+    nextReviewAt: string;
+  } | null;
+};
+
+const DEEP_ACTION_LABELS = {
+  grammar: "Grammar",
+  compare: "Compare",
+  easierExamples: "Easier examples",
+  conjugation: "Conjugation",
+  collocation: "Collocations",
+} satisfies Record<DeepAction, string>;
+
+const REENCOUNTER_CUE_LABELS = {
+  due: "Due",
+  learning: "Learning",
+  mastered: "Mastered",
+} as const;
 
 function getBriefExplanation(explanation: string | undefined) {
   if (!explanation) {
@@ -90,34 +124,340 @@ function StreamingCursor() {
   );
 }
 
+function DeepActionResult({
+  action,
+  state,
+  onRetry,
+}: {
+  action: DeepAction;
+  state: DeepActionUiState;
+  onRetry: () => void;
+}) {
+  const errorContent =
+    state.status === "error" ? (
+      <div
+        className="space-y-2 border border-red-200/50 bg-red-50/50 p-4 dark:border-red-900/30 dark:bg-red-950/20"
+        role="alert"
+      >
+        <p className="text-xs leading-relaxed text-red-800 dark:text-red-300">
+          {state.errorMessage}
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="focus-visible:ring-ring rounded-sm text-[10px] font-medium tracking-widest text-red-900 uppercase underline decoration-red-900/30 underline-offset-4 focus-visible:ring-2 focus-visible:outline-none dark:text-red-400 dark:decoration-red-400/30"
+        >
+          Retry {DEEP_ACTION_LABELS[action]}
+        </button>
+      </div>
+    ) : null;
+
+  const result = state.result;
+
+  if (!result) {
+    return (
+      errorContent ??
+      (state.status === "loading" ? (
+        <p
+          className="text-ink-muted flex items-center gap-2 text-xs"
+          role="status"
+        >
+          <LoaderCircle className="size-3.5 animate-spin" />
+          Preparing {DEEP_ACTION_LABELS[action].toLowerCase()}...
+        </p>
+      ) : null)
+    );
+  }
+
+  if (result.notApplicable) {
+    return (
+      <div className="space-y-3">
+        <p className="text-ink-muted border-line border-l pl-4 text-xs leading-relaxed italic">
+          {result.reason}
+        </p>
+        {errorContent}
+      </div>
+    );
+  }
+
+  let content: ReactNode = null;
+
+  if (action === "grammar") {
+    const grammar = result as StreamingDeepActionResultByAction["grammar"];
+
+    content = (
+      <div className="space-y-3">
+        {grammar.summary ? (
+          <p className="text-ink-soft text-sm leading-relaxed">
+            {grammar.summary}
+          </p>
+        ) : null}
+        {(grammar.points?.length ?? 0) > 0 ? (
+          <ul className="text-ink-muted list-disc space-y-2 pl-4 text-xs leading-relaxed">
+            {grammar.points?.map((point) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    );
+  } else if (action === "compare") {
+    const comparison = result as StreamingDeepActionResultByAction["compare"];
+
+    content = (
+      <div className="space-y-4">
+        {comparison.alternative ? (
+          <div className="space-y-1">
+            <p className="text-ink-kicker text-[9px] font-medium tracking-[0.18em] uppercase">
+              Alternative
+            </p>
+            <p className="text-foreground font-serif text-sm leading-relaxed">
+              {comparison.alternative}
+            </p>
+          </div>
+        ) : null}
+        {comparison.contrast ? (
+          <div className="space-y-1">
+            <p className="text-ink-kicker text-[9px] font-medium tracking-[0.18em] uppercase">
+              Contrast
+            </p>
+            <p className="text-ink-soft text-xs leading-relaxed">
+              {comparison.contrast}
+            </p>
+          </div>
+        ) : null}
+        {comparison.tip ? (
+          <p className="text-ink-muted border-quote/60 border-l pl-3 text-xs leading-relaxed italic">
+            {comparison.tip}
+          </p>
+        ) : null}
+      </div>
+    );
+  } else if (action === "easierExamples") {
+    const easierExamples =
+      result as StreamingDeepActionResultByAction["easierExamples"];
+
+    content = (
+      <div className="space-y-4">
+        {easierExamples.examples?.map((example, index) => (
+          <div
+            key={`${example.sentence}-${example.translation}-${index}`}
+            className="border-quote/60 border-l pl-4"
+          >
+            {example.sentence ? (
+              <p className="text-ink-soft font-serif text-sm leading-relaxed italic">
+                {example.sentence}
+              </p>
+            ) : null}
+            {example.translation ? (
+              <p className="text-ink-muted mt-1 text-xs leading-relaxed">
+                {example.translation}
+              </p>
+            ) : null}
+          </div>
+        ))}
+        {easierExamples.note ? (
+          <p className="text-ink-muted text-xs leading-relaxed italic">
+            {easierExamples.note}
+          </p>
+        ) : null}
+      </div>
+    );
+  } else if (action === "conjugation") {
+    const conjugation =
+      result as StreamingDeepActionResultByAction["conjugation"];
+
+    content = (
+      <div className="space-y-4">
+        {conjugation.lemma ? (
+          <div className="space-y-1">
+            <p className="text-ink-kicker text-[9px] font-medium tracking-[0.18em] uppercase">
+              Lemma
+            </p>
+            <p className="text-foreground font-serif text-sm leading-relaxed">
+              {conjugation.lemma}
+            </p>
+          </div>
+        ) : null}
+        {(conjugation.forms?.length ?? 0) > 0 ? (
+          <div className="border-line divide-line divide-y border-y">
+            {conjugation.forms?.map((form, index) => (
+              <div
+                key={`${form.label}-${form.value}-${index}`}
+                className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-3 py-2.5 text-xs leading-relaxed"
+              >
+                <p className="text-ink-muted">{form.label}</p>
+                <p className="text-ink-soft font-medium">{form.value}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {conjugation.note ? (
+          <p className="text-ink-muted border-quote/60 border-l pl-3 text-xs leading-relaxed italic">
+            {conjugation.note}
+          </p>
+        ) : null}
+      </div>
+    );
+  } else if (action === "collocation") {
+    const collocation =
+      result as StreamingDeepActionResultByAction["collocation"];
+
+    content = (
+      <div className="space-y-4">
+        {collocation.items?.map((item, index) => (
+          <div
+            key={`${item.phrase}-${item.translation}-${index}`}
+            className="border-quote/60 border-l pl-4"
+          >
+            {item.phrase ? (
+              <p className="text-ink-soft font-serif text-sm leading-relaxed">
+                {item.phrase}
+              </p>
+            ) : null}
+            {item.translation ? (
+              <p className="text-ink-muted mt-1 text-xs leading-relaxed">
+                {item.translation}
+              </p>
+            ) : null}
+            {item.note ? (
+              <p className="text-ink-muted mt-1 text-[11px] leading-relaxed italic">
+                {item.note}
+              </p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {content}
+      {state.status === "loading" ? (
+        <p
+          className="text-ink-muted flex items-center gap-2 text-[11px]"
+          role="status"
+        >
+          <LoaderCircle className="size-3 animate-spin" />
+          Refining...
+        </p>
+      ) : null}
+      {errorContent}
+    </div>
+  );
+}
+
+function DeepActionsSection({
+  actions,
+  states,
+  onRun,
+}: {
+  actions: DeepAction[];
+  states: DeepActionUiStates;
+  onRun: (action: DeepAction) => void;
+}) {
+  if (actions.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="border-line space-y-5 border-t pt-8">
+      <div className="space-y-1.5">
+        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
+          Go deeper
+        </p>
+        <p className="text-ink-muted text-xs leading-relaxed">
+          Explore one angle at a time. These notes stay separate from your saved
+          explanation.
+        </p>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        {actions.map((action) => {
+          const actionState = states[action];
+
+          return (
+            <button
+              key={action}
+              type="button"
+              onClick={() => onRun(action)}
+              className="border-line hover:border-line-strong hover:bg-surface-soft focus-visible:ring-ring flex min-h-10 items-center justify-center gap-2 border px-3 py-2 text-[11px] font-medium tracking-wide transition-colors focus-visible:ring-2 focus-visible:outline-none"
+            >
+              {actionState.status === "loading" ? (
+                <LoaderCircle className="size-3.5 animate-spin" />
+              ) : null}
+              {DEEP_ACTION_LABELS[action]}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="space-y-5">
+        {actions.map((action) => {
+          const actionState = states[action];
+
+          return actionState.status !== "idle" ? (
+            <article
+              key={action}
+              className="border-line bg-surface-soft border p-4"
+            >
+              <p className="text-foreground mb-3 font-serif text-base">
+                {DEEP_ACTION_LABELS[action]}
+              </p>
+              <DeepActionResult
+                action={action}
+                state={actionState}
+                onRetry={() => onRun(action)}
+              />
+            </article>
+          ) : null;
+        })}
+      </div>
+    </section>
+  );
+}
+
 export function ReaderAiPanel({
+  availableDeepActions,
   contextSentence,
+  deepActionStates,
+  dueCardCount,
+  existingVocabulary,
   state,
   errorMessage,
   explanation,
   isSidebarOpen,
+  isVocabularyLookupPending,
   popoverPosition,
   saveState,
   selectedText,
   tooltipSelectedText,
   onCopySelection,
   onExplainSelection,
+  onRunDeepAction,
   onOpenSidebar,
   onRetry,
   onSaveToVocabulary,
   onDismissPopover,
 }: {
+  availableDeepActions: DeepAction[];
   contextSentence?: string | null;
+  deepActionStates: DeepActionUiStates;
+  dueCardCount: number | null;
+  existingVocabulary: ExistingVocabulary | null;
   state: AiPanelState;
   errorMessage: string | null;
   explanation: StreamingExplanationPayload | null;
   isSidebarOpen: boolean;
+  isVocabularyLookupPending: boolean;
   popoverPosition: PopoverPosition | null;
   saveState: VocabularySaveState;
   selectedText: string | null;
   tooltipSelectedText: string | null;
   onCopySelection: () => void;
   onExplainSelection: () => void;
+  onRunDeepAction: (action: DeepAction) => void;
   onOpenSidebar: () => void;
   onRetry: () => void;
   onSaveToVocabulary: () => void;
@@ -125,6 +465,14 @@ export function ReaderAiPanel({
 }) {
   const showPopover = popoverPosition && tooltipSelectedText;
   const briefExplanation = getBriefExplanation(explanation?.explanation);
+  const existingVocabularyDefinition = getBriefExplanation(
+    existingVocabulary?.definition.trim() ||
+      existingVocabulary?.explanation?.trim() ||
+      existingVocabulary?.exampleSentence?.trim(),
+  );
+  const reencounterCue = getVocabularyReencounterCue({
+    srsData: existingVocabulary?.srsData,
+  });
   const hasMatchingSelection =
     !!selectedText &&
     !!tooltipSelectedText &&
@@ -138,7 +486,8 @@ export function ReaderAiPanel({
     ? getReaderAiStreamingCursorTarget(explanation)
     : null;
   const isSaving = saveState === "saving";
-  const isSaveDisabled = saveState !== "idle" || state !== "ready";
+  const isSaveDisabled =
+    isVocabularyLookupPending || saveState !== "idle" || state !== "ready";
   const saveLabel =
     saveState === "saving"
       ? "Saving to Archive"
@@ -559,12 +908,47 @@ export function ReaderAiPanel({
                         Streaming analysis...
                       </p>
                     )}
+                    {saveState === "saved" ? (
+                      <Link
+                        href="/vocabulary/flashcards"
+                        className="text-ink-muted hover:text-foreground focus-visible:ring-ring mt-3 inline-flex items-center gap-1.5 rounded-sm text-[11px] tracking-wide transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                      >
+                        {dueCardCount !== null && dueCardCount > 0
+                          ? `${dueCardCount} due now`
+                          : "Open flashcards"}
+                        <ChevronRight className="size-3" />
+                      </Link>
+                    ) : null}
+                    {saveState === "alreadySaved" &&
+                    existingVocabularyDefinition ? (
+                      <div className="border-quote/60 mt-4 border-l pl-4">
+                        <p className="text-ink-kicker text-[9px] font-medium tracking-[0.18em] uppercase">
+                          Saved meaning
+                        </p>
+                        <p className="text-ink-soft mt-1 font-serif text-sm leading-relaxed">
+                          {existingVocabularyDefinition}
+                        </p>
+                        {reencounterCue ? (
+                          <span className="border-line text-ink-muted mt-2 inline-block border px-2 py-0.5 text-[9px] tracking-[0.16em] uppercase">
+                            {REENCOUNTER_CUE_LABELS[reencounterCue]}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                     {errorMessage ? (
                       <p className="mt-3 text-[11px] leading-relaxed text-red-700 dark:text-red-300">
                         {errorMessage}
                       </p>
                     ) : null}
                   </div>
+
+                  {state === "ready" ? (
+                    <DeepActionsSection
+                      actions={availableDeepActions}
+                      states={deepActionStates}
+                      onRun={onRunDeepAction}
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </div>

@@ -3,6 +3,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 
+import {
+  AI_RATE_LIMIT,
+  AI_RATE_WINDOW_MS,
+  checkAiRateLimit,
+  getAiRateLimitKey,
+} from "../src/lib/ai-rate-limit.ts";
 import { checkRateLimit } from "../src/lib/rate-limit.ts";
 import {
   deriveVocabularyStatus,
@@ -76,6 +82,22 @@ test("checkRateLimit resets after window expires", async () => {
   assert.equal(result.allowed, true);
 });
 
+test("shared AI rate budget uses the locked key family and limits", () => {
+  const userId = "phase11-" + Date.now();
+
+  assert.equal(AI_RATE_LIMIT, 30);
+  assert.equal(AI_RATE_WINDOW_MS, 60_000);
+  assert.equal(getAiRateLimitKey(userId), `ai:${userId}`);
+
+  for (let i = 0; i < AI_RATE_LIMIT; i++) {
+    assert.equal(checkAiRateLimit(userId).allowed, true);
+  }
+
+  const blocked = checkAiRateLimit(userId);
+  assert.equal(blocked.allowed, false);
+  assert.ok(blocked.retryAfterSeconds > 0);
+});
+
 test("deriveVocabularyStatus returns 'new' when no SRS data", () => {
   assert.equal(deriveVocabularyStatus(null), "new");
 });
@@ -136,10 +158,44 @@ test("next.config.ts includes all required security response headers", async () 
   assert.match(source, /Content-Security-Policy/);
 });
 
-test("AI explain route includes rate limiting with 429 response", async () => {
-  const source = await readWorkspaceFile("src/app/api/ai/explain/route.ts");
+test("AI routes share the locked rate budget and preserve 429 responses", async () => {
+  const [rateLimitSource, explainSource, deepActionSource] = await Promise.all([
+    readWorkspaceFile("src/lib/ai-rate-limit.ts"),
+    readWorkspaceFile("src/app/api/ai/explain/route.ts"),
+    readWorkspaceFile("src/app/api/ai/deep-action/route.ts"),
+  ]);
 
-  assert.match(source, /checkRateLimit/);
-  assert.match(source, /429/);
-  assert.match(source, /Retry-After/);
+  assert.match(rateLimitSource, /getAiRateLimitKey/);
+  assert.match(rateLimitSource, /`ai:\$\{userId\}`/);
+  assert.match(rateLimitSource, /checkRateLimit/);
+  assert.match(rateLimitSource, /deep actions share/i);
+
+  for (const source of [explainSource, deepActionSource]) {
+    assert.match(source, /checkAiRateLimit/);
+    assert.match(source, /429/);
+    assert.match(source, /Retry-After/);
+  }
+});
+
+test("deep-action route is authenticated, validated, streamed, and logged", async () => {
+  const [routeSource, helperSource] = await Promise.all([
+    readWorkspaceFile("src/app/api/ai/deep-action/route.ts"),
+    readWorkspaceFile("src/lib/ai-deep-actions.ts"),
+  ]);
+
+  assert.match(routeSource, /await auth\(\)/);
+  assert.match(routeSource, /status: 401/);
+  assert.match(routeSource, /deepActionRequestSchema\.safeParse/);
+  assert.match(routeSource, /status: 400/);
+  assert.match(routeSource, /streamDeepAction/);
+  assert.match(routeSource, /toTextStreamResponse/);
+  assert.match(routeSource, /Cache-Control/);
+  assert.match(routeSource, /no-store/);
+  assert.match(routeSource, /logServerError/);
+  assert.match(routeSource, /requestId/);
+  assert.match(routeSource, /onError/);
+  assert.match(routeSource, /onFinish/);
+  assert.match(routeSource, /errorType/);
+  assert.match(helperSource, /onError: callbacks\.onError/);
+  assert.match(helperSource, /onFinish: callbacks\.onFinish/);
 });

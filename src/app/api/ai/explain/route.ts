@@ -2,14 +2,11 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import { getAiErrorMessage, streamExplanation } from "@/lib/ai";
+import { checkAiRateLimit } from "@/lib/ai-rate-limit";
 import { explainSelectionSchema } from "@/lib/ai-validation";
 import { generateRequestId, logServerError } from "@/lib/logger";
-import { checkRateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 30;
-
-const AI_RATE_LIMIT = 30;
-const AI_RATE_WINDOW_MS = 60_000;
 
 export async function POST(request: Request) {
   const requestId = generateRequestId();
@@ -19,11 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const rateLimitResult = checkRateLimit(
-    `ai:${session.user.id}`,
-    AI_RATE_LIMIT,
-    AI_RATE_WINDOW_MS,
-  );
+  const rateLimitResult = checkAiRateLimit(session.user.id);
 
   if (!rateLimitResult.allowed) {
     return NextResponse.json(

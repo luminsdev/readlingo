@@ -7,6 +7,7 @@ import {
   type AiExplanationInput,
   type ExplainSelectionInput,
 } from "./ai-validation.ts";
+import { getAiResponseLocaleInstruction } from "./ai-locale.ts";
 import type {
   AiProvider,
   ExplainModelTier,
@@ -26,7 +27,15 @@ type ProviderRegistration = {
 const AI_PROMPT_TEMPLATE = `System: You are a language learning assistant.
 Given a selected text and its surrounding context from a book,
 provide a helpful explanation for a language learner.
-Respond in Vietnamese. Be concise.
+${getAiResponseLocaleInstruction()}
+Use short learner-facing Vietnamese only.
+Keep translation short while preserving the full selection meaning.
+Write explanation in 2-4 short sentences maximum; target under 500 characters.
+Write grammaticalNote in at most 1-2 short sentences when useful; omit it when redundant.
+Prefer 1 example; never provide more than 2. Keep examples short and natural.
+Do not include greetings, closings, thanks, wishes, or encouragement.
+Never use sign-off or encouragement phrases such as "hy vọng", "chúc bạn", "cảm ơn", "cố gắng", or "nếu bạn muốn hỏi thêm".
+Do not include self-referential assistant chatter.
 
 User:
 Book language: {sourceLanguage}
@@ -37,7 +46,7 @@ Provide:
 1. Translation
 2. Plain explanation for this context
 3. Grammar or structure notes when useful
-4. 1 natural example sentence`;
+4. 1 preferred, at most 2 natural example sentences`;
 
 const FALLBACK_EXAMPLE_SUFFIX = "appears in this reading context.";
 
@@ -156,6 +165,25 @@ export function getAiLanguageModel(modelTier: ExplainModelTier = "primary") {
   return providerRegistration.createModel(modelTarget.modelId);
 }
 
+export function getAiStreamObjectOptions(
+  modelTier: ExplainModelTier = "primary",
+) {
+  const modelTarget = getExplainModelTarget(modelTier);
+  const providerRegistration = getProviderRegistration(modelTarget.provider);
+
+  return {
+    model: providerRegistration.createModel(modelTarget.modelId),
+    providerOptions:
+      providerRegistration.providerName === "google"
+        ? {
+            google: {
+              structuredOutputs: true,
+            },
+          }
+        : undefined,
+  };
+}
+
 export function buildExplainPrompt({
   selectedText,
   surroundingParagraph,
@@ -197,7 +225,7 @@ export function buildExplainPrompt({
     .replace("{surroundingParagraph}", surroundingParagraph)
     .concat(`\n\n${selectionGuidance}`)
     .concat(
-      '\n\nReturn only valid JSON with this shape: {"translation": string, "pronunciation"?: string, "partOfSpeech"?: string, "difficultyHint"?: "beginner" | "intermediate" | "advanced", "explanation": string, "grammaticalNote"?: string, "alternativeMeaning"?: string, "examples": [{"sentence": string, "translation": string}]}. Provide 1-2 natural example sentences. Use explanation for the plain learner-friendly meaning in this context. Omit pronunciation, partOfSpeech, and difficultyHint unless the selected text is a single word.',
+      '\n\nReturn only valid JSON with this shape: {"translation": string, "pronunciation"?: string, "partOfSpeech"?: string, "difficultyHint"?: "beginner" | "intermediate" | "advanced", "explanation": string, "grammaticalNote"?: string, "alternativeMeaning"?: string, "examples": [{"sentence": string, "translation": string}]}. Prefer 1 example; never provide more than 2. Use explanation for the plain learner-friendly meaning in this context. Omit pronunciation, partOfSpeech, and difficultyHint unless the selected text is a single word.',
     );
 }
 
@@ -290,24 +318,13 @@ export function getAiErrorMessage(error: unknown) {
 }
 
 export function streamExplanation(input: ExplainSelectionInput) {
-  const modelTarget = getExplainModelTarget(input.modelTier);
-  const providerRegistration = getProviderRegistration(modelTarget.provider);
-
   return streamObject({
-    model: providerRegistration.createModel(modelTarget.modelId),
+    ...getAiStreamObjectOptions(input.modelTier),
     prompt: buildExplainPrompt(input),
     schema: aiExplanationSchema,
     schemaName: "readlingo_explanation",
     schemaDescription:
       "Vietnamese translation and explanation for a highlighted word or sentence in an EPUB reader.",
-    providerOptions:
-      providerRegistration.providerName === "google"
-        ? {
-            google: {
-              structuredOutputs: true,
-            },
-          }
-        : undefined,
     temperature: 0.2,
     timeout: 20_000,
   });

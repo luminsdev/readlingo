@@ -90,12 +90,35 @@ export const saveVocabularySchema = z.object({
   bookId: optionalBookIdSchema,
 });
 
-export const vocabularyQuerySchema = z.object({
-  bookId: optionalBookIdSchema,
-  word: optionalWordSchema,
-  page: z.coerce.number().int().min(1).default(1),
-  limit: z.coerce.number().int().min(1).max(100).default(20),
-});
+export const vocabularyQuerySchema = z
+  .object({
+    bookId: optionalBookIdSchema,
+    word: optionalWordSchema,
+    match: z.enum(["normalized"]).optional(),
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(100).default(20),
+  })
+  .superRefine((query, context) => {
+    if (query.match !== "normalized") {
+      return;
+    }
+
+    if (!query.word) {
+      context.addIssue({
+        code: "custom",
+        message: "Word is required for normalized vocabulary lookup.",
+        path: ["word"],
+      });
+    }
+
+    if (!query.bookId) {
+      context.addIssue({
+        code: "custom",
+        message: "Book is required for normalized vocabulary lookup.",
+        path: ["bookId"],
+      });
+    }
+  });
 
 export type SaveVocabularyInput = z.infer<typeof saveVocabularySchema>;
 export type VocabularyQueryInput = z.infer<typeof vocabularyQuerySchema>;

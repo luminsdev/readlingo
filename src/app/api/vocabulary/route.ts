@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { generateMnemonic } from "@/lib/ai-mnemonic";
 import { generateRequestId, logServerError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
+import { wordsMatchNormalized } from "@/lib/vocabulary-match";
 import {
   saveVocabularySchema,
   vocabularyQuerySchema,
@@ -128,6 +129,7 @@ export async function GET(request: Request) {
   const parsedQuery = vocabularyQuerySchema.safeParse({
     bookId: searchParams.get("bookId") ?? undefined,
     word: searchParams.get("word") ?? undefined,
+    match: searchParams.get("match") ?? undefined,
     page: searchParams.get("page") ?? undefined,
     limit: searchParams.get("limit") ?? undefined,
   });
@@ -143,7 +145,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const { bookId, word, page, limit } = parsedQuery.data;
+  const { bookId, word, match, page, limit } = parsedQuery.data;
   const where = {
     userId: session.user.id,
     ...(bookId ? { bookId } : {}),
@@ -151,6 +153,43 @@ export async function GET(request: Request) {
   };
 
   try {
+    if (match === "normalized" && word && bookId) {
+      const candidates = await prisma.vocabulary.findMany({
+        where: {
+          userId: session.user.id,
+          bookId,
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true,
+          word: true,
+          definition: true,
+          explanation: true,
+          exampleSentence: true,
+          srsData: {
+            select: {
+              interval: true,
+              nextReviewAt: true,
+            },
+          },
+        },
+      });
+      const matchedItem = candidates.find((candidate) =>
+        wordsMatchNormalized(candidate.word, word),
+      );
+      const items = matchedItem ? [matchedItem] : [];
+
+      return NextResponse.json({
+        items,
+        pagination: {
+          page: 1,
+          limit: 1,
+          total: items.length,
+          totalPages: 1,
+        },
+      });
+    }
+
     const [rawItems, total] = await prisma.$transaction([
       prisma.vocabulary.findMany({
         where,

@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 
 import { getAiLanguageModel } from "./ai.ts";
+import { getAiResponseLocaleInstruction } from "./ai-locale.ts";
 import { mnemonicSchema } from "./vocabulary-validation.ts";
 
 export type GenerateMnemonicInput = {
@@ -30,7 +31,7 @@ export function buildMnemonicPrompt({
 }: GenerateMnemonicInput) {
   return `System: You are a language memory coach.
 Create a short mnemonic or memory trick for a Vietnamese learner.
-Respond in Vietnamese.
+${getAiResponseLocaleInstruction()}
 
 User:
 Word: "${word}"

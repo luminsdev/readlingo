@@ -104,6 +104,29 @@ describe("AI Validation Schemas", () => {
     ).toBe(true);
   });
 
+  it("aiExplanationSchema caps explanation and grammar prose", () => {
+    const basePayload = {
+      translation: "to mo",
+      explanation: "x".repeat(800),
+      grammaticalNote: "x".repeat(500),
+      examples: [],
+    };
+
+    expect(aiExplanationSchema.safeParse(basePayload).success).toBe(true);
+    expect(
+      aiExplanationSchema.safeParse({
+        ...basePayload,
+        explanation: "x".repeat(801),
+      }).success,
+    ).toBe(false);
+    expect(
+      aiExplanationSchema.safeParse({
+        ...basePayload,
+        grammaticalNote: "x".repeat(501),
+      }).success,
+    ).toBe(false);
+  });
+
   it("explanationPayloadSchema rejects word-only fields on phrase selections", () => {
     expect(
       explanationPayloadSchema.safeParse({
@@ -217,6 +240,36 @@ describe("Vocabulary Validation Schemas", () => {
       vocabularyQuerySchema.safeParse({
         page: "2",
         limit: "101",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("vocabularyQuerySchema requires a word and book for normalized lookup mode", () => {
+    expect(
+      vocabularyQuerySchema.parse({
+        match: "normalized",
+        word: "  Hello   World  ",
+        bookId: "cm9testbook0000000000000000",
+      }),
+    ).toEqual({
+      match: "normalized",
+      word: "Hello   World",
+      bookId: "cm9testbook0000000000000000",
+      page: 1,
+      limit: 20,
+    });
+
+    expect(
+      vocabularyQuerySchema.safeParse({
+        match: "normalized",
+        word: "hello",
+      }).success,
+    ).toBe(false);
+    expect(
+      vocabularyQuerySchema.safeParse({
+        match: "contains",
+        word: "hello",
+        bookId: "cm9testbook0000000000000000",
       }).success,
     ).toBe(false);
   });
