@@ -18,10 +18,11 @@
 
 - ReadLingo is an AI-powered EPUB reader for language learning: upload books, read in-browser, ask AI for contextual explanations, save vocabulary, and review via SRS flashcards.
 - Phases 0-8 are implemented: auth, library, reader, AI explanations, vocabulary, flashcards, R2 storage, Google OAuth, reader customization, dashboard, streaks, vocabulary filtering, security headers, and AI rate limiting.
-- Phase 8.5a-8.5c are implemented: private cover proxy, cover thumbnails/blur metadata, EPUB locations caching, progress save hardening, collections/shelves, library search, shelf detail pages, custom shelf covers, and scoped shelf pagination/search.
-- Phase 8.5d is next: error boundaries and structured logging. Phase 8.5e-8.5f remain planned for test infrastructure and accessibility audit.
-- Phases 9-12 follow: AI conversational context, pronunciation, TTS, analytics, real-time sync, offline support, landing page, i18n, and production deployment.
-- `TASKS.md` is the most granular progress tracker. `HANDOFF.md` contains the latest session-level project state. `docs/architecture.md` has the full architecture overview. `docs/specs/phase-8.5-12.md` is the active roadmap spec.
+- Phase 8.5a-8.5f are implemented: private cover proxy, cover thumbnails/blur metadata, EPUB locations caching, progress save hardening, collections/shelves, library search, shelf detail pages, custom shelf covers, scoped shelf pagination/search, error boundaries, structured logging with request IDs, Vitest/Playwright/CI test infrastructure, and structural accessibility fixes.
+- Phase 9 is implemented: optimistic local-first reading progress, stable open/resume + locations-cache path, and library/shelf list performance (hybrid LQIP covers, lighter books-view collection queries).
+- Phase 10 is implemented: vocabulary CSV/Anki export (filter-aware, soft-capped, auth-scoped) and thin Web Speech pronunciation on the vocabulary list and flashcard front.
+- Phase 11 is next and docs-locked: AI Moat (Vietnamese-first). Detailed PRD: `docs/specs/phase-11-ai-moat.md`. Start with 11a-MVP deep actions + shared AI rate budget + locale constant; then 11b1 already-saved/continuity; conditional 11a actions; optional 11b2 re-encounter; then 11c loop glue. Phases 12-13 follow with production foundation, then continuity. Active roadmap: `docs/specs/phase-9-13.md`.
+- `TASKS.md` is the most granular progress tracker. `HANDOFF.md` contains the latest session-level project state. `docs/architecture.md` has the full architecture overview. `docs/specs/phase-9-13.md` is the active roadmap spine; `docs/specs/phase-11-ai-moat.md` is the Phase 11 PRD lock; rework design is `docs/superpowers/specs/2026-07-13-roadmap-rework-design.md`; historical `docs/specs/archive/phase-8.5-12.md`.
 
 ## Stack Snapshot
 
@@ -30,7 +31,7 @@
 - Prisma + PostgreSQL in local development; production database target is still planned
 - NextAuth v5 beta with credentials and Google provider wiring
 - Vercel AI SDK, `epubjs`, Cloudflare R2 storage, and Zod-based validation in `src/lib/*-validation.ts`
-- Tests use Node's built-in runner in `scripts/*.test.mjs`
+- Tests use Vitest co-located unit tests plus Node's built-in runner in `scripts/*.test.mjs`; Playwright smoke scaffold is available under `tests/e2e/`
 
 ## Common Commands
 
@@ -62,6 +63,7 @@ pnpm exec prettier --write src/lib/utils.ts
 - Route, auth, Prisma, config, or build-sensitive changes: run `pnpm build` after typecheck-relevant checks.
 - Reader or upload changes: run `node --test scripts/phase2_reader_regressions.test.mjs`.
 - Cover proxy, EPUB locations cache, or cover upload changes: run `node --test scripts/phase85_cover_locations.test.mjs`.
+- Error boundaries, structured logging, or API `requestId` changes: run `node --test scripts/phase85_error_logging.test.mjs`.
 - AI prompt, model, or response-shaping changes: run `node --test scripts/phase3_ai_regressions.test.mjs`.
 - AI streaming changes: run `node --test scripts/phase6_ai_streaming_regressions.test.mjs`.
 - Flashcard or SRS changes: run `node --test scripts/phase4_srs_regressions.test.mjs`.
@@ -70,6 +72,10 @@ pnpm exec prettier --write src/lib/utils.ts
 - Collection, shelf, or library search changes: run `node --test scripts/library_collections_backend.test.mjs` and `node --test scripts/library_collections_frontend.test.mjs`.
 - Dashboard, streak, learning activity, or daily-goal changes: run `node --test scripts/phase8_engagement_regressions.test.mjs`.
 - Vocabulary filtering, sorting, status, or pagination changes: run `node --test scripts/phase8_vocabulary_query.test.mjs` and, for UI expectations, `node --test scripts/phase8_vocabulary_ui.test.mjs`.
+- Vocabulary export helpers, CSV/TSV formatting, or export API routes: run `pnpm test -- src/lib/__tests__/vocabulary-export.test.ts` and `node --test scripts/phase10_vocabulary_export_ui.test.mjs` when UI wiring changes.
+- Web Speech pronunciation helpers or pronounce controls: run `pnpm test -- src/lib/__tests__/speech.test.ts` and `node --test scripts/phase10_pronunciation_ui.test.mjs`.
+- Phase 11 AI deep-action, action-availability, locale, or shared AI rate-limit changes: run `node --test scripts/phase3_ai_regressions.test.mjs`, `node --test scripts/phase6_ai_streaming_regressions.test.mjs`, and `node --test scripts/phase8_hardening.test.mjs`; add/extend pure helper Vitest coverage for action availability / prompt-payload helpers when introduced.
+- Phase 11 already-saved / vocab-awareness helper changes: run vocabulary save/query regressions (`node --test scripts/phase8_vocabulary_query.test.mjs`) plus any new pure-match helper tests.
 - Security headers, AI rate limiting, dashboard structure, or hardening changes: run `node --test scripts/phase8_hardening.test.mjs`.
 - Pure helper changes (SRS, streak, rate-limit, vocabulary-query, validation schemas): run `pnpm test`.
 - `pnpm test` runs Vitest co-located tests; `node --test scripts/*.test.mjs` runs legacy regression tests. Both are valid during migration.
@@ -85,6 +91,9 @@ pnpm exec prettier --write src/lib/utils.ts
 - `src/lib/locations-cache.ts` - R2-backed EPUB locations cache helpers
 - `src/lib/collections.ts` and `src/lib/library-url.ts` - shelf data access and library/shelf URL helpers
 - `src/lib/dashboard.ts`, `src/lib/learning-activity.ts`, `src/lib/streak.ts`, and `src/lib/vocabulary-query.ts` - Phase 8 progress, dashboard, and vocabulary-query helpers
+- `src/lib/vocabulary-export.ts` - CSV/Anki export formatting, query assembly, soft cap, and filename helpers
+- `src/lib/speech.ts` - Web Speech helpers and local accent preference
+- `src/lib/ai.ts`, `src/lib/ai-validation.ts`, and related AI helpers - structured explain / upcoming Phase 11 deep-action contracts; keep thin routes + shared rate limits
 - `prisma/schema.prisma` - database schema and indexes
 - `scripts/*.test.mjs` - Node regression tests
 - `uploads/` and `.next/` - generated runtime data; do not treat as source
@@ -140,7 +149,7 @@ pnpm exec prettier --write src/lib/utils.ts
 
 ## Testing Conventions
 
-- Current tests use `node:test` with `node:assert/strict`.
+- Unit tests use Vitest under `src/lib/__tests__/`; legacy regression tests use `node:test` with `node:assert/strict` in `scripts/*.test.mjs`.
 - Regression tests import TypeScript source directly from `src/`; `tsconfig.json` uses `moduleResolution: "bundler"`.
 - Keep smoke scripts deterministic with explicit assertions on status and error messages.
 - There is no per-file typecheck command; use `pnpm typecheck` for type verification.
@@ -165,13 +174,19 @@ pnpm exec prettier --write src/lib/utils.ts
 - `prisma/schema.prisma` - source of truth for models and indexes
 - `HANDOFF.md` - latest phase status, design language, and recently completed work
 - `docs/architecture.md` - full architecture overview, project structure, and data flows
-- `docs/specs/phase-8.5-12.md` - active roadmap spec for Phase 8.5 through 12
+- `docs/specs/phase-9-13.md` - active roadmap spine for Phase 9 through 13 (9-10 complete; 11+ remaining)
+- `docs/specs/phase-11-ai-moat.md` - Phase 11 detailed PRD lock (deep actions, awareness, shared AI budget, VN-first)
+- `docs/superpowers/specs/2026-07-13-roadmap-rework-design.md` - roadmap rework decisions
+- `docs/specs/archive/phase-8.5-12.md` - historical Phase 8.5 detail and superseded later-phase ideas
 - `docs/specs/archive/` - completed phase specs (Phase 0-6, Phase 7-8) and deferred features
 - `src/auth.ts` - current NextAuth configuration pattern
 - `src/app/api/books/route.ts` and `src/app/api/books/[bookId]/progress/route.ts` - route validation and error-handling patterns
 - `src/lib/books.ts` - owned-resource Prisma helper pattern
 - `src/lib/book-storage.ts`, `src/lib/r2.ts`, and `src/lib/cover-extraction.ts` - EPUB and cover storage patterns
 - `src/lib/dashboard.ts`, `src/lib/learning-activity.ts`, `src/lib/streak.ts`, and `src/lib/vocabulary-query.ts` - current dashboard, streak, and vocabulary status/query patterns
+- `src/lib/vocabulary-export.ts` and `src/app/api/vocabulary/export/` - vocabulary export contracts and thin download routes
+- `src/lib/speech.ts` and `src/components/vocabulary/pronounce-word-button.tsx` - Web Speech pronunciation helpers and shared control
+- `src/lib/logger.ts` - structured server error logging and request ID helpers
 - `next.config.ts` - security response headers and remote image configuration
 
 <!-- gitnexus:start -->

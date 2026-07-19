@@ -55,9 +55,15 @@ export const deepActionRequestSchema = explainSelectionSchema.extend({
   action: deepActionSchema,
 });
 
-export const GRAMMAR_SUMMARY_MAX_LENGTH = 320;
-export const GRAMMAR_POINT_MAX_LENGTH = 140;
+export const GRAMMAR_SUMMARY_MAX_LENGTH = 220;
+export const GRAMMAR_POINT_MAX_LENGTH = 100;
+export const GRAMMAR_POINTS_MAX_COUNT = 3;
 export const GRAMMAR_REASON_MAX_LENGTH = 200;
+export const CONJUGATION_FORMS_MAX_COUNT = 6;
+export const CONJUGATION_FORM_FIELD_MAX_LENGTH = 32;
+export const CONJUGATION_LEMMA_MAX_LENGTH = 64;
+export const CONJUGATION_NOTE_MAX_LENGTH = 100;
+export const CONJUGATION_REASON_MAX_LENGTH = 100;
 
 const deepActionReasonSchema = z.string().trim().min(1);
 const deepActionStatusSchema = {
@@ -96,19 +102,43 @@ export const easierExamplesDeepActionGenerationSchema = z.object({
   ...deepActionGenerationStatusSchema,
 });
 
-export const conjugationDeepActionGenerationSchema = z.object({
-  lemma: z.string().optional(),
-  forms: z
-    .array(
-      z.object({
-        label: z.string().optional(),
-        value: z.string().optional(),
-      }),
-    )
-    .optional(),
-  note: z.string().optional(),
-  ...deepActionGenerationStatusSchema,
-});
+const conjugationGenerationFormSchema = z
+  .object({
+    label: z.string().trim().min(1).max(CONJUGATION_FORM_FIELD_MAX_LENGTH),
+    value: z.string().trim().min(1).max(CONJUGATION_FORM_FIELD_MAX_LENGTH),
+  })
+  .strict();
+
+const conjugationGenerationResultSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("forms"),
+      lemma: z.string().trim().min(1).max(CONJUGATION_LEMMA_MAX_LENGTH),
+      forms: z
+        .array(conjugationGenerationFormSchema)
+        .min(1)
+        .max(CONJUGATION_FORMS_MAX_COUNT),
+      note: z
+        .string()
+        .trim()
+        .min(1)
+        .max(CONJUGATION_NOTE_MAX_LENGTH)
+        .optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("notApplicable"),
+      notApplicable: z.literal(true),
+      reason: z.string().trim().min(1).max(CONJUGATION_REASON_MAX_LENGTH),
+    })
+    .strict(),
+]);
+export const conjugationDeepActionGenerationSchema = z
+  .object({
+    result: conjugationGenerationResultSchema,
+  })
+  .strict();
 
 export const collocationDeepActionGenerationSchema = z.object({
   items: z
@@ -148,7 +178,7 @@ export const grammarDeepActionResponseSchema = z
       .optional(),
     points: z
       .array(z.string().trim().min(1).max(GRAMMAR_POINT_MAX_LENGTH))
-      .max(5)
+      .max(GRAMMAR_POINTS_MAX_COUNT)
       .optional(),
     ...deepActionStatusSchema,
     reason: deepActionReasonSchema.max(GRAMMAR_REASON_MAX_LENGTH).optional(),
@@ -169,7 +199,7 @@ export const grammarDeepActionResponseSchema = z
       context.addIssue({
         code: "custom",
         message:
-          "Provide a non-empty summary and/or 1-5 points when grammar is applicable.",
+          "Provide a non-empty summary and/or 1-3 points when grammar is applicable.",
         path: ["summary"],
       });
     }
@@ -248,17 +278,29 @@ export const easierExamplesDeepActionResponseSchema = z
 
 const conjugationFormSchema = z
   .object({
-    label: z.string().trim().min(1),
-    value: z.string().trim().min(1),
+    label: z.string().trim().min(1).max(CONJUGATION_FORM_FIELD_MAX_LENGTH),
+    value: z.string().trim().min(1).max(CONJUGATION_FORM_FIELD_MAX_LENGTH),
   })
   .strict();
 
 export const conjugationDeepActionResponseSchema = z
   .object({
-    lemma: z.string().trim().min(1).optional(),
-    forms: z.array(conjugationFormSchema).min(1).max(8).optional(),
-    note: z.string().trim().min(1).optional(),
+    lemma: z
+      .string()
+      .trim()
+      .min(1)
+      .max(CONJUGATION_LEMMA_MAX_LENGTH)
+      .optional(),
+    forms: z
+      .array(conjugationFormSchema)
+      .min(1)
+      .max(CONJUGATION_FORMS_MAX_COUNT)
+      .optional(),
+    note: z.string().trim().min(1).max(CONJUGATION_NOTE_MAX_LENGTH).optional(),
     ...deepActionStatusSchema,
+    reason: deepActionReasonSchema
+      .max(CONJUGATION_REASON_MAX_LENGTH)
+      .optional(),
   })
   .strict()
   .superRefine((value, context) => {

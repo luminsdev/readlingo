@@ -21,6 +21,8 @@ import {
   buildEasierExamplesPrompt,
   buildGrammarPrompt,
   getAvailableDeepActions,
+  getDeepActionServerTimeoutMs,
+  getDeepActionStreamSettings,
   getEligibleDeepActions,
   getVisibleDeepActions,
 } from "../src/lib/ai-deep-actions.ts";
@@ -53,7 +55,11 @@ import {
 import { shouldShowReaderAiContext } from "../src/components/reader/reader-ai-panel-utils.ts";
 import { buildVocabularySavePayload } from "../src/lib/vocabulary.ts";
 
-const deepActionSource = await readFile(
+const deepActionRouteSource = await readFile(
+  new URL("../src/app/api/ai/deep-action/route.ts", import.meta.url),
+  "utf8",
+);
+const deepActionsSource = await readFile(
   new URL("../src/lib/ai-deep-actions.ts", import.meta.url),
   "utf8",
 );
@@ -396,20 +402,20 @@ test("deep-action response schemas enforce applicable content and collection bou
   );
   assert.equal(
     grammarDeepActionResponseSchema.safeParse({
-      summary: "s".repeat(320),
-      points: ["p".repeat(140)],
+      summary: "s".repeat(220),
+      points: ["p".repeat(100)],
     }).success,
     true,
   );
   assert.equal(
     grammarDeepActionResponseSchema.safeParse({
-      summary: "s".repeat(321),
+      summary: "s".repeat(221),
     }).success,
     false,
   );
   assert.equal(
     grammarDeepActionResponseSchema.safeParse({
-      points: ["p".repeat(141)],
+      points: ["p".repeat(101)],
     }).success,
     false,
   );
@@ -433,7 +439,7 @@ test("deep-action response schemas enforce applicable content and collection bou
   );
   assert.equal(
     conjugationDeepActionResponseSchema.safeParse({
-      forms: Array.from({ length: 9 }, (_, index) => ({
+      forms: Array.from({ length: 7 }, (_, index) => ({
         label: `form ${index}`,
         value: `value ${index}`,
       })),
@@ -467,12 +473,11 @@ test("deep-action response schemas enforce applicable content and collection bou
   );
 });
 
-test("deep-action generation schemas remain compatible with Google structured outputs", async () => {
+test("native Google deep-action schemas remain compatible with structured outputs", async () => {
   for (const schema of [
     grammarDeepActionGenerationSchema,
     compareDeepActionGenerationSchema,
     easierExamplesDeepActionGenerationSchema,
-    conjugationDeepActionGenerationSchema,
     collocationDeepActionGenerationSchema,
   ]) {
     const jsonSchema = await zodSchema(schema).jsonSchema;
@@ -482,6 +487,25 @@ test("deep-action generation schemas remain compatible with Google structured ou
     assert.ok(jsonSchema.properties?.notApplicable);
     assert.ok(jsonSchema.properties?.reason);
   }
+
+  const conjugationJsonSchema = await zodSchema(
+    conjugationDeepActionGenerationSchema,
+  ).jsonSchema;
+
+  assert.equal(conjugationJsonSchema.type, "object");
+  assert.equal(conjugationJsonSchema.anyOf, undefined);
+  assert.ok(conjugationJsonSchema.properties?.result);
+  assert.equal(
+    /"(?:anyOf|oneOf)"/.test(JSON.stringify(conjugationJsonSchema)),
+    true,
+  );
+});
+
+test("conjugation disables unsupported Google native structured outputs", () => {
+  assert.match(
+    deepActionsSource,
+    /input\.action === "conjugation"[\s\S]*?structuredOutputs: false/,
+  );
 });
 
 test("deep-action generation schemas tolerate recoverable model output", () => {
@@ -499,16 +523,133 @@ test("deep-action generation schemas tolerate recoverable model output", () => {
 
   assert.equal(
     conjugationDeepActionGenerationSchema.safeParse({ lemma: "lead" }).success,
+    false,
+  );
+  assert.equal(
+    conjugationDeepActionGenerationSchema.safeParse({
+      result: {
+        type: "forms",
+        lemma: "lead",
+        forms: [
+          { label: "base", value: "lead" },
+          { label: "past", value: "led" },
+        ],
+        note: "Irregular verb.",
+      },
+    }).success,
     true,
+  );
+  assert.equal(
+    conjugationDeepActionGenerationSchema.safeParse({
+      result: {
+        type: "notApplicable",
+        notApplicable: true,
+        reason: "Từ này không biến đổi hình thái.",
+      },
+    }).success,
+    true,
+  );
+  assert.equal(
+    conjugationDeepActionGenerationSchema.safeParse({
+      result: { type: "forms", lemma: "lead" },
+    }).success,
+    false,
+  );
+  assert.equal(
+    conjugationDeepActionGenerationSchema.safeParse({
+      result: {
+        type: "forms",
+        lemma: "lead",
+        forms: [{ label: "l".repeat(33), value: "lead" }],
+      },
+    }).success,
+    false,
+  );
+  assert.equal(
+    conjugationDeepActionGenerationSchema.safeParse({
+      result: {
+        type: "forms",
+        lemma: "lead",
+        forms: [{ label: "base", value: "v".repeat(33) }],
+      },
+    }).success,
+    false,
+  );
+  assert.equal(
+    conjugationDeepActionGenerationSchema.safeParse({
+      result: {
+        type: "forms",
+        lemma: "lead",
+        forms: [{ label: "base", value: "lead" }],
+        note: "n".repeat(101),
+      },
+    }).success,
+    false,
+  );
+  assert.equal(
+    conjugationDeepActionGenerationSchema.safeParse({
+      result: {
+        type: "notApplicable",
+        notApplicable: true,
+        reason: "r".repeat(101),
+      },
+    }).success,
+    false,
   );
 });
 
-test("deep-action streaming enforces its server timeout with an abort signal", () => {
+test("deep-action streaming uses bounded output and action-aware timeouts", () => {
+  assert.deepEqual(getDeepActionStreamSettings("grammar"), {
+    temperature: 0.2,
+    maxOutputTokens: 350,
+  });
+  assert.deepEqual(getDeepActionStreamSettings("compare"), {
+    temperature: 0.2,
+    maxOutputTokens: 300,
+  });
+  assert.deepEqual(getDeepActionStreamSettings("easierExamples"), {
+    temperature: 0.2,
+    maxOutputTokens: 350,
+  });
+  assert.deepEqual(getDeepActionStreamSettings("conjugation"), {
+    temperature: 0.2,
+    maxOutputTokens: 300,
+  });
+  assert.deepEqual(getDeepActionStreamSettings("collocation"), {
+    temperature: 0.2,
+    maxOutputTokens: 350,
+  });
+  assert.equal(getDeepActionServerTimeoutMs("grammar"), 22_000);
+  assert.equal(getDeepActionServerTimeoutMs("conjugation"), 32_000);
+});
+
+test("deep-action timeout suppresses duplicate stream failure logging", () => {
   assert.match(
-    deepActionSource,
-    /abortSignal:\s*AbortSignal\.timeout\(20_000\)/,
+    deepActionRouteSource,
+    /onFinish\(\{ error \}\) \{[\s\S]*?if \(!error \|\| hasStreamError \|\| didTimeout\)/,
   );
-  assert.doesNotMatch(deepActionSource, /\btimeout:\s*20_000/);
+});
+
+test("deep-action invalid output logs safe parse diagnostics", () => {
+  assert.match(deepActionRouteSource, /NoObjectGeneratedError\.isInstance/);
+  assert.match(deepActionRouteSource, /finishReason/);
+  assert.match(deepActionRouteSource, /rawTextContainsForms/);
+});
+
+test("deep-action response wrapper ignores pulls after client cancellation", () => {
+  assert.match(deepActionRouteSource, /let isResponseCanceled = false;/);
+  assert.match(
+    deepActionRouteSource,
+    /await sourceReader\.read\(\);\s*if \(isResponseCanceled\) \{\s*return;\s*\}/,
+  );
+  assert.match(
+    deepActionRouteSource,
+    /catch \(error\) \{\s*if \(isResponseCanceled\) \{\s*return;\s*\}/,
+  );
+  assert.match(
+    deepActionRouteSource,
+    /async cancel\(reason\) \{\s*isResponseCanceled = true;/,
+  );
 });
 
 test("buildExplainPrompt follows the learner-assistant template from planning", () => {
@@ -663,13 +804,13 @@ test("grammar prompt states hard payload limits and repeats the filler ban", () 
     sourceLanguage: "en",
   });
 
-  assert.match(prompt, /summary[^\n]*320 characters/i);
-  assert.match(prompt, /point[^\n]*140 characters/i);
+  assert.match(prompt, /summary[^\n]*220 characters/i);
+  assert.match(prompt, /point[^\n]*100 characters/i);
   assert.match(prompt, /reason[^\n]*200 characters/i);
-  assert.match(
-    prompt,
-    /Prefer 1 short summary sentence and up to 3 short points/,
-  );
+  assert.match(prompt, /exactly 1 short summary sentence/i);
+  assert.match(prompt, /0.?3 short points/i);
+  assert.match(prompt, /no multi-clause essays/i);
+  assert.match(prompt, /dictionary definition dump/i);
   assert.match(prompt, /polite filler loops/i);
 
   for (const forbiddenOpener of [
@@ -681,7 +822,7 @@ test("grammar prompt states hard payload limits and repeats the filler ban", () 
   }
 });
 
-test("conjugation prompt requires honest non-inflecting results and compact forms", () => {
+test("conjugation prompt requires a compact discriminated morphology result", () => {
   const prompt = buildConjugationPrompt({
     selectedText: "central",
     surroundingParagraph: "The station is in central London.",
@@ -706,15 +847,23 @@ test("conjugation prompt requires honest non-inflecting results and compact form
     /does not inflect in the source language or this context/,
   );
   assert.match(prompt, /MUST return "notApplicable": true/);
+  assert.match(prompt, /"type": "forms"/);
+  assert.match(prompt, /"type": "notApplicable"/);
+  assert.match(prompt, /lemma.*required/i);
+  assert.match(prompt, /forms.*required/i);
   assert.match(prompt, /Only return forms for useful morphology/);
-  assert.match(prompt, /Prefer at most 6 forms/);
-  assert.match(prompt, /Never emit incomplete forms/);
-  assert.match(
-    prompt,
-    /cannot be completed compactly[\s\S]*"notApplicable": true/i,
-  );
-  assert.match(prompt, /Keep labels, values, and notes short/);
-  assert.match(prompt, /Never invent a full conjugation table/);
+  assert.match(prompt, /4.?6 complete forms/i);
+  assert.match(prompt, /maximum of 6 forms/i);
+  assert.match(prompt, /Every form requires both a short label and value/i);
+  assert.match(prompt, /label.*maximum 32 characters/i);
+  assert.match(prompt, /value.*maximum 32 characters/i);
+  assert.match(prompt, /lemma.*dictionary headword only/i);
+  assert.match(prompt, /note.*maximum 100 characters/i);
+  assert.match(prompt, /reason.*maximum 100 characters/i);
+  assert.match(prompt, /Prefer forms over prose/i);
+  assert.match(prompt, /multi-paragraph explanation/i);
+  assert.doesNotMatch(prompt, /cannot be completed compactly/i);
+  assert.match(prompt, /Never invent a full textbook paradigm/);
 });
 
 test("normalizeMnemonicText trims wrapper quotes and rejects invalid model output", () => {

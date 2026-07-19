@@ -6,8 +6,13 @@ import {
   collocationDeepActionGenerationSchema,
   compareDeepActionGenerationSchema,
   conjugationDeepActionGenerationSchema,
+  CONJUGATION_FORM_FIELD_MAX_LENGTH,
+  CONJUGATION_FORMS_MAX_COUNT,
+  CONJUGATION_NOTE_MAX_LENGTH,
+  CONJUGATION_REASON_MAX_LENGTH,
   easierExamplesDeepActionGenerationSchema,
   GRAMMAR_POINT_MAX_LENGTH,
+  GRAMMAR_POINTS_MAX_COUNT,
   GRAMMAR_REASON_MAX_LENGTH,
   GRAMMAR_SUMMARY_MAX_LENGTH,
   grammarDeepActionGenerationSchema,
@@ -66,9 +71,14 @@ type DeepActionPromptInput = Pick<
 >;
 
 type DeepActionStreamCallbacks = {
+  abortSignal?: AbortSignal;
   onError?: (event: { error: unknown }) => void | Promise<void>;
   onFinish?: (event: { error?: unknown }) => void | Promise<void>;
 };
+
+const DEFAULT_APPLICABILITY_GUIDANCE = `Prefer an honest "notApplicable": true with a short Vietnamese "reason" over inventing content.
+If the action does not apply, you MUST set "notApplicable": true and provide a non-empty "reason".
+When the action applies, set "notApplicable": false or omit it, and include the required content fields.`;
 
 function isMorphologyRelevantLanguage(sourceLanguage?: string) {
   const languageCode = sourceLanguage?.trim().toLowerCase().split("-")[0];
@@ -128,6 +138,7 @@ function buildPrompt(
   input: DeepActionPromptInput,
   schemaDescription: string,
   extraGuidance = "",
+  applicabilityGuidance = DEFAULT_APPLICABILITY_GUIDANCE,
 ) {
   return `System: You are a language learning assistant.
 ${getAiResponseLocaleInstruction()}
@@ -148,9 +159,7 @@ Context: "${input.surroundingParagraph}"
 Return only valid JSON matching this action schema:
 ${schemaDescription}
 ${extraGuidance}
-Prefer an honest "notApplicable": true with a short Vietnamese "reason" over inventing content.
-If the action does not apply, you MUST set "notApplicable": true and provide a non-empty "reason".
-When the action applies, set "notApplicable": false or omit it, and include the required content fields.
+${applicabilityGuidance}
 Do not return an empty object.`;
 }
 
@@ -158,10 +167,10 @@ export function buildGrammarPrompt(input: DeepActionPromptInput) {
   return buildPrompt(
     "grammar",
     input,
-    `{"summary"?: string (max ${GRAMMAR_SUMMARY_MAX_LENGTH} characters), "points"?: string[1-5] (each max ${GRAMMAR_POINT_MAX_LENGTH} characters), "notApplicable"?: boolean, "reason"?: string (max ${GRAMMAR_REASON_MAX_LENGTH} characters)}`,
+    `{"summary"?: string (max ${GRAMMAR_SUMMARY_MAX_LENGTH} characters), "points"?: string[0-${GRAMMAR_POINTS_MAX_COUNT}] (each max ${GRAMMAR_POINT_MAX_LENGTH} characters), "notApplicable"?: boolean, "reason"?: string (max ${GRAMMAR_REASON_MAX_LENGTH} characters)}`,
     [
-      "When applicable, provide either a non-empty summary, or 1-5 non-empty points, or both.",
-      "Prefer 1 short summary sentence and up to 3 short points.",
+      "When applicable, write exactly 1 short summary sentence and 0-3 short points.",
+      "No multi-clause essays, filler, or restating a full dictionary definition dump.",
       `Hard limits: summary max ${GRAMMAR_SUMMARY_MAX_LENGTH} characters; each point max ${GRAMMAR_POINT_MAX_LENGTH} characters; reason max ${GRAMMAR_REASON_MAX_LENGTH} characters.`,
       'Never add greetings, sign-offs, wishes, or polite filler loops; forbidden openers include "Chúc bạn", "Cảm ơn", and "Hy vọng".',
     ].join(" "),
@@ -188,17 +197,21 @@ export function buildConjugationPrompt(input: DeepActionPromptInput) {
   return buildPrompt(
     "conjugation",
     input,
-    '{"lemma"?: string, "forms": [{"label": string, "value": string}][1-8], "note"?: string, "notApplicable"?: boolean, "reason"?: string}',
+    `{"result": {"type": "forms", "lemma": string (required), "forms": [{"label": string, "value": string}][1-${CONJUGATION_FORMS_MAX_COUNT}] (required), "note"?: string} OR {"type": "notApplicable", "notApplicable": true, "reason": string}}`,
     [
       "First decide whether the selected word has useful morphology in this context.",
       'If the selected token does not inflect in the source language or this context (for example, it is a non-inflecting adjective, adverb, proper noun, article, preposition, conjunction, pronoun, or other non-inflecting token), you MUST return "notApplicable": true with a short Vietnamese "reason".',
-      "Only return forms for useful morphology of the selected word.",
-      "Prefer at most 6 forms even though the schema allows 8.",
-      'If useful morphology cannot be completed compactly, return "notApplicable": true with a short Vietnamese "reason".',
-      "Never emit incomplete forms; every form must include both a non-empty label and value.",
-      "Keep labels, values, and notes short; do not write paragraph notes.",
-      "Never invent a full conjugation table for a word that does not conjugate.",
+      "Only return forms for useful morphology of the selected word: provide 4-6 complete forms when available, with a maximum of 6 forms.",
+      "Every form requires both a short label and value.",
+      `Each label has a maximum ${CONJUGATION_FORM_FIELD_MAX_LENGTH} characters and each value has a maximum ${CONJUGATION_FORM_FIELD_MAX_LENGTH} characters.`,
+      "The lemma must be the dictionary headword only, never a phrase or explanation.",
+      `The optional note has a maximum ${CONJUGATION_NOTE_MAX_LENGTH} characters.`,
+      `A notApplicable reason has a maximum ${CONJUGATION_REASON_MAX_LENGTH} characters.`,
+      "Prefer forms over prose always.",
+      'Forbidden: greetings, encouragement, "hy vọng", "chúc bạn", "cảm ơn", "cố gắng", filler, or a multi-paragraph explanation.',
+      "Never invent a full textbook paradigm for a word that does not conjugate.",
     ].join(" "),
+    `Return exactly one nested "result" object. For useful morphology, use "type": "forms" with required "lemma" and "forms" and do not include "reason". For a truly non-inflecting token only, use "type": "notApplicable", "notApplicable": true, and a short Vietnamese "reason" with no forms. Prefer an honest "notApplicable": true only when morphology genuinely does not apply.`,
   );
 }
 
@@ -265,20 +278,51 @@ function getDeepActionDefinition(action: DeepAction) {
   }
 }
 
+export function getDeepActionStreamSettings(action: DeepAction) {
+  const maxOutputTokens = {
+    grammar: 350,
+    compare: 300,
+    easierExamples: 350,
+    conjugation: 300,
+    collocation: 350,
+  } satisfies Record<DeepAction, number>;
+
+  return {
+    temperature: 0.2,
+    maxOutputTokens: maxOutputTokens[action],
+  };
+}
+
+export function getDeepActionServerTimeoutMs(action: DeepAction) {
+  return action === "conjugation" ? 32_000 : 22_000;
+}
+
 export function streamDeepAction(
   input: DeepActionRequest,
   callbacks: DeepActionStreamCallbacks = {},
 ) {
   const definition = getDeepActionDefinition(input.action);
+  const modelOptions = getAiStreamObjectOptions(input.modelTier);
+  const providerOptions =
+    input.action === "conjugation" && modelOptions.providerOptions?.google
+      ? {
+          ...modelOptions.providerOptions,
+          google: {
+            ...modelOptions.providerOptions.google,
+            structuredOutputs: false,
+          },
+        }
+      : modelOptions.providerOptions;
 
   return streamObject({
-    ...getAiStreamObjectOptions(input.modelTier),
+    ...modelOptions,
+    providerOptions,
     prompt: buildDeepActionPrompt(input),
     schema: definition.schema,
     schemaName: definition.schemaName,
     schemaDescription: definition.schemaDescription,
-    temperature: 0.2,
-    abortSignal: AbortSignal.timeout(20_000),
+    ...getDeepActionStreamSettings(input.action),
+    abortSignal: callbacks.abortSignal,
     onError: callbacks.onError,
     onFinish: callbacks.onFinish,
   });

@@ -45,19 +45,62 @@ describe("deep-action streaming helpers", () => {
   });
 
   it("clamps partial grammar text to the final schema limits", () => {
+    const result = buildStreamingDeepActionResult("grammar", {
+      summary: `  ${"word ".repeat(50)}unfinished  `,
+      points: [`  ${"point ".repeat(20)}unfinished  `],
+      notApplicable: true,
+      reason: `  ${"reason ".repeat(30)}unfinished  `,
+    });
+
+    expect(result).toEqual({
+      summary: `${"word ".repeat(43).trim()}…`,
+      points: [`${"point ".repeat(16).trim()}…`],
+      notApplicable: true,
+      reason: `${"reason ".repeat(28).trim()}…`,
+    });
+  });
+
+  it("prefers a complete sentence when clamping grammar text", () => {
+    const completeSentence = `${"word ".repeat(30)}ends here.`;
+
     expect(
       buildStreamingDeepActionResult("grammar", {
-        summary: `  ${"s".repeat(321)}  `,
-        points: [`  ${"p".repeat(141)}  `],
-        notApplicable: true,
-        reason: `  ${"r".repeat(201)}  `,
+        summary: `${completeSentence} ${"extra ".repeat(20)}`,
       }),
-    ).toEqual({
-      summary: "s".repeat(320),
-      points: ["p".repeat(140)],
-      notApplicable: true,
-      reason: "r".repeat(200),
-    });
+    ).toEqual({ summary: completeSentence });
+  });
+
+  it("keeps sentence punctuation at the exact grammar clamp boundary", () => {
+    const completeSentence = `${"word ".repeat(42)}ends here.`;
+
+    expect(completeSentence).toHaveLength(220);
+    expect(
+      buildStreamingDeepActionResult("grammar", {
+        summary: `${completeSentence} Extra explanation.`,
+      }),
+    ).toEqual({ summary: completeSentence });
+  });
+
+  it("does not leave a dangling surrogate when grammar text has no spaces", () => {
+    expect(
+      buildStreamingDeepActionResult("grammar", {
+        summary: `${"a".repeat(218)}😀suffix`,
+      }),
+    ).toEqual({ summary: `${"a".repeat(218)}…` });
+  });
+
+  it("does not treat punctuation at an artificial clamp boundary as terminal", () => {
+    expect(
+      buildStreamingDeepActionResult("grammar", {
+        summary: `${"a".repeat(219)}.suffix`,
+      }),
+    ).toEqual({ summary: `${"a".repeat(219)}…` });
+
+    expect(
+      buildStreamingDeepActionResult("grammar", {
+        summary: `${"a".repeat(218)}.suffix`,
+      }),
+    ).toEqual({ summary: `${"a".repeat(218)}.…` });
   });
 
   it("keeps a partially streamed easier example renderable", () => {
@@ -79,13 +122,16 @@ describe("deep-action streaming helpers", () => {
   it("normalizes partially streamed conjugation forms", () => {
     expect(
       buildStreamingDeepActionResult("conjugation", {
-        lemma: "  be  ",
-        forms: [
-          { label: "  present  ", value: "  am / is / are  " },
-          { label: "  past  " },
-          { label: "", value: "" },
-        ],
-        note: "  Irregular verb.  ",
+        result: {
+          type: "forms",
+          lemma: "  be  ",
+          forms: [
+            { label: "  present  ", value: "  am / is / are  " },
+            { label: "  past  " },
+            { label: "", value: "" },
+          ],
+          note: "  Irregular verb.  ",
+        },
       }),
     ).toEqual({
       lemma: "be",
@@ -220,12 +266,21 @@ describe("deep-action streaming helpers", () => {
   it("clamps over-long grammar content during finalization", () => {
     expect(
       normalizeDeepActionResult("grammar", {
-        summary: `  ${"s".repeat(321)}  `,
-        points: [`  ${"p".repeat(141)}  `],
+        summary: `  ${"word ".repeat(50)}unfinished  `,
+        points: [
+          ...Array.from(
+            { length: 4 },
+            (_, index) => `point ${index} ${"detail ".repeat(20)}`,
+          ),
+        ],
       }),
     ).toEqual({
-      summary: "s".repeat(320),
-      points: ["p".repeat(140)],
+      summary: `${"word ".repeat(43).trim()}…`,
+      points: [
+        `point 0 ${"detail ".repeat(13).trim()}…`,
+        `point 1 ${"detail ".repeat(13).trim()}…`,
+        `point 2 ${"detail ".repeat(13).trim()}…`,
+      ],
     });
   });
 
@@ -240,27 +295,57 @@ describe("deep-action streaming helpers", () => {
     });
   });
 
-  it("converts lemma-only conjugation into an honest not-applicable result", () => {
+  it("normalizes complete conjugation forms into a ready result", () => {
     expect(
-      normalizeDeepActionResult("conjugation", { lemma: "leading" }),
+      normalizeDeepActionResult("conjugation", {
+        result: {
+          type: "forms",
+          lemma: "lead",
+          forms: [
+            { label: "base", value: "lead" },
+            { label: "past", value: "led" },
+          ],
+          note: "Irregular verb.",
+        },
+      }),
     ).toEqual({
-      notApplicable: true,
-      reason:
-        "Kh\u00f4ng c\u00f3 d\u1ea1ng chia h\u1eefu \u00edch cho l\u1ef1a ch\u1ecdn n\u00e0y.",
+      lemma: "lead",
+      forms: [
+        { label: "base", value: "lead" },
+        { label: "past", value: "led" },
+      ],
+      note: "Irregular verb.",
     });
   });
 
-  it("converts empty conjugation output into an honest not-applicable result", () => {
-    expect(normalizeDeepActionResult("conjugation", {})).toEqual({
+  it("normalizes explicit conjugation not-applicable output", () => {
+    expect(
+      normalizeDeepActionResult("conjugation", {
+        result: {
+          type: "notApplicable",
+          notApplicable: true,
+          reason: "Từ này không biến đổi hình thái trong ngữ cảnh này.",
+        },
+      }),
+    ).toEqual({
       notApplicable: true,
-      reason:
-        "Kh\u00f4ng c\u00f3 d\u1ea1ng chia h\u1eefu \u00edch cho l\u1ef1a ch\u1ecdn n\u00e0y.",
+      reason: "Từ này không biến đổi hình thái trong ngữ cảnh này.",
     });
-    expect(normalizeDeepActionResult("conjugation", { forms: [] })).toEqual({
-      notApplicable: true,
-      reason:
-        "Kh\u00f4ng c\u00f3 d\u1ea1ng chia h\u1eefu \u00edch cho l\u1ef1a ch\u1ecdn n\u00e0y.",
-    });
+  });
+
+  it("rejects empty, lemma-only, and unusable conjugation output", () => {
+    expect(normalizeDeepActionResult("conjugation", null)).toBeNull();
+    expect(normalizeDeepActionResult("conjugation", {})).toBeNull();
+    expect(
+      normalizeDeepActionResult("conjugation", { lemma: "leading" }),
+    ).toBeNull();
+    expect(normalizeDeepActionResult("conjugation", { forms: [] })).toBeNull();
+    expect(
+      normalizeDeepActionResult("conjugation", {
+        lemma: "lead",
+        forms: [{ label: "past" }, { value: "led" }],
+      }),
+    ).toBeNull();
   });
 
   it("drops incomplete conjugation forms during finalization", () => {
@@ -319,7 +404,7 @@ describe("deep-action streaming helpers", () => {
     });
   });
 
-  it("rejects repaired JSON when completing a deep-action stream", async () => {
+  it("accepts repaired JSON when completing a deep-action stream", async () => {
     const completeResult = await parsePartialJson(
       '{"summary":"Past perfect","points":["had + participle"]}\n  ',
     );
@@ -331,8 +416,20 @@ describe("deep-action streaming helpers", () => {
       summary: "Past perfect",
       points: ["had + participle"],
     });
+    expect(parseCompletedDeepActionResult("grammar", truncatedResult)).toEqual({
+      summary: "Past perfect",
+      points: ["had + participle"],
+    });
+  });
+
+  it("rejects repaired conjugation JSON during finalization", async () => {
+    const truncatedResult = await parsePartialJson(
+      '{"result":{"type":"forms","lemma":"lead","forms":[{"label":"past","value":"le',
+    );
+
+    expect(truncatedResult.state).toBe("repaired-parse");
     expect(
-      parseCompletedDeepActionResult("grammar", truncatedResult),
+      parseCompletedDeepActionResult("conjugation", truncatedResult),
     ).toBeNull();
   });
 });

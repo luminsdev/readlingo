@@ -1,9 +1,11 @@
 import {
   collocationDeepActionResponseSchema,
   compareDeepActionResponseSchema,
+  CONJUGATION_FORMS_MAX_COUNT,
   conjugationDeepActionResponseSchema,
   easierExamplesDeepActionResponseSchema,
   GRAMMAR_POINT_MAX_LENGTH,
+  GRAMMAR_POINTS_MAX_COUNT,
   GRAMMAR_REASON_MAX_LENGTH,
   GRAMMAR_SUMMARY_MAX_LENGTH,
   grammarDeepActionResponseSchema,
@@ -77,9 +79,6 @@ export type DeepActionUiStates = {
   [A in DeepAction]: DeepActionUiState<A>;
 };
 
-const CONJUGATION_NOT_APPLICABLE_REASON =
-  "Kh\u00f4ng c\u00f3 d\u1ea1ng chia h\u1eefu \u00edch cho l\u1ef1a ch\u1ecdn n\u00e0y.";
-
 export function buildDeepActionErrorState<A extends DeepAction>(
   currentState: DeepActionUiState<A>,
   errorMessage: string,
@@ -97,6 +96,16 @@ function asObject(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function getDeepActionPayload(action: DeepAction, value: unknown) {
+  const payload = asObject(value);
+
+  if (action !== "conjugation" || !payload) {
+    return payload;
+  }
+
+  return asObject(payload.result) ?? payload;
+}
+
 function normalizeText(value: unknown, maxLength?: number) {
   if (typeof value !== "string") {
     return undefined;
@@ -104,9 +113,47 @@ function normalizeText(value: unknown, maxLength?: number) {
 
   const trimmedValue = value.trim();
 
-  return trimmedValue
-    ? trimmedValue.slice(0, maxLength ?? trimmedValue.length)
-    : undefined;
+  if (!trimmedValue) {
+    return undefined;
+  }
+
+  if (!maxLength || trimmedValue.length <= maxLength) {
+    return trimmedValue;
+  }
+
+  const sliceAtCodePointBoundary = (end: number) => {
+    const slicedValue = trimmedValue.slice(0, end);
+
+    return /[\uD800-\uDBFF]$/.test(slicedValue)
+      ? slicedValue.slice(0, -1)
+      : slicedValue;
+  };
+  const boundaryCandidate = sliceAtCodePointBoundary(maxLength);
+  let sentenceEnd = -1;
+
+  for (const match of boundaryCandidate.matchAll(/[.?!…]/g)) {
+    const nextCharacter = trimmedValue[match.index + 1];
+
+    if (nextCharacter === undefined || /\s/.test(nextCharacter)) {
+      sentenceEnd = match.index;
+    }
+  }
+
+  if (sentenceEnd >= Math.floor(maxLength / 2)) {
+    return boundaryCandidate.slice(0, sentenceEnd + 1).trimEnd();
+  }
+
+  const contentLimit = Math.max(0, maxLength - 1);
+  const candidate = sliceAtCodePointBoundary(contentLimit);
+  const whitespaceIndex = candidate.search(/\s\S*$/);
+  const boundary = whitespaceIndex > 0 ? whitespaceIndex : contentLimit;
+  const truncatedValue = candidate.slice(0, boundary).trimEnd();
+  const nextCharacter = trimmedValue[truncatedValue.length];
+  const endsAtTerminalBoundary =
+    /[.?!…]$/.test(truncatedValue) &&
+    (nextCharacter === undefined || /\s/.test(nextCharacter));
+
+  return endsAtTerminalBoundary ? truncatedValue : `${truncatedValue}…`;
 }
 
 function normalizeStatus(
@@ -167,7 +214,7 @@ export function buildStreamingDeepActionResult<A extends DeepAction>(
   action: A,
   value: unknown,
 ): StreamingDeepActionResultByAction[A] | null {
-  const payload = asObject(value);
+  const payload = getDeepActionPayload(action, value);
 
   if (!payload) {
     return null;
@@ -185,7 +232,7 @@ export function buildStreamingDeepActionResult<A extends DeepAction>(
         ? payload.points
             .map((point) => normalizeText(point, GRAMMAR_POINT_MAX_LENGTH))
             .filter((point): point is string => Boolean(point))
-            .slice(0, 5)
+            .slice(0, GRAMMAR_POINTS_MAX_COUNT)
         : [];
       const summary = normalizeText(
         payload.summary,
@@ -271,7 +318,7 @@ export function buildStreamingDeepActionResult<A extends DeepAction>(
               return hasContent(normalizedForm) ? normalizedForm : null;
             })
             .filter((form): form is NonNullable<typeof form> => Boolean(form))
-            .slice(0, 8)
+            .slice(0, CONJUGATION_FORMS_MAX_COUNT)
         : [];
 
       result = {
@@ -349,7 +396,7 @@ export function normalizeDeepActionResult<A extends DeepAction>(
   action: A,
   value: unknown,
 ): DeepActionResultByAction[A] | null {
-  const payload = asObject(value);
+  const payload = getDeepActionPayload(action, value);
 
   if (!payload) {
     return null;
@@ -358,12 +405,7 @@ export function normalizeDeepActionResult<A extends DeepAction>(
   const partialResult = buildStreamingDeepActionResult(action, value);
 
   if (!partialResult) {
-    return action === "conjugation"
-      ? parseReadyDeepActionResult(action, {
-          notApplicable: true,
-          reason: CONJUGATION_NOT_APPLICABLE_REASON,
-        })
-      : null;
+    return null;
   }
 
   if (partialResult.notApplicable && partialResult.reason) {
@@ -414,7 +456,11 @@ export function normalizeDeepActionResult<A extends DeepAction>(
     case "conjugation": {
       const conjugation =
         partialResult as StreamingDeepActionResultByAction["conjugation"];
-      const forms = normalizeCompleteRows(payload.forms, ["label", "value"], 8);
+      const forms = normalizeCompleteRows(
+        payload.forms,
+        ["label", "value"],
+        CONJUGATION_FORMS_MAX_COUNT,
+      );
 
       normalizedResult = forms.length
         ? {
@@ -422,10 +468,7 @@ export function normalizeDeepActionResult<A extends DeepAction>(
             forms,
             ...(conjugation.note ? { note: conjugation.note } : {}),
           }
-        : {
-            notApplicable: true,
-            reason: CONJUGATION_NOT_APPLICABLE_REASON,
-          };
+        : {};
       break;
     }
     case "collocation": {
@@ -447,7 +490,9 @@ export function parseCompletedDeepActionResult<A extends DeepAction>(
   action: A,
   parsedResult: { value: unknown; state: string },
 ): DeepActionResultByAction[A] | null {
-  return parsedResult.state === "successful-parse"
-    ? normalizeDeepActionResult(action, parsedResult.value)
-    : null;
+  if (action === "conjugation" && parsedResult.state !== "successful-parse") {
+    return null;
+  }
+
+  return normalizeDeepActionResult(action, parsedResult.value);
 }

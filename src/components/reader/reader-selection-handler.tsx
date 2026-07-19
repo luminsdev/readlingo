@@ -25,7 +25,10 @@ import {
   isSingleWordSelection,
   normalizeExplanationPayload,
 } from "@/lib/ai";
-import { getAvailableDeepActions } from "@/lib/ai-deep-actions";
+import {
+  getAvailableDeepActions,
+  getDeepActionServerTimeoutMs,
+} from "@/lib/ai-deep-actions";
 import {
   buildDeepActionErrorState,
   buildStreamingDeepActionResult,
@@ -86,7 +89,7 @@ const DEEP_ACTION_STREAM_INTERRUPTED_MESSAGE =
 const INVALID_DEEP_ACTION_STREAM_FORMAT_MESSAGE =
   "AI follow-up returned an unexpected format. Please try again.";
 const DEEP_ACTION_TIMEOUT_MESSAGE = "AI follow-up timed out. Please try again.";
-const DEEP_ACTION_TIMEOUT_MS = 25_000;
+const DEEP_ACTION_WATCHDOG_SKEW_MS = 3_000;
 const IDLE_DEEP_ACTION_STATES = {
   grammar: { status: "idle", result: null, errorMessage: null },
   compare: { status: "idle", result: null, errorMessage: null },
@@ -440,24 +443,47 @@ export function ReaderSelectionHandler({
         isSameExplainRequest(retryExplainRequestRef.current, requestPayload);
       const isRequestCurrent = () =>
         !abortController.signal.aborted && isRequestActive();
-      const watchdogId = window.setTimeout(() => {
-        if (deepActionWatchdogsRef.current[action] === watchdogId) {
-          deepActionWatchdogsRef.current[action] = null;
-        }
+      let streamedText = "";
+      const parseStreamedResult = async () => {
+        const parsedResponse = await parsePartialJson(streamedText);
 
-        if (!isRequestActive()) {
-          return;
-        }
+        return parseCompletedDeepActionResult(action, parsedResponse);
+      };
+      const watchdogId = window.setTimeout(
+        () => {
+          if (deepActionWatchdogsRef.current[action] === watchdogId) {
+            deepActionWatchdogsRef.current[action] = null;
+          }
 
-        setDeepActionStates((currentStates) => ({
-          ...currentStates,
-          [action]: buildDeepActionErrorState(
-            currentStates[action],
-            DEEP_ACTION_TIMEOUT_MESSAGE,
-          ),
-        }));
-        abortController.abort();
-      }, DEEP_ACTION_TIMEOUT_MS);
+          if (!isRequestActive()) {
+            return;
+          }
+
+          abortController.abort();
+          void parseStreamedResult()
+            .catch(() => null)
+            .then((finalResult) => {
+              if (!isRequestActive()) {
+                return;
+              }
+
+              setDeepActionStates((currentStates) => ({
+                ...currentStates,
+                [action]: finalResult
+                  ? {
+                      status: "ready",
+                      result: finalResult,
+                      errorMessage: null,
+                    }
+                  : buildDeepActionErrorState(
+                      currentStates[action],
+                      DEEP_ACTION_TIMEOUT_MESSAGE,
+                    ),
+              }));
+            });
+        },
+        getDeepActionServerTimeoutMs(action) + DEEP_ACTION_WATCHDOG_SKEW_MS,
+      );
       deepActionWatchdogsRef.current[action] = watchdogId;
 
       try {
@@ -489,7 +515,6 @@ export function ReaderSelectionHandler({
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        let streamedText = "";
 
         try {
           while (true) {
@@ -528,6 +553,20 @@ export function ReaderSelectionHandler({
             return;
           }
 
+          const recoveredResult = await parseStreamedResult().catch(() => null);
+
+          if (recoveredResult && isRequestCurrent()) {
+            setDeepActionStates((currentStates) => ({
+              ...currentStates,
+              [action]: {
+                status: "ready",
+                result: recoveredResult,
+                errorMessage: null,
+              },
+            }));
+            return;
+          }
+
           throw new Error(DEEP_ACTION_STREAM_INTERRUPTED_MESSAGE);
         } finally {
           reader.releaseLock();
@@ -535,11 +574,7 @@ export function ReaderSelectionHandler({
 
         streamedText += decoder.decode();
 
-        const parsedFinalResponse = await parsePartialJson(streamedText);
-        const finalResult = parseCompletedDeepActionResult(
-          action,
-          parsedFinalResponse,
-        );
+        const finalResult = await parseStreamedResult();
 
         if (!finalResult) {
           throw new Error(INVALID_DEEP_ACTION_STREAM_FORMAT_MESSAGE);
