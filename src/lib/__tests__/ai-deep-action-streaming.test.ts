@@ -8,6 +8,9 @@ import {
   parseCompletedDeepActionResult,
   parseReadyDeepActionResult,
 } from "@/lib/ai-deep-action-streaming";
+import type { DeepAction } from "@/lib/ai-validation";
+
+const structureAction = "structure" satisfies DeepAction;
 
 describe("deep-action streaming helpers", () => {
   it("preserves the last partial result when a request terminally errors", () => {
@@ -32,75 +35,16 @@ describe("deep-action streaming helpers", () => {
     });
   });
 
-  it("normalizes a partial grammar result without requiring final fields", () => {
+  it("normalizes partial Structure fields without requiring the final set", () => {
     expect(
-      buildStreamingDeepActionResult("grammar", {
-        summary: "  Past perfect in context  ",
-        points: ["  had + participle  ", "", null],
+      buildStreamingDeepActionResult(structureAction, {
+        pattern: "  had   + past participle  ",
+        role: "  Verb phrase  ",
       }),
     ).toEqual({
-      summary: "Past perfect in context",
-      points: ["had + participle"],
+      pattern: "had + past participle",
+      role: "Verb phrase",
     });
-  });
-
-  it("clamps partial grammar text to the final schema limits", () => {
-    const result = buildStreamingDeepActionResult("grammar", {
-      summary: `  ${"word ".repeat(50)}unfinished  `,
-      points: [`  ${"point ".repeat(20)}unfinished  `],
-      notApplicable: true,
-      reason: `  ${"reason ".repeat(30)}unfinished  `,
-    });
-
-    expect(result).toEqual({
-      summary: `${"word ".repeat(43).trim()}…`,
-      points: [`${"point ".repeat(16).trim()}…`],
-      notApplicable: true,
-      reason: `${"reason ".repeat(28).trim()}…`,
-    });
-  });
-
-  it("prefers a complete sentence when clamping grammar text", () => {
-    const completeSentence = `${"word ".repeat(30)}ends here.`;
-
-    expect(
-      buildStreamingDeepActionResult("grammar", {
-        summary: `${completeSentence} ${"extra ".repeat(20)}`,
-      }),
-    ).toEqual({ summary: completeSentence });
-  });
-
-  it("keeps sentence punctuation at the exact grammar clamp boundary", () => {
-    const completeSentence = `${"word ".repeat(42)}ends here.`;
-
-    expect(completeSentence).toHaveLength(220);
-    expect(
-      buildStreamingDeepActionResult("grammar", {
-        summary: `${completeSentence} Extra explanation.`,
-      }),
-    ).toEqual({ summary: completeSentence });
-  });
-
-  it("does not leave a dangling surrogate when grammar text has no spaces", () => {
-    expect(
-      buildStreamingDeepActionResult("grammar", {
-        summary: `${"a".repeat(218)}😀suffix`,
-      }),
-    ).toEqual({ summary: `${"a".repeat(218)}…` });
-  });
-
-  it("does not treat punctuation at an artificial clamp boundary as terminal", () => {
-    expect(
-      buildStreamingDeepActionResult("grammar", {
-        summary: `${"a".repeat(219)}.suffix`,
-      }),
-    ).toEqual({ summary: `${"a".repeat(219)}…` });
-
-    expect(
-      buildStreamingDeepActionResult("grammar", {
-        summary: `${"a".repeat(218)}.suffix`,
-      }),
-    ).toEqual({ summary: `${"a".repeat(218)}.…` });
   });
 
   it("keeps a partially streamed easier example renderable", () => {
@@ -165,19 +109,24 @@ describe("deep-action streaming helpers", () => {
 
   it("validates final results with the schema for the requested action", () => {
     expect(
-      parseReadyDeepActionResult("grammar", {
-        summary: "Past perfect marks earlier action.",
+      parseReadyDeepActionResult(structureAction, {
+        pattern: "had + past participle",
+        role: "Past-perfect verb phrase",
+        whyHere: "It places one completed event before another past event.",
+        pitfall: "Do not use it when the past order is already unambiguous.",
       }),
     ).toEqual({
-      summary: "Past perfect marks earlier action.",
+      pattern: "had + past participle",
+      role: "Past-perfect verb phrase",
+      whyHere: "It places one completed event before another past event.",
+      pitfall: "Do not use it when the past order is already unambiguous.",
     });
     expect(
-      parseReadyDeepActionResult("grammar", {
-        points: ["Use had + past participle."],
+      parseReadyDeepActionResult(structureAction, {
+        pattern: "had + past participle",
+        role: "Past-perfect verb phrase",
       }),
-    ).toEqual({
-      points: ["Use had + past participle."],
-    });
+    ).toBeNull();
     expect(
       parseReadyDeepActionResult("compare", {
         alternative: "I left before she arrived.",
@@ -247,7 +196,7 @@ describe("deep-action streaming helpers", () => {
     });
 
     expect(
-      parseReadyDeepActionResult("grammar", {
+      parseReadyDeepActionResult(structureAction, {
         notApplicable: true,
         reason: "The selection is a proper name.",
       }),
@@ -257,41 +206,170 @@ describe("deep-action streaming helpers", () => {
     });
 
     expect(
-      parseReadyDeepActionResult("grammar", {
+      parseReadyDeepActionResult(structureAction, {
         notApplicable: true,
       }),
     ).toBeNull();
   });
 
-  it("clamps over-long grammar content during finalization", () => {
+  it("rejects incomplete over-budget required Structure fields without ellipsis", () => {
     expect(
-      normalizeDeepActionResult("grammar", {
-        summary: `  ${"word ".repeat(50)}unfinished  `,
-        points: [
-          ...Array.from(
-            { length: 4 },
-            (_, index) => `point ${index} ${"detail ".repeat(20)}`,
-          ),
-        ],
+      normalizeDeepActionResult(structureAction, {
+        pattern: "word ".repeat(30),
+        role: "Past-perfect verb phrase",
+        whyHere: "It places one completed event before another past event.",
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps exclusive applicable and not-applicable Structure results", () => {
+    expect(
+      normalizeDeepActionResult(structureAction, {
+        notApplicable: true,
+        reason: "The selection is a proper name.",
       }),
     ).toEqual({
-      summary: `${"word ".repeat(43).trim()}…`,
-      points: [
-        `point 0 ${"detail ".repeat(13).trim()}…`,
-        `point 1 ${"detail ".repeat(13).trim()}…`,
-        `point 2 ${"detail ".repeat(13).trim()}…`,
-      ],
+      notApplicable: true,
+      reason: "The selection is a proper name.",
+    });
+
+    expect(
+      normalizeDeepActionResult(structureAction, {
+        pattern: "adjective + noun",
+        role: "Attributive adjective",
+        whyHere: "It describes the fox directly.",
+        notApplicable: false,
+      }),
+    ).toEqual({
+      pattern: "adjective + noun",
+      role: "Attributive adjective",
+      whyHere: "It describes the fox directly.",
     });
   });
 
-  it("strips unknown grammar fields during finalization", () => {
+  it("rejects mixed final Structure states by own-property presence", () => {
+    for (const field of ["pattern", "role", "whyHere", "pitfall"]) {
+      expect(
+        normalizeDeepActionResult(structureAction, {
+          notApplicable: true,
+          reason: "The selection is a proper name.",
+          [field]: "",
+        }),
+      ).toBeNull();
+    }
+
     expect(
-      normalizeDeepActionResult("grammar", {
-        summary: "Past perfect marks an earlier completed action.",
+      normalizeDeepActionResult(structureAction, {
+        pattern: "adjective + noun",
+        role: "Attributive adjective",
+        whyHere: "It describes the fox directly.",
+        reason: "This field belongs only to not-applicable results.",
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects malformed applicable Structure discriminators", () => {
+    for (const notApplicable of [null, "false", 0]) {
+      expect(
+        normalizeDeepActionResult(structureAction, {
+          pattern: "adjective + noun",
+          role: "Attributive adjective",
+          whyHere: "It describes the fox directly.",
+          notApplicable,
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it("normalizes Structure from the original payload and strips unknown fields", () => {
+    expect(
+      normalizeDeepActionResult(structureAction, {
+        pattern: "  had   + past participle  ",
+        role: "  Past-perfect   verb phrase  ",
+        whyHere: "  It places one completed event before another.  ",
         explanation: "This extra model field is not part of the domain result.",
       }),
     ).toEqual({
-      summary: "Past perfect marks an earlier completed action.",
+      pattern: "had + past participle",
+      role: "Past-perfect verb phrase",
+      whyHere: "It places one completed event before another.",
+    });
+  });
+
+  it("rejects punctuation-only required Structure fields", () => {
+    expect(
+      normalizeDeepActionResult(structureAction, {
+        pattern: `. ${"x".repeat(130)}`,
+        role: "Past-perfect verb phrase",
+        whyHere: "It places one completed event before another past event.",
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects a punctuation-only not-applicable reason", () => {
+    expect(
+      normalizeDeepActionResult(structureAction, {
+        notApplicable: true,
+        reason: `. ${"x".repeat(170)}`,
+      }),
+    ).toBeNull();
+  });
+
+  it("omits a punctuation-only optional Structure pitfall", () => {
+    expect(
+      normalizeDeepActionResult(structureAction, {
+        pattern: "had + past participle",
+        role: "Past-perfect verb phrase",
+        whyHere: "It places one completed event before another past event.",
+        pitfall: `. ${"x".repeat(150)}`,
+      }),
+    ).toEqual({
+      pattern: "had + past participle",
+      role: "Past-perfect verb phrase",
+      whyHere: "It places one completed event before another past event.",
+    });
+  });
+
+  it("omits an unsafe optional Structure pitfall", () => {
+    expect(
+      normalizeDeepActionResult(structureAction, {
+        pattern: "had + past participle",
+        role: "Past-perfect verb phrase",
+        whyHere: "It places one completed event before another past event.",
+        pitfall: "unfinished ".repeat(20),
+      }),
+    ).toEqual({
+      pattern: "had + past participle",
+      role: "Past-perfect verb phrase",
+      whyHere: "It places one completed event before another past event.",
+    });
+  });
+
+  it("retains a complete bounded Structure segment from over-budget output", () => {
+    expect(
+      normalizeDeepActionResult(structureAction, {
+        pattern: `Uses had + past participle. ${"unfinished ".repeat(15)}`,
+        role: "Past-perfect verb phrase",
+        whyHere: "It places one completed event before another past event.",
+      }),
+    ).toEqual({
+      pattern: "Uses had + past participle.",
+      role: "Past-perfect verb phrase",
+      whyHere: "It places one completed event before another past event.",
+    });
+  });
+
+  it("retains meaningful non-ASCII Structure text at a real boundary", () => {
+    expect(
+      normalizeDeepActionResult(structureAction, {
+        pattern: `Mẫu câu tiếng Việt. ${"dở dang ".repeat(20)}`,
+        role: "Cụm động từ",
+        whyHere: "Diễn tả một hành động đã hoàn tất trước hành động khác.",
+      }),
+    ).toEqual({
+      pattern: "Mẫu câu tiếng Việt.",
+      role: "Cụm động từ",
+      whyHere: "Diễn tả một hành động đã hoàn tất trước hành động khác.",
     });
   });
 
@@ -404,22 +482,24 @@ describe("deep-action streaming helpers", () => {
     });
   });
 
-  it("accepts repaired JSON when completing a deep-action stream", async () => {
+  it("accepts repaired Structure JSON only with complete required fields", async () => {
     const completeResult = await parsePartialJson(
-      '{"summary":"Past perfect","points":["had + participle"]}\n  ',
+      '{"pattern":"had + participle","role":"verb phrase","whyHere":"marks earlier action"}\n  ',
     );
     const truncatedResult = await parsePartialJson(
-      '{"summary":"Past perfect","points":["had + participle"]',
+      '{"pattern":"had + participle","role":"verb phrase","whyHere":"marks earlier action"',
     );
 
-    expect(parseCompletedDeepActionResult("grammar", completeResult)).toEqual({
-      summary: "Past perfect",
-      points: ["had + participle"],
+    expect(
+      parseCompletedDeepActionResult(structureAction, completeResult),
+    ).toEqual({
+      pattern: "had + participle",
+      role: "verb phrase",
+      whyHere: "marks earlier action",
     });
-    expect(parseCompletedDeepActionResult("grammar", truncatedResult)).toEqual({
-      summary: "Past perfect",
-      points: ["had + participle"],
-    });
+    expect(
+      parseCompletedDeepActionResult(structureAction, truncatedResult),
+    ).toBeNull();
   });
 
   it("rejects repaired conjugation JSON during finalization", async () => {

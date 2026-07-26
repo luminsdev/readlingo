@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   aiExplanationSchema,
+  deepActionRequestSchema,
   explainSelectionSchema,
   explanationPayloadSchema,
+  normalizeFormTip,
+  structureDeepActionResponseSchema,
 } from "@/lib/ai-validation";
 import { readingProgressSchema } from "@/lib/book-validation";
 import {
@@ -104,11 +107,24 @@ describe("AI Validation Schemas", () => {
     ).toBe(true);
   });
 
-  it("aiExplanationSchema caps explanation and grammar prose", () => {
+  it("normalizes a valid Form tip and omits invalid optional tips", () => {
+    expect(normalizeFormTip("  Uses\n  the past tense.  ")).toBe(
+      "Uses the past tense.",
+    );
+    expect(normalizeFormTip("   ")).toBeUndefined();
+    expect(normalizeFormTip("x".repeat(180))).toBe("x".repeat(180));
+    expect(normalizeFormTip("x".repeat(181))).toBeUndefined();
+    expect(
+      normalizeFormTip("First sentence. Second sentence."),
+    ).toBeUndefined();
+    expect(normalizeFormTip({ text: "not a string" })).toBeUndefined();
+  });
+
+  it("aiExplanationSchema caps explanation and omits invalid Form tips", () => {
     const basePayload = {
       translation: "to mo",
       explanation: "x".repeat(800),
-      grammaticalNote: "x".repeat(500),
+      grammaticalNote: "x".repeat(180),
       examples: [],
     };
 
@@ -119,10 +135,81 @@ describe("AI Validation Schemas", () => {
         explanation: "x".repeat(801),
       }).success,
     ).toBe(false);
+    const overLimit = aiExplanationSchema.safeParse({
+      ...basePayload,
+      grammaticalNote: "x".repeat(181),
+    });
+    expect(overLimit.success).toBe(true);
+    if (overLimit.success) {
+      expect(overLimit.data.grammaticalNote).toBeUndefined();
+    }
+
+    const multipleBoundaries = aiExplanationSchema.safeParse({
+      ...basePayload,
+      grammaticalNote: "First sentence. Second sentence.",
+    });
+    expect(multipleBoundaries.success).toBe(true);
+    if (multipleBoundaries.success) {
+      expect(multipleBoundaries.data.grammaticalNote).toBeUndefined();
+    }
+  });
+
+  it("accepts only the structure deep-action request ID", () => {
+    const input = {
+      selectedText: "curious",
+      surroundingParagraph: "The curious fox paused.",
+      sourceLanguage: "en",
+    };
+
     expect(
-      aiExplanationSchema.safeParse({
-        ...basePayload,
-        grammaticalNote: "x".repeat(501),
+      deepActionRequestSchema.safeParse({ action: "structure", ...input })
+        .success,
+    ).toBe(true);
+    expect(
+      deepActionRequestSchema.safeParse({ action: "grammar", ...input })
+        .success,
+    ).toBe(false);
+  });
+
+  it("enforces exclusive applicable and not-applicable Structure results", () => {
+    expect(
+      structureDeepActionResponseSchema.safeParse({
+        pattern: "adjective + noun",
+        role: "Attributive adjective",
+        whyHere: "It describes the fox directly.",
+        pitfall: "Do not confuse it with interested.",
+      }).success,
+    ).toBe(true);
+    expect(
+      structureDeepActionResponseSchema.safeParse({
+        pattern: "adjective + noun",
+        role: "Attributive adjective",
+      }).success,
+    ).toBe(false);
+    expect(
+      structureDeepActionResponseSchema.safeParse({
+        notApplicable: true,
+        reason: "The selection is a proper name.",
+      }).success,
+    ).toBe(true);
+    expect(
+      structureDeepActionResponseSchema.safeParse({
+        notApplicable: true,
+        reason: "The selection is a proper name.",
+        pattern: "proper name",
+      }).success,
+    ).toBe(false);
+    expect(
+      structureDeepActionResponseSchema.safeParse({
+        notApplicable: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      structureDeepActionResponseSchema.safeParse({
+        pattern: "adjective + noun",
+        role: "Attributive adjective",
+        whyHere: "It describes the fox directly.",
+        reason: "Not applicable should not appear here.",
       }).success,
     ).toBe(false);
   });

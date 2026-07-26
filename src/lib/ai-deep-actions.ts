@@ -11,17 +11,18 @@ import {
   CONJUGATION_NOTE_MAX_LENGTH,
   CONJUGATION_REASON_MAX_LENGTH,
   easierExamplesDeepActionGenerationSchema,
-  GRAMMAR_POINT_MAX_LENGTH,
-  GRAMMAR_POINTS_MAX_COUNT,
-  GRAMMAR_REASON_MAX_LENGTH,
-  GRAMMAR_SUMMARY_MAX_LENGTH,
-  grammarDeepActionGenerationSchema,
+  STRUCTURE_PATTERN_MAX_LENGTH,
+  STRUCTURE_PITFALL_MAX_LENGTH,
+  STRUCTURE_REASON_MAX_LENGTH,
+  STRUCTURE_ROLE_MAX_LENGTH,
+  STRUCTURE_WHY_HERE_MAX_LENGTH,
+  structureDeepActionGenerationSchema,
   type DeepAction,
   type DeepActionRequest,
 } from "./ai-validation.ts";
 
 const MVP_DEEP_ACTIONS = [
-  "grammar",
+  "structure",
   "compare",
   "easierExamples",
 ] as const satisfies readonly DeepAction[];
@@ -111,20 +112,13 @@ export function getVisibleDeepActions(
   input: DeepActionAvailabilityInput,
 ): DeepAction[] {
   const eligibleActions = getEligibleDeepActions(input);
-
-  if (!isSingleWordSelection(input.selectedText)) {
-    return eligibleActions;
-  }
-
-  return [
-    "grammar",
-    "easierExamples",
+  const visibleActions: readonly DeepAction[] =
+    isSingleWordSelection(input.selectedText) &&
     eligibleActions.includes("conjugation")
-      ? "conjugation"
-      : eligibleActions.includes("collocation")
-        ? "collocation"
-        : "compare",
-  ];
+      ? ["structure", "compare", "conjugation"]
+      : MVP_DEEP_ACTIONS;
+
+  return visibleActions.filter((action) => eligibleActions.includes(action));
 }
 
 export function getAvailableDeepActions(
@@ -163,16 +157,16 @@ ${applicabilityGuidance}
 Do not return an empty object.`;
 }
 
-export function buildGrammarPrompt(input: DeepActionPromptInput) {
+export function buildStructurePrompt(input: DeepActionPromptInput) {
   return buildPrompt(
-    "grammar",
+    "structure",
     input,
-    `{"summary"?: string (max ${GRAMMAR_SUMMARY_MAX_LENGTH} characters), "points"?: string[0-${GRAMMAR_POINTS_MAX_COUNT}] (each max ${GRAMMAR_POINT_MAX_LENGTH} characters), "notApplicable"?: boolean, "reason"?: string (max ${GRAMMAR_REASON_MAX_LENGTH} characters)}`,
+    `Applicable: {"pattern": string (max ${STRUCTURE_PATTERN_MAX_LENGTH} characters), "role": string (max ${STRUCTURE_ROLE_MAX_LENGTH} characters), "whyHere": string (max ${STRUCTURE_WHY_HERE_MAX_LENGTH} characters), "pitfall"?: string (max ${STRUCTURE_PITFALL_MAX_LENGTH} characters), "notApplicable"?: false}. Not applicable: {"notApplicable": true, "reason": string (max ${STRUCTURE_REASON_MAX_LENGTH} characters)}.`,
     [
-      "When applicable, write exactly 1 short summary sentence and 0-3 short points.",
-      "No multi-clause essays, filler, or restating a full dictionary definition dump.",
-      `Hard limits: summary max ${GRAMMAR_SUMMARY_MAX_LENGTH} characters; each point max ${GRAMMAR_POINT_MAX_LENGTH} characters; reason max ${GRAMMAR_REASON_MAX_LENGTH} characters.`,
-      'Never add greetings, sign-offs, wishes, or polite filler loops; forbidden openers include "Chúc bạn", "Cảm ơn", and "Hy vọng".',
+      "When applicable, pattern explains the construction or form, role gives its grammatical role in this sentence, and whyHere explains why the form is used here.",
+      "Do not paraphrase the primary meaning or write dictionary-definition prose, filler, greetings, or essays.",
+      'Never use the pattern "Trong ngữ cảnh này, X là danh từ chỉ…".',
+      "Return an honest short not-applicable reason when Structure does not apply.",
     ].join(" "),
   );
 }
@@ -225,8 +219,8 @@ export function buildCollocationPrompt(input: DeepActionPromptInput) {
 
 export function buildDeepActionPrompt(input: DeepActionRequest) {
   switch (input.action) {
-    case "grammar":
-      return buildGrammarPrompt(input);
+    case "structure":
+      return buildStructurePrompt(input);
     case "compare":
       return buildComparePrompt(input);
     case "easierExamples":
@@ -240,12 +234,12 @@ export function buildDeepActionPrompt(input: DeepActionRequest) {
 
 function getDeepActionDefinition(action: DeepAction) {
   switch (action) {
-    case "grammar":
+    case "structure":
       return {
-        schema: grammarDeepActionGenerationSchema,
-        schemaName: "readlingo_deep_action_grammar",
+        schema: structureDeepActionGenerationSchema,
+        schemaName: "readlingo_deep_action_structure",
         schemaDescription:
-          "A concise Vietnamese grammar explanation for selected book text.",
+          "A concise Vietnamese structure map for selected book text.",
       };
     case "compare":
       return {
@@ -280,7 +274,7 @@ function getDeepActionDefinition(action: DeepAction) {
 
 export function getDeepActionStreamSettings(action: DeepAction) {
   const maxOutputTokens = {
-    grammar: 350,
+    structure: 300,
     compare: 300,
     easierExamples: 350,
     conjugation: 300,

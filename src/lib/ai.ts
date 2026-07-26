@@ -1,9 +1,10 @@
-import { google } from "@ai-sdk/google";
+import { google, type GoogleLanguageModelOptions } from "@ai-sdk/google";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { streamObject, type LanguageModel } from "ai";
 
 import {
   aiExplanationSchema,
+  normalizeFormTip,
   type AiExplanationInput,
   type ExplainSelectionInput,
 } from "./ai-validation.ts";
@@ -29,9 +30,12 @@ Given a selected text and its surrounding context from a book,
 provide a helpful explanation for a language learner.
 ${getAiResponseLocaleInstruction()}
 Use short learner-facing Vietnamese only.
+The primary explanation owns translation and contextual meaning.
 Keep translation short while preserving the full selection meaning.
 Write explanation in 2-4 short sentences maximum; target under 500 characters.
-Write grammaticalNote in at most 1-2 short sentences when useful; omit it when redundant.
+grammaticalNote is optional and only for a form detail necessary to understand meaning.
+When included, write grammaticalNote in at most one short sentence and no more than 180 characters.
+Do not use grammaticalNote for multi-sentence grammar prose or meaning/structure essays.
 Prefer 1 example; never provide more than 2. Keep examples short and natural.
 Do not include greetings, closings, thanks, wishes, or encouragement.
 Never use sign-off or encouragement phrases such as "hy vọng", "chúc bạn", "cảm ơn", "cố gắng", or "nếu bạn muốn hỏi thêm".
@@ -45,17 +49,18 @@ Context: "{surroundingParagraph}"
 Provide:
 1. Translation
 2. Plain explanation for this context
-3. Grammar or structure notes when useful
+3. Optional short Form tip only when needed to understand meaning
 4. 1 preferred, at most 2 natural example sentences`;
 
 const FALLBACK_EXAMPLE_SUFFIX = "appears in this reading context.";
+export const PRIMARY_EXPLAIN_MAX_OUTPUT_TOKENS = 800;
 
 const providerModelCatalog: Record<
   AiProvider,
   Record<ExplainModelTier, string>
 > = {
   google: {
-    primary: "gemini-3.1-flash-lite-preview",
+    primary: "gemma-4-31b-it",
     fallback: "gemini-2.5-flash-lite",
   },
   github: {
@@ -73,6 +78,15 @@ const providerModelCatalog: Record<
       "qwen3",
   },
 };
+
+function getGoogleModelId(modelTier: ExplainModelTier) {
+  const override =
+    modelTier === "primary"
+      ? process.env.GOOGLE_PRIMARY_MODEL_ID
+      : process.env.GOOGLE_FALLBACK_MODEL_ID;
+
+  return override?.trim() || providerModelCatalog.google[modelTier];
+}
 
 function parseAiProvider(value: string | undefined): AiProvider {
   if (value === "github" || value === "qwen") {
@@ -154,8 +168,37 @@ export function getExplainModelTarget(
 ): ExplainModelTarget {
   return {
     provider,
-    modelId: providerModelCatalog[provider][modelTier],
+    modelId:
+      provider === "google"
+        ? getGoogleModelId(modelTier)
+        : providerModelCatalog[provider][modelTier],
   };
+}
+
+export function getGoogleThinkingConfig(
+  modelId: string,
+): GoogleLanguageModelOptions["thinkingConfig"] {
+  if (/^gemma-4-/.test(modelId)) {
+    return { thinkingLevel: "minimal" } satisfies NonNullable<
+      GoogleLanguageModelOptions["thinkingConfig"]
+    >;
+  }
+
+  if (
+    /^gemini-2\.5-flash(?:-lite)?(?:-preview(?:-\d+(?:-\d+)*)?)?$/.test(modelId)
+  ) {
+    return { thinkingBudget: 0 } satisfies NonNullable<
+      GoogleLanguageModelOptions["thinkingConfig"]
+    >;
+  }
+
+  if (/^gemini-3(?:\.1)?-flash(?:-|$)/.test(modelId)) {
+    return { thinkingLevel: "minimal" } satisfies NonNullable<
+      GoogleLanguageModelOptions["thinkingConfig"]
+    >;
+  }
+
+  return undefined;
 }
 
 export function getAiLanguageModel(modelTier: ExplainModelTier = "primary") {
@@ -170,6 +213,10 @@ export function getAiStreamObjectOptions(
 ) {
   const modelTarget = getExplainModelTarget(modelTier);
   const providerRegistration = getProviderRegistration(modelTarget.provider);
+  const thinkingConfig =
+    providerRegistration.providerName === "google"
+      ? getGoogleThinkingConfig(modelTarget.modelId)
+      : undefined;
 
   return {
     model: providerRegistration.createModel(modelTarget.modelId),
@@ -178,7 +225,8 @@ export function getAiStreamObjectOptions(
         ? {
             google: {
               structuredOutputs: true,
-            },
+              ...(thinkingConfig ? { thinkingConfig } : {}),
+            } satisfies GoogleLanguageModelOptions,
           }
         : undefined,
   };
@@ -210,8 +258,8 @@ export function buildExplainPrompt({
         "Translate the full selection exactly as chosen.",
         "Full translation of the complete selection is required.",
         "Explain the overall meaning in this context and do not narrow the answer to a single word or sub-phrase.",
-        "Grammatical breakdown: key structures, tenses, idioms.",
-        "Use grammaticalNote for grammar and structure details.",
+        "Leave detailed construction mapping to the separate Structure action.",
+        "Use grammaticalNote only for an optional short form detail necessary to understand meaning.",
         "Add a Cultural/contextual note when the phrase has nuance beyond the literal meaning.",
         "If this word/phrase has multiple common meanings, state which meaning applies here and mention 1 alternative meaning the learner might confuse it with.",
         "Each example sentence MUST include a Vietnamese translation on the next line.",
@@ -287,8 +335,8 @@ export function normalizeExplanationPayload(
         }
       : {}),
     explanation: payload.explanation.trim(),
-    ...(normalizeOptionalField(payload.grammaticalNote)
-      ? { grammaticalNote: normalizeOptionalField(payload.grammaticalNote) }
+    ...(normalizeFormTip(payload.grammaticalNote)
+      ? { grammaticalNote: normalizeFormTip(payload.grammaticalNote) }
       : {}),
     ...(normalizeOptionalField(payload.alternativeMeaning)
       ? {
@@ -325,6 +373,7 @@ export function streamExplanation(input: ExplainSelectionInput) {
     schemaName: "readlingo_explanation",
     schemaDescription:
       "Vietnamese translation and explanation for a highlighted word or sentence in an EPUB reader.",
+    maxOutputTokens: PRIMARY_EXPLAIN_MAX_OUTPUT_TOKENS,
     temperature: 0.2,
     timeout: 20_000,
   });

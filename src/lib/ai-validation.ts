@@ -6,6 +6,27 @@ const difficultyHintSchema = z
 
 const selectionTypeSchema = z.enum(["word", "phrase"]);
 
+export const FORM_TIP_MAX_LENGTH = 180;
+
+export function normalizeFormTip(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalizedValue = value.trim().replace(/\s+/g, " ");
+  const sentenceBoundaryCount = normalizedValue.match(/[.!?…]/g)?.length ?? 0;
+
+  if (
+    !normalizedValue ||
+    normalizedValue.length > FORM_TIP_MAX_LENGTH ||
+    sentenceBoundaryCount > 1
+  ) {
+    return undefined;
+  }
+
+  return normalizedValue;
+}
+
 function optionalTrimmedStringSchema(maxLength: number) {
   return z.preprocess((value) => {
     if (typeof value !== "string") {
@@ -44,7 +65,7 @@ export const explainSelectionSchema = z.object({
 });
 
 export const deepActionSchema = z.enum([
-  "grammar",
+  "structure",
   "compare",
   "easierExamples",
   "conjugation",
@@ -55,10 +76,11 @@ export const deepActionRequestSchema = explainSelectionSchema.extend({
   action: deepActionSchema,
 });
 
-export const GRAMMAR_SUMMARY_MAX_LENGTH = 220;
-export const GRAMMAR_POINT_MAX_LENGTH = 100;
-export const GRAMMAR_POINTS_MAX_COUNT = 3;
-export const GRAMMAR_REASON_MAX_LENGTH = 200;
+export const STRUCTURE_PATTERN_MAX_LENGTH = 120;
+export const STRUCTURE_ROLE_MAX_LENGTH = 120;
+export const STRUCTURE_WHY_HERE_MAX_LENGTH = 160;
+export const STRUCTURE_PITFALL_MAX_LENGTH = 140;
+export const STRUCTURE_REASON_MAX_LENGTH = 160;
 export const CONJUGATION_FORMS_MAX_COUNT = 6;
 export const CONJUGATION_FORM_FIELD_MAX_LENGTH = 32;
 export const CONJUGATION_LEMMA_MAX_LENGTH = 64;
@@ -76,9 +98,11 @@ const deepActionGenerationStatusSchema = {
   reason: z.string().optional(),
 };
 
-export const grammarDeepActionGenerationSchema = z.object({
-  summary: z.string().optional(),
-  points: z.array(z.string()).optional(),
+export const structureDeepActionGenerationSchema = z.object({
+  pattern: z.string().optional(),
+  role: z.string().optional(),
+  whyHere: z.string().optional(),
+  pitfall: z.string().optional(),
   ...deepActionGenerationStatusSchema,
 });
 
@@ -167,43 +191,32 @@ function requireReasonWhenNotApplicable(
   }
 }
 
-export const grammarDeepActionResponseSchema = z
+const applicableStructureDeepActionResponseSchema = z
   .object({
-    // Model-friendly: accept summary-only or points-only applicable payloads.
-    summary: z
+    pattern: z.string().trim().min(1).max(STRUCTURE_PATTERN_MAX_LENGTH),
+    role: z.string().trim().min(1).max(STRUCTURE_ROLE_MAX_LENGTH),
+    whyHere: z.string().trim().min(1).max(STRUCTURE_WHY_HERE_MAX_LENGTH),
+    pitfall: z
       .string()
       .trim()
       .min(1)
-      .max(GRAMMAR_SUMMARY_MAX_LENGTH)
+      .max(STRUCTURE_PITFALL_MAX_LENGTH)
       .optional(),
-    points: z
-      .array(z.string().trim().min(1).max(GRAMMAR_POINT_MAX_LENGTH))
-      .max(GRAMMAR_POINTS_MAX_COUNT)
-      .optional(),
-    ...deepActionStatusSchema,
-    reason: deepActionReasonSchema.max(GRAMMAR_REASON_MAX_LENGTH).optional(),
+    notApplicable: z.literal(false).optional(),
   })
-  .strict()
-  .superRefine((value, context) => {
-    if (value.notApplicable) {
-      requireReasonWhenNotApplicable(
-        value,
-        context,
-        "Reason is required when grammar is not applicable.",
-      );
-      return;
-    }
+  .strict();
 
-    const points = value.points ?? [];
-    if (!value.summary && points.length === 0) {
-      context.addIssue({
-        code: "custom",
-        message:
-          "Provide a non-empty summary and/or 1-3 points when grammar is applicable.",
-        path: ["summary"],
-      });
-    }
-  });
+const notApplicableStructureDeepActionResponseSchema = z
+  .object({
+    notApplicable: z.literal(true),
+    reason: z.string().trim().min(1).max(STRUCTURE_REASON_MAX_LENGTH),
+  })
+  .strict();
+
+export const structureDeepActionResponseSchema = z.union([
+  applicableStructureDeepActionResponseSchema,
+  notApplicableStructureDeepActionResponseSchema,
+]);
 
 const compareContentSchema = {
   alternative: z.string().trim().min(1),
@@ -361,7 +374,10 @@ export const aiExplanationSchema = z.object({
   partOfSpeech: optionalTrimmedStringSchema(120),
   difficultyHint: difficultyHintSchema,
   explanation: z.string().trim().min(1, "Explanation is required.").max(800),
-  grammaticalNote: optionalTrimmedStringSchema(500),
+  grammaticalNote: z.preprocess(
+    normalizeFormTip,
+    z.string().max(FORM_TIP_MAX_LENGTH).optional(),
+  ),
   alternativeMeaning: optionalTrimmedStringSchema(500),
   examples: z
     .array(exampleSchema)
@@ -396,8 +412,8 @@ export type AiExplanationInput = z.infer<typeof aiExplanationSchema>;
 export type ExplanationPayloadInput = z.infer<typeof explanationPayloadSchema>;
 export type DeepAction = z.infer<typeof deepActionSchema>;
 export type DeepActionRequest = z.infer<typeof deepActionRequestSchema>;
-export type GrammarDeepActionResponse = z.infer<
-  typeof grammarDeepActionResponseSchema
+export type StructureDeepActionResponse = z.infer<
+  typeof structureDeepActionResponseSchema
 >;
 export type CompareDeepActionResponse = z.infer<
   typeof compareDeepActionResponseSchema

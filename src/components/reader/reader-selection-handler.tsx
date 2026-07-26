@@ -50,6 +50,7 @@ import {
   clearReaderSelection,
   getReaderSelectionPayload,
 } from "@/lib/reader-selection";
+import { cancelSpeech } from "@/lib/speech";
 import { buildVocabularySavePayload } from "@/lib/vocabulary";
 
 type ReaderSelectionHandlerProps = {
@@ -91,7 +92,7 @@ const INVALID_DEEP_ACTION_STREAM_FORMAT_MESSAGE =
 const DEEP_ACTION_TIMEOUT_MESSAGE = "AI follow-up timed out. Please try again.";
 const DEEP_ACTION_WATCHDOG_SKEW_MS = 3_000;
 const IDLE_DEEP_ACTION_STATES = {
-  grammar: { status: "idle", result: null, errorMessage: null },
+  structure: { status: "idle", result: null, errorMessage: null },
   compare: { status: "idle", result: null, errorMessage: null },
   easierExamples: { status: "idle", result: null, errorMessage: null },
   conjugation: { status: "idle", result: null, errorMessage: null },
@@ -108,24 +109,26 @@ export function ReaderSelectionHandler({
   const pendingExplainRequestRef = useRef<PendingExplainRequest | null>(null);
   const retryExplainRequestRef = useRef<PendingExplainRequest | null>(null);
   const explainRequestIdRef = useRef(0);
+  const activeExplainModelTierRef =
+    useRef<ExplainSelectionInput["modelTier"]>("primary");
   const deepActionAbortControllersRef = useRef<
     Record<DeepAction, AbortController | null>
   >({
-    grammar: null,
+    structure: null,
     compare: null,
     easierExamples: null,
     conjugation: null,
     collocation: null,
   });
   const deepActionRequestIdsRef = useRef<Record<DeepAction, number>>({
-    grammar: 0,
+    structure: 0,
     compare: 0,
     easierExamples: 0,
     conjugation: 0,
     collocation: 0,
   });
   const deepActionWatchdogsRef = useRef<Record<DeepAction, number | null>>({
-    grammar: null,
+    structure: null,
     compare: null,
     easierExamples: null,
     conjugation: null,
@@ -180,6 +183,7 @@ export function ReaderSelectionHandler({
   );
 
   const clearPendingSelection = useCallback(() => {
+    cancelSpeech();
     clearReaderSelection(selectionContentsRef.current);
     selectionContentsRef.current = null;
     pendingExplainRequestRef.current = null;
@@ -250,6 +254,7 @@ export function ReaderSelectionHandler({
 
       explainRequestIdRef.current = requestId;
       explainAbortControllerRef.current = abortController;
+      activeExplainModelTierRef.current = modelTier;
 
       setActiveSelectedText(requestPayload.selectedText);
       setAiState("loading");
@@ -495,6 +500,7 @@ export function ReaderSelectionHandler({
           body: JSON.stringify({
             ...requestPayload,
             action,
+            modelTier: activeExplainModelTierRef.current,
           }),
           signal: abortController.signal,
         });
@@ -766,6 +772,8 @@ export function ReaderSelectionHandler({
         return;
       }
 
+      cancelSpeech();
+
       const requestPayload: PendingExplainRequest = {
         selectedText: selectionPayload.selectedText,
         surroundingParagraph: selectionPayload.surroundingParagraph,
@@ -853,6 +861,7 @@ export function ReaderSelectionHandler({
     const deepActionWatchdogs = deepActionWatchdogsRef.current;
 
     return () => {
+      cancelSpeech();
       explainAbortControllerRef.current?.abort();
       explainAbortControllerRef.current = null;
       for (const abortController of Object.values(deepActionAbortControllers)) {
@@ -1024,6 +1033,7 @@ export function ReaderSelectionHandler({
       popoverPosition={aiPopoverPosition}
       saveState={vocabularySaveState}
       selectedText={activeSelectedText}
+      sourceLanguage={language}
       state={aiState}
       tooltipSelectedText={tooltipSelectedText}
     />

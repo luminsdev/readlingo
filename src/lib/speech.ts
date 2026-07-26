@@ -7,6 +7,57 @@ const SPEECH_ACCENT_LANGS: Record<SpeechAccent, string> = {
   uk: "en-GB",
 };
 
+const SHORT_SPEECH_LANGS: Record<string, string> = {
+  en: "en-US",
+  vi: "vi-VN",
+  fr: "fr-FR",
+  es: "es-ES",
+  de: "de-DE",
+  it: "it-IT",
+  pt: "pt-PT",
+};
+
+export function isSpeechTextEligible(text: string | null | undefined) {
+  const trimmedText = text?.trim();
+
+  if (!trimmedText) {
+    return false;
+  }
+
+  const tokenCount = trimmedText.split(/\s+/).length;
+
+  return tokenCount === 1 || (tokenCount <= 6 && trimmedText.length <= 48);
+}
+
+export function normalizeSpeechLang(
+  sourceLanguage: string | null | undefined,
+): string | undefined {
+  const languageTag = sourceLanguage?.trim().replaceAll("_", "-");
+
+  if (!languageTag) {
+    return undefined;
+  }
+
+  try {
+    const [canonicalTag] = Intl.getCanonicalLocales(languageTag);
+    const baseLanguage = canonicalTag?.split("-")[0].toLowerCase();
+
+    if (!canonicalTag || baseLanguage === "und" || baseLanguage === "unknown") {
+      return undefined;
+    }
+
+    return SHORT_SPEECH_LANGS[canonicalTag.toLowerCase()] ?? canonicalTag;
+  } catch {
+    return undefined;
+  }
+}
+
+export function shouldUseEnglishAccentControls(
+  sourceLanguage: string | null | undefined,
+) {
+  return normalizeSpeechLang(sourceLanguage)?.split("-")[0] === "en";
+}
+
 /**
  * Browser speech support and voice inventories vary. Chromium often loads voices
  * asynchronously via `voiceschanged`; Safari and Firefox may expose fewer voices.

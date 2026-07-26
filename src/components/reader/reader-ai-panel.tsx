@@ -18,6 +18,7 @@ import {
   shouldShowReaderAiContext,
 } from "@/components/reader/reader-ai-panel-utils";
 import { getHighlightedExampleSegments } from "@/components/reader/reader-workspace-utils";
+import { PronounceTextButton } from "@/components/speech/pronounce-text-button";
 import type {
   DeepActionUiState,
   DeepActionUiStates,
@@ -25,6 +26,7 @@ import type {
 } from "@/lib/ai-deep-action-streaming";
 import type { StreamingExplanationPayload } from "@/lib/ai-streaming";
 import type { DeepAction } from "@/lib/ai-validation";
+import { isSpeechTextEligible } from "@/lib/speech";
 import { getVocabularyReencounterCue } from "@/lib/vocabulary-match";
 import type { WordExplanationPayload } from "@/types";
 
@@ -50,7 +52,7 @@ export type ExistingVocabulary = {
 };
 
 const DEEP_ACTION_LABELS = {
-  grammar: "Grammar",
+  structure: "Structure",
   compare: "Compare",
   easierExamples: "Easier examples",
   conjugation: "Conjugation",
@@ -182,24 +184,52 @@ function DeepActionResult({
 
   let content: ReactNode = null;
 
-  if (action === "grammar") {
-    const grammar = result as StreamingDeepActionResultByAction["grammar"];
+  if (action === "structure") {
+    const structure = result as StreamingDeepActionResultByAction["structure"];
 
     content = (
-      <div className="space-y-3">
-        {grammar.summary ? (
-          <p className="text-ink-soft text-sm leading-relaxed">
-            {grammar.summary}
-          </p>
+      <dl className="space-y-3">
+        {structure.pattern ? (
+          <div className="space-y-1">
+            <dt className="text-ink-kicker text-[9px] font-medium tracking-[0.18em] uppercase">
+              Pattern
+            </dt>
+            <dd className="text-ink-soft text-xs leading-relaxed">
+              {structure.pattern}
+            </dd>
+          </div>
         ) : null}
-        {(grammar.points?.length ?? 0) > 0 ? (
-          <ul className="text-ink-muted list-disc space-y-2 pl-4 text-xs leading-relaxed">
-            {grammar.points?.map((point) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ul>
+        {structure.role ? (
+          <div className="space-y-1">
+            <dt className="text-ink-kicker text-[9px] font-medium tracking-[0.18em] uppercase">
+              Role
+            </dt>
+            <dd className="text-ink-soft text-xs leading-relaxed">
+              {structure.role}
+            </dd>
+          </div>
         ) : null}
-      </div>
+        {structure.whyHere ? (
+          <div className="space-y-1">
+            <dt className="text-ink-kicker text-[9px] font-medium tracking-[0.18em] uppercase">
+              Why here
+            </dt>
+            <dd className="text-ink-soft text-xs leading-relaxed">
+              {structure.whyHere}
+            </dd>
+          </div>
+        ) : null}
+        {structure.pitfall ? (
+          <div className="space-y-1">
+            <dt className="text-ink-kicker text-[9px] font-medium tracking-[0.18em] uppercase">
+              Pitfall
+            </dt>
+            <dd className="text-ink-muted text-xs leading-relaxed italic">
+              {structure.pitfall}
+            </dd>
+          </div>
+        ) : null}
+      </dl>
     );
   } else if (action === "compare") {
     const comparison = result as StreamingDeepActionResultByAction["compare"];
@@ -432,6 +462,7 @@ export function ReaderAiPanel({
   popoverPosition,
   saveState,
   selectedText,
+  sourceLanguage,
   tooltipSelectedText,
   onCopySelection,
   onExplainSelection,
@@ -454,6 +485,7 @@ export function ReaderAiPanel({
   popoverPosition: PopoverPosition | null;
   saveState: VocabularySaveState;
   selectedText: string | null;
+  sourceLanguage: string;
   tooltipSelectedText: string | null;
   onCopySelection: () => void;
   onExplainSelection: () => void;
@@ -499,6 +531,7 @@ export function ReaderAiPanel({
   const saveButtonTextClass = isSaveDisabled
     ? "text-ink-muted"
     : "text-foreground";
+  const canSpeakSelection = isSpeechTextEligible(selectedText);
 
   useEffect(() => {
     if (!showPopover) return;
@@ -754,9 +787,19 @@ export function ReaderAiPanel({
                     ) : null}
 
                     <div className="space-y-2">
-                      <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
-                        Source Text
-                      </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
+                          Source Text
+                        </p>
+                        {canSpeakSelection && selectedText ? (
+                          <PronounceTextButton
+                            text={selectedText}
+                            sourceLanguage={sourceLanguage}
+                            allowEnglishAccentControls
+                            className="shrink-0"
+                          />
+                        ) : null}
+                      </div>
                       <p className="text-foreground font-serif text-lg leading-snug">
                         {selectedText}
                       </p>
@@ -826,7 +869,7 @@ export function ReaderAiPanel({
                   {explanation.grammaticalNote ? (
                     <div className="border-line animate-in fade-in-0 space-y-3 border-t pt-8 duration-300">
                       <p className="text-ink-kicker text-[10px] font-medium tracking-[0.2em] uppercase">
-                        Grammar & Structure
+                        Form tip
                       </p>
                       <p className="text-ink-soft text-sm leading-loose">
                         {explanation.grammaticalNote}

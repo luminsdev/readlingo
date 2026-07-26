@@ -6,6 +6,7 @@ import { zodSchema } from "ai";
 
 import {
   buildExplainPrompt,
+  getAiStreamObjectOptions,
   getExplainModelTarget,
   isSingleWordSelection,
   normalizeExplanationPayload,
@@ -19,7 +20,7 @@ import {
   buildComparePrompt,
   buildConjugationPrompt,
   buildEasierExamplesPrompt,
-  buildGrammarPrompt,
+  buildStructurePrompt,
   getAvailableDeepActions,
   getDeepActionServerTimeoutMs,
   getDeepActionStreamSettings,
@@ -44,8 +45,8 @@ import {
   easierExamplesDeepActionResponseSchema,
   explainSelectionSchema,
   explanationPayloadSchema,
-  grammarDeepActionGenerationSchema,
-  grammarDeepActionResponseSchema,
+  structureDeepActionGenerationSchema,
+  structureDeepActionResponseSchema,
 } from "../src/lib/ai-validation.ts";
 import {
   saveVocabularySchema,
@@ -55,6 +56,11 @@ import {
 import { shouldShowReaderAiContext } from "../src/components/reader/reader-ai-panel-utils.ts";
 import { buildVocabularySavePayload } from "../src/lib/vocabulary.ts";
 
+const aiModule = await import("../src/lib/ai.ts");
+const aiSource = await readFile(
+  new URL("../src/lib/ai.ts", import.meta.url),
+  "utf8",
+);
 const deepActionRouteSource = await readFile(
   new URL("../src/app/api/ai/deep-action/route.ts", import.meta.url),
   "utf8",
@@ -63,6 +69,31 @@ const deepActionsSource = await readFile(
   new URL("../src/lib/ai-deep-actions.ts", import.meta.url),
   "utf8",
 );
+const readerAiPanelSource = await readFile(
+  new URL("../src/components/reader/reader-ai-panel.tsx", import.meta.url),
+  "utf8",
+);
+const readerSelectionHandlerSource = await readFile(
+  new URL(
+    "../src/components/reader/reader-selection-handler.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const envExampleSource = await readFile(
+  new URL("../.env.example", import.meta.url),
+  "utf8",
+);
+
+function restoreEnvironment(previousValues) {
+  for (const [name, value] of Object.entries(previousValues)) {
+    if (value === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = value;
+    }
+  }
+}
 
 test("shouldShowReaderAiContext only enables In Context for word selections", () => {
   assert.equal(
@@ -96,22 +127,241 @@ test("explainSelectionSchema requires reader context for AI explanations", () =>
   );
 });
 
-test("getExplainModelTarget returns the configured primary and fallback Gemini models", () => {
-  assert.deepEqual(getExplainModelTarget("primary"), {
-    provider: "google",
-    modelId: "gemini-3.1-flash-lite-preview",
-  });
+test("Google model resolution uses independent dynamic overrides and catalog defaults", () => {
+  const previousValues = {
+    GOOGLE_PRIMARY_MODEL_ID: process.env.GOOGLE_PRIMARY_MODEL_ID,
+    GOOGLE_FALLBACK_MODEL_ID: process.env.GOOGLE_FALLBACK_MODEL_ID,
+  };
 
-  assert.deepEqual(getExplainModelTarget("fallback"), {
-    provider: "google",
-    modelId: "gemini-2.5-flash-lite",
+  try {
+    delete process.env.GOOGLE_PRIMARY_MODEL_ID;
+    delete process.env.GOOGLE_FALLBACK_MODEL_ID;
+    assert.deepEqual(getExplainModelTarget("primary", "google"), {
+      provider: "google",
+      modelId: "gemma-4-31b-it",
+    });
+    assert.deepEqual(getExplainModelTarget("fallback", "google"), {
+      provider: "google",
+      modelId: "gemini-2.5-flash-lite",
+    });
+
+    process.env.GOOGLE_PRIMARY_MODEL_ID = "  gemini-3.1-flash-lite-preview  ";
+    assert.equal(
+      getExplainModelTarget("primary", "google").modelId,
+      "gemini-3.1-flash-lite-preview",
+    );
+    assert.equal(
+      getExplainModelTarget("fallback", "google").modelId,
+      "gemini-2.5-flash-lite",
+    );
+
+    delete process.env.GOOGLE_PRIMARY_MODEL_ID;
+    process.env.GOOGLE_FALLBACK_MODEL_ID = "  gemini-3-flash-preview  ";
+    assert.equal(
+      getExplainModelTarget("primary", "google").modelId,
+      "gemma-4-31b-it",
+    );
+    assert.equal(
+      getExplainModelTarget("fallback", "google").modelId,
+      "gemini-3-flash-preview",
+    );
+
+    process.env.GOOGLE_PRIMARY_MODEL_ID = "  custom-primary  ";
+    process.env.GOOGLE_FALLBACK_MODEL_ID = "  custom-fallback  ";
+    assert.equal(
+      getExplainModelTarget("primary", "google").modelId,
+      "custom-primary",
+    );
+    assert.equal(
+      getExplainModelTarget("fallback", "google").modelId,
+      "custom-fallback",
+    );
+
+    process.env.GOOGLE_PRIMARY_MODEL_ID = "";
+    process.env.GOOGLE_FALLBACK_MODEL_ID = "   ";
+    assert.equal(
+      getExplainModelTarget("primary", "google").modelId,
+      "gemma-4-31b-it",
+    );
+    assert.equal(
+      getExplainModelTarget("fallback", "google").modelId,
+      "gemini-2.5-flash-lite",
+    );
+  } finally {
+    restoreEnvironment(previousValues);
+  }
+});
+
+test("GitHub and Qwen model resolution remains unchanged", () => {
+  assert.deepEqual(getExplainModelTarget("primary", "github"), {
+    provider: "github",
+    modelId: process.env.GITHUB_MODEL_ID ?? "gpt-4.1-mini",
   });
+  assert.deepEqual(getExplainModelTarget("fallback", "github"), {
+    provider: "github",
+    modelId:
+      process.env.GITHUB_FALLBACK_MODEL_ID ??
+      process.env.GITHUB_MODEL_ID ??
+      "gpt-4.1-mini",
+  });
+  assert.deepEqual(getExplainModelTarget("primary", "qwen"), {
+    provider: "qwen",
+    modelId: process.env.QWEN_MODEL_ID ?? "qwen3",
+  });
+  assert.deepEqual(getExplainModelTarget("fallback", "qwen"), {
+    provider: "qwen",
+    modelId:
+      process.env.QWEN_FALLBACK_MODEL_ID ??
+      process.env.QWEN_MODEL_ID ??
+      "qwen3",
+  });
+});
+
+test("Google thinking controls follow the supported interactive model policy", () => {
+  assert.equal(typeof aiModule.getGoogleThinkingConfig, "function");
+  const getGoogleThinkingConfig = aiModule.getGoogleThinkingConfig;
+
+  assert.deepEqual(getGoogleThinkingConfig("gemma-4-31b-it"), {
+    thinkingLevel: "minimal",
+  });
+  assert.deepEqual(getGoogleThinkingConfig("gemma-4-26b-a4b-it"), {
+    thinkingLevel: "minimal",
+  });
+  assert.equal(getGoogleThinkingConfig("gemma-3-27b-it"), undefined);
+  assert.deepEqual(getGoogleThinkingConfig("gemini-2.5-flash"), {
+    thinkingBudget: 0,
+  });
+  assert.deepEqual(getGoogleThinkingConfig("gemini-2.5-flash-preview"), {
+    thinkingBudget: 0,
+  });
+  assert.deepEqual(getGoogleThinkingConfig("gemini-2.5-flash-preview-05-20"), {
+    thinkingBudget: 0,
+  });
+  assert.deepEqual(getGoogleThinkingConfig("gemini-2.5-flash-lite"), {
+    thinkingBudget: 0,
+  });
+  assert.deepEqual(getGoogleThinkingConfig("gemini-2.5-flash-lite-preview"), {
+    thinkingBudget: 0,
+  });
+  assert.deepEqual(
+    getGoogleThinkingConfig("gemini-2.5-flash-lite-preview-09-2025"),
+    { thinkingBudget: 0 },
+  );
+  assert.equal(getGoogleThinkingConfig("gemini-2.5-pro"), undefined);
+  assert.equal(
+    getGoogleThinkingConfig("gemini-2.5-pro-preview-06-05"),
+    undefined,
+  );
+  assert.equal(getGoogleThinkingConfig("gemini-2.5-experimental"), undefined);
+  assert.deepEqual(getGoogleThinkingConfig("gemini-3-flash-preview"), {
+    thinkingLevel: "minimal",
+  });
+  assert.deepEqual(getGoogleThinkingConfig("gemini-3.1-flash-lite-preview"), {
+    thinkingLevel: "minimal",
+  });
+  assert.equal(getGoogleThinkingConfig("gemini-3-pro-preview"), undefined);
+  assert.equal(getGoogleThinkingConfig("gemini-3.1-pro-preview"), undefined);
+  assert.equal(getGoogleThinkingConfig("custom-model"), undefined);
+});
+
+test("stream options keep Google structured outputs and omit Google options elsewhere", () => {
+  const previousValues = {
+    AI_PROVIDER: process.env.AI_PROVIDER,
+    GOOGLE_PRIMARY_MODEL_ID: process.env.GOOGLE_PRIMARY_MODEL_ID,
+    GOOGLE_FALLBACK_MODEL_ID: process.env.GOOGLE_FALLBACK_MODEL_ID,
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN,
+    GITHUB_BASE_URL: process.env.GITHUB_BASE_URL,
+    QWEN_API_KEY: process.env.QWEN_API_KEY,
+    QWEN_BASE_URL: process.env.QWEN_BASE_URL,
+  };
+
+  try {
+    process.env.AI_PROVIDER = "google";
+    delete process.env.GOOGLE_PRIMARY_MODEL_ID;
+    delete process.env.GOOGLE_FALLBACK_MODEL_ID;
+    assert.deepEqual(getAiStreamObjectOptions("primary").providerOptions, {
+      google: {
+        structuredOutputs: true,
+        thinkingConfig: { thinkingLevel: "minimal" },
+      },
+    });
+    assert.deepEqual(getAiStreamObjectOptions("fallback").providerOptions, {
+      google: {
+        structuredOutputs: true,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    });
+
+    process.env.AI_PROVIDER = "github";
+    process.env.GITHUB_TOKEN = "test-token";
+    process.env.GITHUB_BASE_URL = "https://example.com/v1";
+    assert.equal(
+      getAiStreamObjectOptions("primary").providerOptions,
+      undefined,
+    );
+
+    process.env.AI_PROVIDER = "qwen";
+    process.env.QWEN_API_KEY = "test-key";
+    process.env.QWEN_BASE_URL = "https://example.com/v1";
+    assert.equal(
+      getAiStreamObjectOptions("primary").providerOptions,
+      undefined,
+    );
+  } finally {
+    restoreEnvironment(previousValues);
+  }
+});
+
+test("primary explanation has an explicit 800-token output budget", () => {
+  assert.equal(aiModule.PRIMARY_EXPLAIN_MAX_OUTPUT_TOKENS, 800);
+  assert.match(
+    aiSource,
+    /maxOutputTokens:\s*PRIMARY_EXPLAIN_MAX_OUTPUT_TOKENS/,
+  );
+});
+
+test("Google model overrides are documented for local dogfood", () => {
+  assert.match(envExampleSource, /local dogfood/i);
+  assert.match(envExampleSource, /^GOOGLE_PRIMARY_MODEL_ID=""$/m);
+  assert.match(envExampleSource, /^GOOGLE_FALLBACK_MODEL_ID=""$/m);
 });
 
 test("AI response locale remains locked to Vietnamese", () => {
   assert.equal(AI_RESPONSE_LOCALE, "vi");
   assert.equal(AI_RESPONSE_LOCALE_NAME, "Vietnamese");
   assert.equal(getAiResponseLocaleInstruction(), "Respond in Vietnamese.");
+});
+
+test("reader source uses the Structure action and Form tip copy", () => {
+  assert.match(readerAiPanelSource, /structure:\s*"Structure"/);
+  assert.ok(readerAiPanelSource.includes("Form tip"));
+  assert.doesNotMatch(readerAiPanelSource, /Grammar & Structure/);
+  assert.doesNotMatch(readerAiPanelSource, /\bgrammar:/);
+
+  assert.ok(
+    (readerSelectionHandlerSource.match(/\bstructure:/g) ?? []).length >= 4,
+  );
+  assert.doesNotMatch(readerSelectionHandlerSource, /\bgrammar:/);
+});
+
+test("reader deep actions retain the active explanation model tier without automatic fallback", () => {
+  assert.match(
+    readerSelectionHandlerSource,
+    /activeExplainModelTierRef\.current = modelTier;/,
+  );
+  assert.match(
+    readerSelectionHandlerSource,
+    /body: JSON\.stringify\(\{[\s\S]*?\.\.\.requestPayload,[\s\S]*?action,[\s\S]*?modelTier: activeExplainModelTierRef\.current,[\s\S]*?\}\)/,
+  );
+  assert.doesNotMatch(
+    readerSelectionHandlerSource,
+    /requestExplanation\(requestPayload,\s*"fallback"\)/,
+  );
+  assert.doesNotMatch(
+    readerSelectionHandlerSource,
+    /retryAiExplanation\(\s*"fallback"\s*\)/,
+  );
+  assert.doesNotMatch(aiSource, /getAiStreamObjectOptions\(\s*"fallback"\s*\)/);
 });
 
 test("deep-action availability separates eligible actions from the visible top three", () => {
@@ -126,57 +376,90 @@ test("deep-action availability separates eligible actions from the visible top t
     sourceLanguage: "  EN-US  ",
   };
   assert.deepEqual(getEligibleDeepActions(englishWordInput), [
-    "grammar",
+    "structure",
     "compare",
     "easierExamples",
     "conjugation",
     "collocation",
   ]);
   assert.deepEqual(getVisibleDeepActions(englishWordInput), [
-    "grammar",
-    "easierExamples",
+    "structure",
+    "compare",
     "conjugation",
   ]);
-  assert.deepEqual(
-    getAvailableDeepActions(englishWordInput),
-    getVisibleDeepActions(englishWordInput),
-  );
 
   const vietnameseWordInput = {
     selectedText: "curious",
     sourceLanguage: "vi",
   };
   assert.deepEqual(getEligibleDeepActions(vietnameseWordInput), [
-    "grammar",
+    "structure",
     "compare",
     "easierExamples",
     "collocation",
   ]);
   assert.deepEqual(getVisibleDeepActions(vietnameseWordInput), [
-    "grammar",
+    "structure",
+    "compare",
     "easierExamples",
-    "collocation",
   ]);
 
-  assert.deepEqual(getVisibleDeepActions({ selectedText: "curious" }), [
-    "grammar",
+  const unknownLanguageWordInputs = [
+    { selectedText: "curious" },
+    { selectedText: "curious", sourceLanguage: "und" },
+  ];
+  for (const input of unknownLanguageWordInputs) {
+    assert.deepEqual(getVisibleDeepActions(input), [
+      "structure",
+      "compare",
+      "easierExamples",
+    ]);
+  }
+
+  const phraseInput = {
+    selectedText: "in spite of",
+    sourceLanguage: "en",
+  };
+  assert.deepEqual(getEligibleDeepActions(phraseInput), [
+    "structure",
+    "compare",
     "easierExamples",
-    "collocation",
   ]);
-  assert.deepEqual(
-    getEligibleDeepActions({
-      selectedText: "in spite of",
-      sourceLanguage: "en",
-    }),
-    ["grammar", "compare", "easierExamples"],
+  assert.deepEqual(getVisibleDeepActions(phraseInput), [
+    "structure",
+    "compare",
+    "easierExamples",
+  ]);
+  assert.equal(
+    getEligibleDeepActions(phraseInput).includes("conjugation"),
+    false,
   );
-  assert.deepEqual(
-    getVisibleDeepActions({
-      selectedText: "in spite of",
-      sourceLanguage: "en",
-    }),
-    ["grammar", "compare", "easierExamples"],
+  assert.equal(
+    getEligibleDeepActions(phraseInput).includes("collocation"),
+    false,
   );
+
+  for (const input of [
+    englishWordInput,
+    vietnameseWordInput,
+    ...unknownLanguageWordInputs,
+  ]) {
+    assert.equal(getEligibleDeepActions(input).includes("collocation"), true);
+    assert.equal(getVisibleDeepActions(input).includes("collocation"), false);
+  }
+
+  for (const input of [
+    englishWordInput,
+    vietnameseWordInput,
+    ...unknownLanguageWordInputs,
+    phraseInput,
+  ]) {
+    assert.equal(getVisibleDeepActions(input).includes("compare"), true);
+    assert.deepEqual(
+      getAvailableDeepActions(input),
+      getVisibleDeepActions(input),
+    );
+  }
 
   for (const sourceLanguage of [
     "en",
@@ -234,18 +517,28 @@ test("deep-action availability separates eligible actions from the visible top t
 test("deepActionRequestSchema normalizes valid requests and rejects invalid fields", () => {
   assert.deepEqual(
     deepActionRequestSchema.parse({
-      action: "grammar",
+      action: "structure",
       selectedText: "  curious  ",
       surroundingParagraph: "  The curious fox paused.  ",
       sourceLanguage: "  EN  ",
     }),
     {
-      action: "grammar",
+      action: "structure",
       selectedText: "curious",
       surroundingParagraph: "The curious fox paused.",
       sourceLanguage: "en",
       modelTier: "primary",
     },
+  );
+
+  assert.equal(
+    deepActionRequestSchema.safeParse({
+      action: "grammar",
+      selectedText: "curious",
+      surroundingParagraph: "The curious fox paused.",
+      sourceLanguage: "en",
+    }).success,
+    false,
   );
 
   for (const action of ["conjugation", "collocation"]) {
@@ -286,9 +579,10 @@ test("deepActionRequestSchema normalizes valid requests and rejects invalid fiel
 
 test("deep-action response schemas accept applicable and honest not-applicable results", () => {
   assert.equal(
-    grammarDeepActionResponseSchema.safeParse({
-      summary: "Đây là một tính từ.",
-      points: ["Đứng trước danh từ hoặc sau động từ nối."],
+    structureDeepActionResponseSchema.safeParse({
+      pattern: "Tính từ curious.",
+      role: "Bổ ngữ cho chủ ngữ.",
+      whyHere: "Mô tả trạng thái tò mò của chủ ngữ trong câu.",
     }).success,
     true,
   );
@@ -345,7 +639,7 @@ test("deep-action response schemas accept applicable and honest not-applicable r
   );
 
   for (const schema of [
-    grammarDeepActionResponseSchema,
+    structureDeepActionResponseSchema,
     compareDeepActionResponseSchema,
     easierExamplesDeepActionResponseSchema,
     conjugationDeepActionResponseSchema,
@@ -368,25 +662,30 @@ test("deep-action response schemas accept applicable and honest not-applicable r
 });
 
 test("deep-action response schemas enforce applicable content and collection bounds", () => {
-  assert.equal(grammarDeepActionResponseSchema.safeParse({}).success, false);
+  assert.equal(structureDeepActionResponseSchema.safeParse({}).success, false);
   assert.equal(
-    grammarDeepActionResponseSchema.safeParse({
-      summary: "Past perfect marks an earlier completed action.",
+    structureDeepActionResponseSchema.safeParse({
+      pattern: "had + past participle",
+      role: "Past-perfect verb phrase",
+      whyHere: "Marks an action completed before another past event.",
     }).success,
     true,
   );
   assert.equal(
-    grammarDeepActionResponseSchema.safeParse({
-      points: ["Use had + past participle."],
-    }).success,
-    true,
-  );
-  assert.equal(
-    grammarDeepActionResponseSchema.safeParse({
-      summary: " ",
-      points: [],
+    structureDeepActionResponseSchema.safeParse({
+      pattern: "had + past participle",
+      role: "Past-perfect verb phrase",
     }).success,
     false,
+  );
+  assert.equal(
+    structureDeepActionResponseSchema.safeParse({
+      pattern: "had + past participle",
+      role: "Past-perfect verb phrase",
+      whyHere: "Marks an earlier action.",
+      pitfall: "Do not use it for unrelated past events.",
+    }).success,
+    true,
   );
   assert.equal(compareDeepActionResponseSchema.safeParse({}).success, false);
   assert.equal(
@@ -394,42 +693,49 @@ test("deep-action response schemas enforce applicable content and collection bou
     false,
   );
   assert.equal(
-    grammarDeepActionResponseSchema.safeParse({
-      summary: "Tóm tắt",
-      points: ["1", "2", "3", "4", "5", "6"],
-    }).success,
-    false,
-  );
-  assert.equal(
-    grammarDeepActionResponseSchema.safeParse({
-      summary: "s".repeat(220),
-      points: ["p".repeat(100)],
+    structureDeepActionResponseSchema.safeParse({
+      pattern: "p".repeat(120),
+      role: "r".repeat(120),
+      whyHere: "w".repeat(160),
+      pitfall: "p".repeat(140),
     }).success,
     true,
   );
   assert.equal(
-    grammarDeepActionResponseSchema.safeParse({
-      summary: "s".repeat(221),
+    structureDeepActionResponseSchema.safeParse({
+      pattern: "p".repeat(121),
+      role: "r",
+      whyHere: "w",
     }).success,
     false,
   );
   assert.equal(
-    grammarDeepActionResponseSchema.safeParse({
-      points: ["p".repeat(101)],
+    structureDeepActionResponseSchema.safeParse({
+      pattern: "p",
+      role: "r".repeat(121),
+      whyHere: "w",
     }).success,
     false,
   );
   assert.equal(
-    grammarDeepActionResponseSchema.safeParse({
+    structureDeepActionResponseSchema.safeParse({
+      pattern: "p",
+      role: "r",
+      whyHere: "w".repeat(161),
+    }).success,
+    false,
+  );
+  assert.equal(
+    structureDeepActionResponseSchema.safeParse({
       notApplicable: true,
-      reason: "r".repeat(200),
+      reason: "r".repeat(160),
     }).success,
     true,
   );
   assert.equal(
-    grammarDeepActionResponseSchema.safeParse({
+    structureDeepActionResponseSchema.safeParse({
       notApplicable: true,
-      reason: "r".repeat(201),
+      reason: "r".repeat(161),
     }).success,
     false,
   );
@@ -475,7 +781,7 @@ test("deep-action response schemas enforce applicable content and collection bou
 
 test("native Google deep-action schemas remain compatible with structured outputs", async () => {
   for (const schema of [
-    grammarDeepActionGenerationSchema,
+    structureDeepActionGenerationSchema,
     compareDeepActionGenerationSchema,
     easierExamplesDeepActionGenerationSchema,
     collocationDeepActionGenerationSchema,
@@ -509,16 +815,16 @@ test("conjugation disables unsupported Google native structured outputs", () => 
 });
 
 test("deep-action generation schemas tolerate recoverable model output", () => {
-  const grammarResult = grammarDeepActionGenerationSchema.safeParse({
-    summary: "s".repeat(321),
-    points: ["p".repeat(141)],
+  const structureResult = structureDeepActionGenerationSchema.safeParse({
+    pattern: "p".repeat(321),
+    whyHere: "w".repeat(341),
     extra: "ignored",
   });
 
-  assert.equal(grammarResult.success, true);
-  if (grammarResult.success) {
-    assert.equal(grammarResult.data.summary, "s".repeat(321));
-    assert.equal("extra" in grammarResult.data, false);
+  assert.equal(structureResult.success, true);
+  if (structureResult.success) {
+    assert.equal(structureResult.data.pattern, "p".repeat(321));
+    assert.equal("extra" in structureResult.data, false);
   }
 
   assert.equal(
@@ -599,9 +905,9 @@ test("deep-action generation schemas tolerate recoverable model output", () => {
 });
 
 test("deep-action streaming uses bounded output and action-aware timeouts", () => {
-  assert.deepEqual(getDeepActionStreamSettings("grammar"), {
+  assert.deepEqual(getDeepActionStreamSettings("structure"), {
     temperature: 0.2,
-    maxOutputTokens: 350,
+    maxOutputTokens: 300,
   });
   assert.deepEqual(getDeepActionStreamSettings("compare"), {
     temperature: 0.2,
@@ -619,7 +925,7 @@ test("deep-action streaming uses bounded output and action-aware timeouts", () =
     temperature: 0.2,
     maxOutputTokens: 350,
   });
-  assert.equal(getDeepActionServerTimeoutMs("grammar"), 22_000);
+  assert.equal(getDeepActionServerTimeoutMs("structure"), 22_000);
   assert.equal(getDeepActionServerTimeoutMs("conjugation"), 32_000);
 });
 
@@ -689,7 +995,10 @@ test("buildExplainPrompt follows the learner-assistant template from planning", 
   );
   assert.match(prompt, /2-4 short sentences/);
   assert.match(prompt, /under 500 characters/);
-  assert.match(prompt, /at most 1-2 short sentences/);
+  assert.match(prompt, /grammaticalNote.*optional/i);
+  assert.match(prompt, /at most one short sentence/i);
+  assert.match(prompt, /180 characters/);
+  assert.match(prompt, /translation and contextual meaning/i);
   assert.match(prompt, /Prefer 1 example; never provide more than 2/);
   assert.match(prompt, /Do not include greetings, closings, thanks, wishes/);
   assert.match(prompt, /self-referential assistant chatter/);
@@ -716,7 +1025,9 @@ test("buildExplainPrompt keeps phrase selections anchored to the full sentence",
   assert.match(prompt, /Selection type: phrase or sentence\./);
   assert.match(prompt, /Translate the full selection exactly as chosen/);
   assert.match(prompt, /Full translation of the complete selection/);
-  assert.match(prompt, /Grammatical breakdown: key structures, tenses, idioms/);
+  assert.doesNotMatch(prompt, /Grammatical breakdown/i);
+  assert.doesNotMatch(prompt, /key structures, tenses, idioms/i);
+  assert.match(prompt, /grammaticalNote.*optional/i);
   assert.match(prompt, /Cultural\/contextual note/);
   assert.match(
     prompt,
@@ -761,7 +1072,7 @@ test("deep-action prompts include locale, action schema, and selection context",
     sourceLanguage: "en",
   };
   const prompts = [
-    [buildGrammarPrompt(input), "grammar", "summary", "points"],
+    [buildStructurePrompt(input), "structure", "pattern", "whyHere"],
     [buildComparePrompt(input), "compare", "alternative", "contrast"],
     [
       buildEasierExamplesPrompt(input),
@@ -797,29 +1108,32 @@ test("deep-action prompts include locale, action schema, and selection context",
   }
 });
 
-test("grammar prompt states hard payload limits and repeats the filler ban", () => {
-  const prompt = buildGrammarPrompt({
+test("Structure prompt requests only the fixed field map and hard limits", () => {
+  const prompt = buildStructurePrompt({
     selectedText: "curious",
     surroundingParagraph: "The curious fox paused.",
     sourceLanguage: "en",
   });
 
-  assert.match(prompt, /summary[^\n]*220 characters/i);
-  assert.match(prompt, /point[^\n]*100 characters/i);
-  assert.match(prompt, /reason[^\n]*200 characters/i);
-  assert.match(prompt, /exactly 1 short summary sentence/i);
-  assert.match(prompt, /0.?3 short points/i);
-  assert.match(prompt, /no multi-clause essays/i);
-  assert.match(prompt, /dictionary definition dump/i);
-  assert.match(prompt, /polite filler loops/i);
-
-  for (const forbiddenOpener of [
-    "Ch\u00fac b\u1ea1n",
-    "C\u1ea3m \u01a1n",
-    "Hy v\u1ecdng",
+  for (const [field, limit] of [
+    ["pattern", 120],
+    ["role", 120],
+    ["whyHere", 160],
+    ["pitfall", 140],
+    ["reason", 160],
   ]) {
-    assert.ok(prompt.includes(forbiddenOpener));
+    assert.match(prompt, new RegExp(`${field}[^\\n]*${limit} characters`, "i"));
   }
+
+  assert.match(prompt, /construction or form/i);
+  assert.match(prompt, /grammatical role in this sentence/i);
+  assert.match(prompt, /why.*used here/i);
+  assert.match(prompt, /Do not paraphrase the primary meaning/i);
+  assert.match(prompt, /dictionary-definition prose/i);
+  assert.match(prompt, /filler/i);
+  assert.match(prompt, /greetings/i);
+  assert.match(prompt, /essays/i);
+  assert.ok(prompt.includes("Trong ngữ cảnh này, X là danh từ chỉ…"));
 });
 
 test("conjugation prompt requires a compact discriminated morphology result", () => {
@@ -1061,6 +1375,22 @@ test("normalizeExplanationPayload keeps phrase-specific analysis and omits word-
       ],
     },
   );
+});
+
+test("normalizeExplanationPayload omits invalid optional Form tips without clipping", () => {
+  const normalized = normalizeExplanationPayload(
+    {
+      translation: "to mo",
+      explanation: "mo ta dieu gi do rat muon tim hieu",
+      grammaticalNote: "x".repeat(181),
+      examples: [],
+    },
+    "curious",
+  );
+
+  assert.equal(normalized.grammaticalNote, undefined);
+  assert.equal(normalized.translation, "to mo");
+  assert.equal(normalized.explanation, "mo ta dieu gi do rat muon tim hieu");
 });
 
 test("normalizeExplanationPayload adds a bilingual fallback example when the model omits examples", () => {

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
 import {
+  getEligibleDeepActions,
   getDeepActionServerTimeoutMs,
   streamDeepAction,
 } from "@/lib/ai-deep-actions";
@@ -46,11 +47,40 @@ function getErrorDiagnostics(error: unknown) {
 }
 
 export async function POST(request: Request) {
-  const requestId = generateRequestId();
   const session = await auth();
 
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const requestId = generateRequestId();
+  const body = await request.json().catch(() => null);
+  const parsedPayload = deepActionRequestSchema.safeParse(body);
+
+  if (!parsedPayload.success) {
+    return NextResponse.json(
+      {
+        error:
+          parsedPayload.error.issues[0]?.message ??
+          "A valid AI deep-action request is required.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const eligibleActions = getEligibleDeepActions({
+    selectedText: parsedPayload.data.selectedText,
+    sourceLanguage: parsedPayload.data.sourceLanguage,
+  });
+
+  if (!eligibleActions.includes(parsedPayload.data.action)) {
+    return NextResponse.json(
+      {
+        error:
+          "This AI action is not available for the current selection or language.",
+      },
+      { status: 400 },
+    );
   }
 
   const rateLimitResult = checkAiRateLimit(session.user.id);
@@ -64,20 +94,6 @@ export async function POST(request: Request) {
           "Retry-After": String(rateLimitResult.retryAfterSeconds),
         },
       },
-    );
-  }
-
-  const body = await request.json().catch(() => null);
-  const parsedPayload = deepActionRequestSchema.safeParse(body);
-
-  if (!parsedPayload.success) {
-    return NextResponse.json(
-      {
-        error:
-          parsedPayload.error.issues[0]?.message ??
-          "A valid AI deep-action request is required.",
-      },
-      { status: 400 },
     );
   }
 

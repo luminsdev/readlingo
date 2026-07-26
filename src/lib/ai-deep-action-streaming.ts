@@ -4,21 +4,22 @@ import {
   CONJUGATION_FORMS_MAX_COUNT,
   conjugationDeepActionResponseSchema,
   easierExamplesDeepActionResponseSchema,
-  GRAMMAR_POINT_MAX_LENGTH,
-  GRAMMAR_POINTS_MAX_COUNT,
-  GRAMMAR_REASON_MAX_LENGTH,
-  GRAMMAR_SUMMARY_MAX_LENGTH,
-  grammarDeepActionResponseSchema,
+  STRUCTURE_PATTERN_MAX_LENGTH,
+  STRUCTURE_PITFALL_MAX_LENGTH,
+  STRUCTURE_REASON_MAX_LENGTH,
+  STRUCTURE_ROLE_MAX_LENGTH,
+  STRUCTURE_WHY_HERE_MAX_LENGTH,
+  structureDeepActionResponseSchema,
   type CollocationDeepActionResponse,
   type CompareDeepActionResponse,
   type ConjugationDeepActionResponse,
   type DeepAction,
   type EasierExamplesDeepActionResponse,
-  type GrammarDeepActionResponse,
+  type StructureDeepActionResponse,
 } from "./ai-validation.ts";
 
 export type DeepActionResultByAction = {
-  grammar: GrammarDeepActionResponse;
+  structure: StructureDeepActionResponse;
   compare: CompareDeepActionResponse;
   easierExamples: EasierExamplesDeepActionResponse;
   conjugation: ConjugationDeepActionResponse;
@@ -27,7 +28,14 @@ export type DeepActionResultByAction = {
 
 export type DeepActionResult = DeepActionResultByAction[DeepAction];
 
-type StreamingGrammarResult = Partial<GrammarDeepActionResponse>;
+type StreamingStructureResult = {
+  pattern?: string;
+  role?: string;
+  whyHere?: string;
+  pitfall?: string;
+  notApplicable?: boolean;
+  reason?: string;
+};
 type StreamingCompareResult = Partial<CompareDeepActionResponse>;
 type StreamingEasierExamplesResult = {
   examples?: Array<{
@@ -59,7 +67,7 @@ type StreamingCollocationResult = {
 };
 
 export type StreamingDeepActionResultByAction = {
-  grammar: StreamingGrammarResult;
+  structure: StreamingStructureResult;
   compare: StreamingCompareResult;
   easierExamples: StreamingEasierExamplesResult;
   conjugation: StreamingConjugationResult;
@@ -156,6 +164,51 @@ function normalizeText(value: unknown, maxLength?: number) {
   return endsAtTerminalBoundary ? truncatedValue : `${truncatedValue}…`;
 }
 
+function normalizeStructureText(value: unknown) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalizedValue = value.trim().replace(/\s+/g, " ");
+
+  return normalizedValue || undefined;
+}
+
+function normalizeCompleteStructureText(value: unknown, maxLength: number) {
+  const normalizedValue = normalizeStructureText(value);
+
+  if (!normalizedValue || !/[\p{L}\p{N}]/u.test(normalizedValue)) {
+    return undefined;
+  }
+
+  if (normalizedValue.length <= maxLength) {
+    return normalizedValue;
+  }
+
+  let terminalBoundary = -1;
+
+  for (const match of normalizedValue.matchAll(/[.!?…]/g)) {
+    if (match.index >= maxLength) {
+      break;
+    }
+
+    const nextCharacter = normalizedValue[match.index + 1];
+
+    if (nextCharacter === undefined || /\s/.test(nextCharacter)) {
+      terminalBoundary = match.index;
+    }
+  }
+
+  const completeValue =
+    terminalBoundary >= 0
+      ? normalizedValue.slice(0, terminalBoundary + 1)
+      : undefined;
+
+  return completeValue && /[\p{L}\p{N}]/u.test(completeValue)
+    ? completeValue
+    : undefined;
+}
+
 function normalizeStatus(
   payload: Record<string, unknown>,
   reasonMaxLength?: number,
@@ -222,27 +275,46 @@ export function buildStreamingDeepActionResult<A extends DeepAction>(
 
   const status = normalizeStatus(
     payload,
-    action === "grammar" ? GRAMMAR_REASON_MAX_LENGTH : undefined,
+    action === "structure" ? STRUCTURE_REASON_MAX_LENGTH : undefined,
   );
   let result: StreamingDeepActionResult;
 
   switch (action) {
-    case "grammar": {
-      const points = Array.isArray(payload.points)
-        ? payload.points
-            .map((point) => normalizeText(point, GRAMMAR_POINT_MAX_LENGTH))
-            .filter((point): point is string => Boolean(point))
-            .slice(0, GRAMMAR_POINTS_MAX_COUNT)
-        : [];
-      const summary = normalizeText(
-        payload.summary,
-        GRAMMAR_SUMMARY_MAX_LENGTH,
-      );
-
+    case "structure": {
       result = {
         ...status,
-        ...(summary ? { summary } : {}),
-        ...(points.length > 0 ? { points } : {}),
+        ...(normalizeStructureText(payload.pattern)
+          ? {
+              pattern: normalizeText(
+                normalizeStructureText(payload.pattern),
+                STRUCTURE_PATTERN_MAX_LENGTH,
+              ),
+            }
+          : {}),
+        ...(normalizeStructureText(payload.role)
+          ? {
+              role: normalizeText(
+                normalizeStructureText(payload.role),
+                STRUCTURE_ROLE_MAX_LENGTH,
+              ),
+            }
+          : {}),
+        ...(normalizeStructureText(payload.whyHere)
+          ? {
+              whyHere: normalizeText(
+                normalizeStructureText(payload.whyHere),
+                STRUCTURE_WHY_HERE_MAX_LENGTH,
+              ),
+            }
+          : {}),
+        ...(normalizeStructureText(payload.pitfall)
+          ? {
+              pitfall: normalizeText(
+                normalizeStructureText(payload.pitfall),
+                STRUCTURE_PITFALL_MAX_LENGTH,
+              ),
+            }
+          : {}),
       };
       break;
     }
@@ -379,7 +451,7 @@ export function parseReadyDeepActionResult<A extends DeepAction>(
   value: unknown,
 ): DeepActionResultByAction[A] | null {
   const schema = {
-    grammar: grammarDeepActionResponseSchema,
+    structure: structureDeepActionResponseSchema,
     compare: compareDeepActionResponseSchema,
     easierExamples: easierExamplesDeepActionResponseSchema,
     conjugation: conjugationDeepActionResponseSchema,
@@ -402,6 +474,70 @@ export function normalizeDeepActionResult<A extends DeepAction>(
     return null;
   }
 
+  if (action === "structure") {
+    if (payload.notApplicable === true) {
+      if (
+        ["pattern", "role", "whyHere", "pitfall"].some((field) =>
+          Object.prototype.hasOwnProperty.call(payload, field),
+        )
+      ) {
+        return null;
+      }
+
+      const reason = normalizeCompleteStructureText(
+        payload.reason,
+        STRUCTURE_REASON_MAX_LENGTH,
+      );
+
+      return reason
+        ? parseReadyDeepActionResult(action, {
+            notApplicable: true,
+            reason,
+          })
+        : null;
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(payload, "notApplicable") &&
+      payload.notApplicable !== false
+    ) {
+      return null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(payload, "reason")) {
+      return null;
+    }
+
+    const pattern = normalizeCompleteStructureText(
+      payload.pattern,
+      STRUCTURE_PATTERN_MAX_LENGTH,
+    );
+    const role = normalizeCompleteStructureText(
+      payload.role,
+      STRUCTURE_ROLE_MAX_LENGTH,
+    );
+    const whyHere = normalizeCompleteStructureText(
+      payload.whyHere,
+      STRUCTURE_WHY_HERE_MAX_LENGTH,
+    );
+
+    if (!pattern || !role || !whyHere) {
+      return null;
+    }
+
+    const pitfall = normalizeCompleteStructureText(
+      payload.pitfall,
+      STRUCTURE_PITFALL_MAX_LENGTH,
+    );
+
+    return parseReadyDeepActionResult(action, {
+      pattern,
+      role,
+      whyHere,
+      ...(pitfall ? { pitfall } : {}),
+    });
+  }
+
   const partialResult = buildStreamingDeepActionResult(action, value);
 
   if (!partialResult) {
@@ -418,15 +554,6 @@ export function normalizeDeepActionResult<A extends DeepAction>(
   let normalizedResult: unknown;
 
   switch (action) {
-    case "grammar": {
-      const grammar =
-        partialResult as StreamingDeepActionResultByAction["grammar"];
-      normalizedResult = {
-        ...(grammar.summary ? { summary: grammar.summary } : {}),
-        ...(grammar.points?.length ? { points: grammar.points } : {}),
-      };
-      break;
-    }
     case "compare": {
       const comparison =
         partialResult as StreamingDeepActionResultByAction["compare"];
@@ -490,7 +617,10 @@ export function parseCompletedDeepActionResult<A extends DeepAction>(
   action: A,
   parsedResult: { value: unknown; state: string },
 ): DeepActionResultByAction[A] | null {
-  if (action === "conjugation" && parsedResult.state !== "successful-parse") {
+  if (
+    (action === "structure" || action === "conjugation") &&
+    parsedResult.state !== "successful-parse"
+  ) {
     return null;
   }
 
