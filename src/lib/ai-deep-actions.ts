@@ -1,6 +1,10 @@
 import { streamObject } from "ai";
 
-import { getAiStreamObjectOptions, isSingleWordSelection } from "./ai.ts";
+import {
+  getAiSamplingOptions,
+  getAiStreamObjectOptions,
+  isSingleWordSelection,
+} from "./ai.ts";
 import { getAiResponseLocaleInstruction } from "./ai-locale.ts";
 import {
   collocationDeepActionGenerationSchema,
@@ -20,6 +24,7 @@ import {
   type DeepAction,
   type DeepActionRequest,
 } from "./ai-validation.ts";
+import type { ExplainModelTier } from "../types/index.ts";
 
 const MVP_DEEP_ACTIONS = [
   "structure",
@@ -166,7 +171,17 @@ export function buildStructurePrompt(input: DeepActionPromptInput) {
       "When applicable, pattern explains the construction or form, role gives its grammatical role in this sentence, and whyHere explains why the form is used here.",
       "Do not paraphrase the primary meaning or write dictionary-definition prose, filler, greetings, or essays.",
       'Never use the pattern "Trong ngữ cảnh này, X là danh từ chỉ…".',
-      "Return an honest short not-applicable reason when Structure does not apply.",
+    ].join(" "),
+    [
+      "Structure applies whenever the supplied context reveals a reliable construction, inflection/form, modifier role, syntactic role, or fixed/idiomatic construction.",
+      "A single word can still be applicable.",
+      "An ordinary inflected form can still be applicable.",
+      "A short or fixed/idiomatic phrase can still be applicable.",
+      'MUST NOT return "notApplicable": true merely because the analysis is simple, ordinary, or not a complex grammar pattern.',
+      "Applicable results require pattern, role, and whyHere.",
+      'Use "notApplicable": true only when no reliable construction, form, or grammatical role can be identified from the supplied context.',
+      "Do not invent analysis when the context is genuinely insufficient.",
+      'If not applicable, return only "notApplicable": true and a short Vietnamese "reason".',
     ].join(" "),
   );
 }
@@ -175,7 +190,19 @@ export function buildComparePrompt(input: DeepActionPromptInput) {
   return buildPrompt(
     "compare",
     input,
-    '{"alternative": string, "contrast": string, "tip"?: string, "notApplicable"?: boolean, "reason"?: string}',
+    'Applicable: {"alternative": string, "contrast": string, "tip"?: string, "notApplicable"?: false}. Not applicable: {"notApplicable": true, "reason": string}.',
+    [
+      "When applicable, alternative is exactly one source-language near-synonym or confusable word/short phrase that a learner might mix up with the selected text.",
+      "alternative must stay in the source language.",
+      "Never use alternative for a Vietnamese translation.",
+      "Never use alternative for a simple antonym.",
+      "contrast is a short Vietnamese explanation comparing the selected text and the alternative in this context.",
+      "tip is an optional short Vietnamese usage or choice tip.",
+      "When applicable, do not include reason.",
+      'Use "notApplicable": true only when no plausible source-language confusable alternative exists.',
+      'Not applicable returns only "notApplicable": true and a short Vietnamese "reason".',
+      "Do not include alternative, contrast, or tip in the not-applicable branch.",
+    ].join(" "),
   );
 }
 
@@ -272,7 +299,10 @@ function getDeepActionDefinition(action: DeepAction) {
   }
 }
 
-export function getDeepActionStreamSettings(action: DeepAction) {
+export function getDeepActionStreamSettings(
+  action: DeepAction,
+  modelTier: ExplainModelTier = "primary",
+): { maxOutputTokens: number; temperature?: number } {
   const maxOutputTokens = {
     structure: 300,
     compare: 300,
@@ -282,8 +312,8 @@ export function getDeepActionStreamSettings(action: DeepAction) {
   } satisfies Record<DeepAction, number>;
 
   return {
-    temperature: 0.2,
     maxOutputTokens: maxOutputTokens[action],
+    ...getAiSamplingOptions(modelTier, 0.2),
   };
 }
 
@@ -315,7 +345,7 @@ export function streamDeepAction(
     schema: definition.schema,
     schemaName: definition.schemaName,
     schemaDescription: definition.schemaDescription,
-    ...getDeepActionStreamSettings(input.action),
+    ...getDeepActionStreamSettings(input.action, input.modelTier),
     abortSignal: callbacks.abortSignal,
     onError: callbacks.onError,
     onFinish: callbacks.onFinish,

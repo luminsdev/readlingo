@@ -69,6 +69,10 @@ const deepActionsSource = await readFile(
   new URL("../src/lib/ai-deep-actions.ts", import.meta.url),
   "utf8",
 );
+const mnemonicSource = await readFile(
+  new URL("../src/lib/ai-mnemonic.ts", import.meta.url),
+  "utf8",
+);
 const readerAiPanelSource = await readFile(
   new URL("../src/components/reader/reader-ai-panel.tsx", import.meta.url),
   "utf8",
@@ -142,7 +146,7 @@ test("Google model resolution uses independent dynamic overrides and catalog def
     });
     assert.deepEqual(getExplainModelTarget("fallback", "google"), {
       provider: "google",
-      modelId: "gemini-2.5-flash-lite",
+      modelId: "gemini-3.5-flash-lite",
     });
 
     process.env.GOOGLE_PRIMARY_MODEL_ID = "  gemini-3.1-flash-lite-preview  ";
@@ -152,7 +156,7 @@ test("Google model resolution uses independent dynamic overrides and catalog def
     );
     assert.equal(
       getExplainModelTarget("fallback", "google").modelId,
-      "gemini-2.5-flash-lite",
+      "gemini-3.5-flash-lite",
     );
 
     delete process.env.GOOGLE_PRIMARY_MODEL_ID;
@@ -185,7 +189,7 @@ test("Google model resolution uses independent dynamic overrides and catalog def
     );
     assert.equal(
       getExplainModelTarget("fallback", "google").modelId,
-      "gemini-2.5-flash-lite",
+      "gemini-3.5-flash-lite",
     );
   } finally {
     restoreEnvironment(previousValues);
@@ -221,12 +225,6 @@ test("Google thinking controls follow the supported interactive model policy", (
   assert.equal(typeof aiModule.getGoogleThinkingConfig, "function");
   const getGoogleThinkingConfig = aiModule.getGoogleThinkingConfig;
 
-  assert.deepEqual(getGoogleThinkingConfig("gemma-4-31b-it"), {
-    thinkingLevel: "minimal",
-  });
-  assert.deepEqual(getGoogleThinkingConfig("gemma-4-26b-a4b-it"), {
-    thinkingLevel: "minimal",
-  });
   assert.equal(getGoogleThinkingConfig("gemma-3-27b-it"), undefined);
   assert.deepEqual(getGoogleThinkingConfig("gemini-2.5-flash"), {
     thinkingBudget: 0,
@@ -259,9 +257,60 @@ test("Google thinking controls follow the supported interactive model policy", (
   assert.deepEqual(getGoogleThinkingConfig("gemini-3.1-flash-lite-preview"), {
     thinkingLevel: "minimal",
   });
+  assert.deepEqual(getGoogleThinkingConfig("gemini-3.5-flash-lite"), {
+    thinkingLevel: "minimal",
+  });
   assert.equal(getGoogleThinkingConfig("gemini-3-pro-preview"), undefined);
   assert.equal(getGoogleThinkingConfig("gemini-3.1-pro-preview"), undefined);
   assert.equal(getGoogleThinkingConfig("custom-model"), undefined);
+});
+
+test("Gemma 4 thinking override accepts only normalized minimal and high", () => {
+  const previousValue = process.env.GOOGLE_GEMMA_THINKING_LEVEL;
+  const getGoogleThinkingConfig = aiModule.getGoogleThinkingConfig;
+
+  try {
+    delete process.env.GOOGLE_GEMMA_THINKING_LEVEL;
+    assert.deepEqual(getGoogleThinkingConfig("gemma-4-31b-it"), {
+      thinkingLevel: "minimal",
+    });
+    assert.deepEqual(getGoogleThinkingConfig("gemma-4-26b-a4b-it"), {
+      thinkingLevel: "minimal",
+    });
+
+    process.env.GOOGLE_GEMMA_THINKING_LEVEL = "  MiNiMaL  ";
+    assert.deepEqual(getGoogleThinkingConfig("gemma-4-31b-it"), {
+      thinkingLevel: "minimal",
+    });
+
+    process.env.GOOGLE_GEMMA_THINKING_LEVEL = "  HiGh  ";
+    assert.deepEqual(getGoogleThinkingConfig("gemma-4-31b-it"), {
+      thinkingLevel: "high",
+    });
+    assert.deepEqual(getGoogleThinkingConfig("gemini-2.5-flash-lite"), {
+      thinkingBudget: 0,
+    });
+    assert.deepEqual(getGoogleThinkingConfig("gemini-3-flash-preview"), {
+      thinkingLevel: "minimal",
+    });
+    assert.equal(getGoogleThinkingConfig("gemma-3-27b-it"), undefined);
+
+    process.env.GOOGLE_GEMMA_THINKING_LEVEL = "medium";
+    assert.deepEqual(getGoogleThinkingConfig("gemma-4-31b-it"), {
+      thinkingLevel: "minimal",
+    });
+
+    process.env.GOOGLE_GEMMA_THINKING_LEVEL = "   ";
+    assert.deepEqual(getGoogleThinkingConfig("gemma-4-31b-it"), {
+      thinkingLevel: "minimal",
+    });
+  } finally {
+    if (previousValue === undefined) {
+      delete process.env.GOOGLE_GEMMA_THINKING_LEVEL;
+    } else {
+      process.env.GOOGLE_GEMMA_THINKING_LEVEL = previousValue;
+    }
+  }
 });
 
 test("stream options keep Google structured outputs and omit Google options elsewhere", () => {
@@ -269,6 +318,7 @@ test("stream options keep Google structured outputs and omit Google options else
     AI_PROVIDER: process.env.AI_PROVIDER,
     GOOGLE_PRIMARY_MODEL_ID: process.env.GOOGLE_PRIMARY_MODEL_ID,
     GOOGLE_FALLBACK_MODEL_ID: process.env.GOOGLE_FALLBACK_MODEL_ID,
+    GOOGLE_GEMMA_THINKING_LEVEL: process.env.GOOGLE_GEMMA_THINKING_LEVEL,
     GITHUB_TOKEN: process.env.GITHUB_TOKEN,
     GITHUB_BASE_URL: process.env.GITHUB_BASE_URL,
     QWEN_API_KEY: process.env.QWEN_API_KEY,
@@ -279,6 +329,7 @@ test("stream options keep Google structured outputs and omit Google options else
     process.env.AI_PROVIDER = "google";
     delete process.env.GOOGLE_PRIMARY_MODEL_ID;
     delete process.env.GOOGLE_FALLBACK_MODEL_ID;
+    delete process.env.GOOGLE_GEMMA_THINKING_LEVEL;
     assert.deepEqual(getAiStreamObjectOptions("primary").providerOptions, {
       google: {
         structuredOutputs: true,
@@ -288,7 +339,21 @@ test("stream options keep Google structured outputs and omit Google options else
     assert.deepEqual(getAiStreamObjectOptions("fallback").providerOptions, {
       google: {
         structuredOutputs: true,
-        thinkingConfig: { thinkingBudget: 0 },
+        thinkingConfig: { thinkingLevel: "minimal" },
+      },
+    });
+
+    process.env.GOOGLE_GEMMA_THINKING_LEVEL = "high";
+    assert.deepEqual(getAiStreamObjectOptions("primary").providerOptions, {
+      google: {
+        structuredOutputs: true,
+        thinkingConfig: { thinkingLevel: "high" },
+      },
+    });
+    assert.deepEqual(getAiStreamObjectOptions("fallback").providerOptions, {
+      google: {
+        structuredOutputs: true,
+        thinkingConfig: { thinkingLevel: "minimal" },
       },
     });
 
@@ -312,6 +377,103 @@ test("stream options keep Google structured outputs and omit Google options else
   }
 });
 
+test("sampling policy omits temperature only for exact stable Gemini 3.5 Flash-Lite", () => {
+  const previousValues = {
+    AI_PROVIDER: process.env.AI_PROVIDER,
+    GOOGLE_PRIMARY_MODEL_ID: process.env.GOOGLE_PRIMARY_MODEL_ID,
+    GOOGLE_FALLBACK_MODEL_ID: process.env.GOOGLE_FALLBACK_MODEL_ID,
+  };
+  const getAiSamplingOptions = aiModule.getAiSamplingOptions;
+
+  try {
+    assert.equal(typeof getAiSamplingOptions, "function");
+
+    process.env.AI_PROVIDER = "google";
+    delete process.env.GOOGLE_PRIMARY_MODEL_ID;
+    delete process.env.GOOGLE_FALLBACK_MODEL_ID;
+    const exactGeminiFallback = getAiSamplingOptions("fallback", 0.2);
+    assert.deepEqual(exactGeminiFallback, {});
+    assert.equal("temperature" in exactGeminiFallback, false);
+    assert.equal("topP" in exactGeminiFallback, false);
+    assert.equal("topK" in exactGeminiFallback, false);
+
+    const gemmaPrimary = getAiSamplingOptions("primary", 0.2);
+    assert.deepEqual(gemmaPrimary, { temperature: 0.2 });
+    assert.equal("topP" in gemmaPrimary, false);
+    assert.equal("topK" in gemmaPrimary, false);
+
+    process.env.GOOGLE_FALLBACK_MODEL_ID = "gemini-3-flash-preview";
+    assert.deepEqual(getAiSamplingOptions("fallback", 0.2), {
+      temperature: 0.2,
+    });
+
+    process.env.GOOGLE_FALLBACK_MODEL_ID = "gemini-3.5-flash-lite-preview";
+    assert.deepEqual(getAiSamplingOptions("fallback", 0.2), {
+      temperature: 0.2,
+    });
+
+    process.env.AI_PROVIDER = "github";
+    assert.deepEqual(getAiSamplingOptions("fallback", 0.2), {
+      temperature: 0.2,
+    });
+
+    process.env.AI_PROVIDER = "qwen";
+    assert.deepEqual(getAiSamplingOptions("fallback", 0.4), {
+      temperature: 0.4,
+    });
+  } finally {
+    restoreEnvironment(previousValues);
+  }
+});
+
+test("AI callers use model-aware sampling options", () => {
+  const previousValues = {
+    AI_PROVIDER: process.env.AI_PROVIDER,
+    GOOGLE_PRIMARY_MODEL_ID: process.env.GOOGLE_PRIMARY_MODEL_ID,
+    GOOGLE_FALLBACK_MODEL_ID: process.env.GOOGLE_FALLBACK_MODEL_ID,
+  };
+
+  try {
+    process.env.AI_PROVIDER = "google";
+    delete process.env.GOOGLE_PRIMARY_MODEL_ID;
+    delete process.env.GOOGLE_FALLBACK_MODEL_ID;
+
+    assert.deepEqual(getDeepActionStreamSettings("structure", "primary"), {
+      temperature: 0.2,
+      maxOutputTokens: 300,
+    });
+    assert.deepEqual(getDeepActionStreamSettings("structure", "fallback"), {
+      maxOutputTokens: 300,
+    });
+
+    process.env.GOOGLE_FALLBACK_MODEL_ID = "gemini-3-flash-preview";
+    assert.deepEqual(getDeepActionStreamSettings("structure", "fallback"), {
+      temperature: 0.2,
+      maxOutputTokens: 300,
+    });
+  } finally {
+    restoreEnvironment(previousValues);
+  }
+
+  assert.match(
+    aiSource,
+    /streamExplanation[\s\S]*\.\.\.getAiSamplingOptions\(input\.modelTier,\s*0\.2\)/,
+  );
+  assert.doesNotMatch(aiSource, /streamExplanation[\s\S]*temperature:\s*0\.2/);
+  assert.match(
+    deepActionsSource,
+    /getDeepActionStreamSettings\(input\.action,\s*input\.modelTier\)/,
+  );
+  assert.match(
+    mnemonicSource,
+    /\.\.\.getAiSamplingOptions\("fallback",\s*0\.4\)/,
+  );
+  assert.doesNotMatch(
+    mnemonicSource,
+    /generateMnemonic[\s\S]*temperature:\s*0\.4/,
+  );
+});
+
 test("primary explanation has an explicit 800-token output budget", () => {
   assert.equal(aiModule.PRIMARY_EXPLAIN_MAX_OUTPUT_TOKENS, 800);
   assert.match(
@@ -324,6 +486,7 @@ test("Google model overrides are documented for local dogfood", () => {
   assert.match(envExampleSource, /local dogfood/i);
   assert.match(envExampleSource, /^GOOGLE_PRIMARY_MODEL_ID=""$/m);
   assert.match(envExampleSource, /^GOOGLE_FALLBACK_MODEL_ID=""$/m);
+  assert.match(envExampleSource, /^GOOGLE_GEMMA_THINKING_LEVEL=""$/m);
 });
 
 test("AI response locale remains locked to Vietnamese", () => {
@@ -905,26 +1068,39 @@ test("deep-action generation schemas tolerate recoverable model output", () => {
 });
 
 test("deep-action streaming uses bounded output and action-aware timeouts", () => {
-  assert.deepEqual(getDeepActionStreamSettings("structure"), {
-    temperature: 0.2,
-    maxOutputTokens: 300,
-  });
-  assert.deepEqual(getDeepActionStreamSettings("compare"), {
-    temperature: 0.2,
-    maxOutputTokens: 300,
-  });
-  assert.deepEqual(getDeepActionStreamSettings("easierExamples"), {
-    temperature: 0.2,
-    maxOutputTokens: 350,
-  });
-  assert.deepEqual(getDeepActionStreamSettings("conjugation"), {
-    temperature: 0.2,
-    maxOutputTokens: 300,
-  });
-  assert.deepEqual(getDeepActionStreamSettings("collocation"), {
-    temperature: 0.2,
-    maxOutputTokens: 350,
-  });
+  const previousValues = {
+    AI_PROVIDER: process.env.AI_PROVIDER,
+    GOOGLE_PRIMARY_MODEL_ID: process.env.GOOGLE_PRIMARY_MODEL_ID,
+  };
+
+  try {
+    process.env.AI_PROVIDER = "google";
+    delete process.env.GOOGLE_PRIMARY_MODEL_ID;
+
+    assert.deepEqual(getDeepActionStreamSettings("structure"), {
+      temperature: 0.2,
+      maxOutputTokens: 300,
+    });
+    assert.deepEqual(getDeepActionStreamSettings("compare"), {
+      temperature: 0.2,
+      maxOutputTokens: 300,
+    });
+    assert.deepEqual(getDeepActionStreamSettings("easierExamples"), {
+      temperature: 0.2,
+      maxOutputTokens: 350,
+    });
+    assert.deepEqual(getDeepActionStreamSettings("conjugation"), {
+      temperature: 0.2,
+      maxOutputTokens: 300,
+    });
+    assert.deepEqual(getDeepActionStreamSettings("collocation"), {
+      temperature: 0.2,
+      maxOutputTokens: 350,
+    });
+  } finally {
+    restoreEnvironment(previousValues);
+  }
+
   assert.equal(getDeepActionServerTimeoutMs("structure"), 22_000);
   assert.equal(getDeepActionServerTimeoutMs("conjugation"), 32_000);
 });
@@ -1014,6 +1190,22 @@ test("buildExplainPrompt follows the learner-assistant template from planning", 
   }
 });
 
+test("buildExplainPrompt bounds single-word pronunciation generation", () => {
+  const prompt = buildExplainPrompt({
+    selectedText: "curious",
+    surroundingParagraph: "The curious fox watched the moonlit road.",
+    sourceLanguage: "en",
+  });
+
+  assert.match(
+    prompt,
+    /Return exactly one short IPA or standard romanization transcription\./,
+  );
+  assert.match(prompt, /Keep pronunciation to a maximum of 64 characters\./);
+  assert.match(prompt, /Never repeat characters or transcriptions\./);
+  assert.match(prompt, /Omit pronunciation when uncertain\./);
+});
+
 test("buildExplainPrompt keeps phrase selections anchored to the full sentence", () => {
   const prompt = buildExplainPrompt({
     selectedText: "Caim was in the lead, followed by Lenka.",
@@ -1032,6 +1224,14 @@ test("buildExplainPrompt keeps phrase selections anchored to the full sentence",
   assert.match(
     prompt,
     /do not narrow the answer to a single word or sub-phrase/,
+  );
+  assert.doesNotMatch(
+    prompt,
+    /Return exactly one short IPA or standard romanization transcription\./,
+  );
+  assert.match(
+    prompt,
+    /Omit pronunciation, partOfSpeech, and difficultyHint unless the selected text is a single word\./,
   );
 });
 
@@ -1100,12 +1300,53 @@ test("deep-action prompts include locale, action schema, and selection context",
     assert.match(prompt, /Use short structured fields only\./);
     assert.match(prompt, /Do not write essays or multi-paragraph answers\./);
     assert.match(prompt, /Do not include greetings, sign-offs, thanks, wishes/);
-    assert.match(prompt, /Prefer an honest "notApplicable": true/);
+    if (action !== "structure") {
+      assert.match(prompt, /Prefer an honest "notApplicable": true/);
+    }
 
     for (const bannedPhrase of ["hy vọng", "chúc bạn", "cảm ơn", "cố gắng"]) {
       assert.ok(prompt.toLowerCase().includes(bannedPhrase));
     }
   }
+});
+
+test("Compare prompt requests a source-language confusable alternative", () => {
+  const prompt = buildComparePrompt({
+    selectedText: "foolhardy",
+    surroundingParagraph:
+      "Only a foolhardy rider would cross the flooded bridge at night.",
+    sourceLanguage: "en",
+  });
+
+  assert.match(prompt, /Selected text: "foolhardy"/);
+  assert.match(
+    prompt,
+    /alternative is exactly one source-language near-synonym or confusable word\/short phrase that a learner might mix up with the selected text/i,
+  );
+  assert.match(prompt, /alternative must stay in the source language/i);
+  assert.match(prompt, /Never use alternative for a Vietnamese translation/i);
+  assert.match(prompt, /Never use alternative for a simple antonym/i);
+  assert.match(
+    prompt,
+    /contrast is a short Vietnamese explanation comparing the selected text and the alternative in this context/i,
+  );
+  assert.match(
+    prompt,
+    /tip is an optional short Vietnamese usage or choice tip/i,
+  );
+  assert.match(prompt, /When applicable, do not include reason/i);
+  assert.match(
+    prompt,
+    /Use "notApplicable": true only when no plausible source-language confusable alternative exists/i,
+  );
+  assert.match(
+    prompt,
+    /Not applicable returns only "notApplicable": true and a short Vietnamese "reason"/i,
+  );
+  assert.match(
+    prompt,
+    /Do not include alternative, contrast, or tip in the not-applicable branch/i,
+  );
 });
 
 test("Structure prompt requests only the fixed field map and hard limits", () => {
@@ -1134,6 +1375,42 @@ test("Structure prompt requests only the fixed field map and hard limits", () =>
   assert.match(prompt, /greetings/i);
   assert.match(prompt, /essays/i);
   assert.ok(prompt.includes("Trong ngữ cảnh này, X là danh từ chỉ…"));
+});
+
+test("Structure prompt treats simple forms and fixed phrases as applicable", () => {
+  const prompt = buildStructurePrompt({
+    selectedText: "etched into history",
+    surroundingParagraph:
+      "The rescue was etched into history as an act of rare courage.",
+    sourceLanguage: "en",
+  });
+
+  assert.match(
+    prompt,
+    /Structure applies whenever the supplied context reveals a reliable construction, inflection\/form, modifier role, syntactic role, or fixed\/idiomatic construction/i,
+  );
+  assert.match(prompt, /A single word can still be applicable/i);
+  assert.match(prompt, /An ordinary inflected form can still be applicable/i);
+  assert.match(
+    prompt,
+    /A short or fixed\/idiomatic phrase can still be applicable/i,
+  );
+  assert.match(
+    prompt,
+    /MUST NOT return "notApplicable": true merely because the analysis is simple, ordinary, or not a complex grammar pattern/i,
+  );
+  assert.match(
+    prompt,
+    /Use "notApplicable": true only when no reliable construction, form, or grammatical role can be identified from the supplied context/i,
+  );
+  assert.match(
+    prompt,
+    /Applicable results require pattern, role, and whyHere/i,
+  );
+  assert.match(
+    prompt,
+    /Do not invent analysis when the context is genuinely insufficient/i,
+  );
 });
 
 test("conjugation prompt requires a compact discriminated morphology result", () => {

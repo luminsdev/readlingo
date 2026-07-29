@@ -5,6 +5,7 @@ import { streamObject, type LanguageModel } from "ai";
 import {
   aiExplanationSchema,
   normalizeFormTip,
+  PRONUNCIATION_MAX_LENGTH,
   type AiExplanationInput,
   type ExplainSelectionInput,
 } from "./ai-validation.ts";
@@ -61,7 +62,7 @@ const providerModelCatalog: Record<
 > = {
   google: {
     primary: "gemma-4-31b-it",
-    fallback: "gemini-2.5-flash-lite",
+    fallback: "gemini-3.5-flash-lite",
   },
   github: {
     primary: process.env.GITHUB_MODEL_ID ?? "gpt-4.1-mini",
@@ -179,7 +180,12 @@ export function getGoogleThinkingConfig(
   modelId: string,
 ): GoogleLanguageModelOptions["thinkingConfig"] {
   if (/^gemma-4-/.test(modelId)) {
-    return { thinkingLevel: "minimal" } satisfies NonNullable<
+    const thinkingLevel =
+      process.env.GOOGLE_GEMMA_THINKING_LEVEL?.trim().toLowerCase() === "high"
+        ? "high"
+        : "minimal";
+
+    return { thinkingLevel } satisfies NonNullable<
       GoogleLanguageModelOptions["thinkingConfig"]
     >;
   }
@@ -192,7 +198,10 @@ export function getGoogleThinkingConfig(
     >;
   }
 
-  if (/^gemini-3(?:\.1)?-flash(?:-|$)/.test(modelId)) {
+  if (
+    modelId === "gemini-3.5-flash-lite" ||
+    /^gemini-3(?:\.1)?-flash(?:-|$)/.test(modelId)
+  ) {
     return { thinkingLevel: "minimal" } satisfies NonNullable<
       GoogleLanguageModelOptions["thinkingConfig"]
     >;
@@ -232,6 +241,22 @@ export function getAiStreamObjectOptions(
   };
 }
 
+export function getAiSamplingOptions(
+  modelTier: ExplainModelTier,
+  temperature: number,
+): { temperature?: number } {
+  const modelTarget = getExplainModelTarget(modelTier);
+
+  if (
+    modelTarget.provider === "google" &&
+    modelTarget.modelId === "gemini-3.5-flash-lite"
+  ) {
+    return {};
+  }
+
+  return { temperature };
+}
+
 export function buildExplainPrompt({
   selectedText,
   surroundingParagraph,
@@ -245,7 +270,7 @@ export function buildExplainPrompt({
     ? [
         "Selection type: single word.",
         "Include partOfSpeech when you are confident.",
-        "Include pronunciation using IPA or the standard romanization for this language (pinyin for Chinese, romaji for Japanese, IPA for European languages).",
+        `Include pronunciation using IPA or the standard romanization for this language (pinyin for Chinese, romaji for Japanese, IPA for European languages). Return exactly one short IPA or standard romanization transcription. Keep pronunciation to a maximum of ${PRONUNCIATION_MAX_LENGTH} characters. Never repeat characters or transcriptions. Omit pronunciation when uncertain.`,
         'Set difficultyHint to exactly one of: "beginner", "intermediate", or "advanced".',
         "If this word has multiple common meanings, state which meaning applies here and mention 1 alternative meaning the learner might confuse it with.",
         "Each example sentence MUST include a Vietnamese translation on the next line.",
@@ -374,7 +399,7 @@ export function streamExplanation(input: ExplainSelectionInput) {
     schemaDescription:
       "Vietnamese translation and explanation for a highlighted word or sentence in an EPUB reader.",
     maxOutputTokens: PRIMARY_EXPLAIN_MAX_OUTPUT_TOKENS,
-    temperature: 0.2,
+    ...getAiSamplingOptions(input.modelTier, 0.2),
     timeout: 20_000,
   });
 }

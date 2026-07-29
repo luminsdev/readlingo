@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 
-import { getAiLanguageModel } from "./ai.ts";
+import { getAiLanguageModel, getAiSamplingOptions } from "./ai.ts";
 import { getAiResponseLocaleInstruction } from "./ai-locale.ts";
 import { mnemonicSchema } from "./vocabulary-validation.ts";
 
@@ -53,7 +53,7 @@ export async function generateMnemonic(input: GenerateMnemonicInput) {
   const result = await generateText({
     model: getAiLanguageModel("fallback"),
     prompt: buildMnemonicPrompt(input),
-    temperature: 0.4,
+    ...getAiSamplingOptions("fallback", 0.4),
     timeout: 20_000,
   });
 

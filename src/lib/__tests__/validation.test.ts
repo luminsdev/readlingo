@@ -97,6 +97,37 @@ describe("AI Validation Schemas", () => {
     expect(parsed.data.alternativeMeaning).toBeUndefined();
   });
 
+  it("aiExplanationSchema limits optional pronunciation to 64 characters", () => {
+    const basePayload = {
+      translation: "to mo",
+      explanation: "mo ta dieu gi do rat muon tim hieu",
+      examples: [],
+    };
+
+    expect(
+      aiExplanationSchema.safeParse({
+        ...basePayload,
+        pronunciation: "x".repeat(64),
+      }).success,
+    ).toBe(true);
+
+    const blankPronunciation = aiExplanationSchema.safeParse({
+      ...basePayload,
+      pronunciation: "   ",
+    });
+    expect(blankPronunciation.success).toBe(true);
+    if (blankPronunciation.success) {
+      expect(blankPronunciation.data.pronunciation).toBeUndefined();
+    }
+
+    expect(
+      aiExplanationSchema.safeParse({
+        ...basePayload,
+        pronunciation: "x".repeat(65),
+      }).success,
+    ).toBe(false);
+  });
+
   it("aiExplanationSchema allows missing examples so fallback examples can be synthesized", () => {
     expect(
       aiExplanationSchema.safeParse({

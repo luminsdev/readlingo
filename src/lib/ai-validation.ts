@@ -6,6 +6,7 @@ const difficultyHintSchema = z
 
 const selectionTypeSchema = z.enum(["word", "phrase"]);
 
+export const PRONUNCIATION_MAX_LENGTH = 64;
 export const FORM_TIP_MAX_LENGTH = 180;
 
 export function normalizeFormTip(value: unknown): string | undefined {
@@ -370,7 +371,7 @@ export const collocationDeepActionResponseSchema = z
 
 export const aiExplanationSchema = z.object({
   translation: z.string().trim().min(1, "Translation is required.").max(2000),
-  pronunciation: optionalTrimmedStringSchema(200),
+  pronunciation: optionalTrimmedStringSchema(PRONUNCIATION_MAX_LENGTH),
   partOfSpeech: optionalTrimmedStringSchema(120),
   difficultyHint: difficultyHintSchema,
   explanation: z.string().trim().min(1, "Explanation is required.").max(800),
